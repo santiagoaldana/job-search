@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 orchestrate.py gmail auth)",
+      "Bash(python3 orchestrate.py schedule install-gmail)",
+      "Bash(python3 orchestrate.py gmail scan)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import json,sys; [print\\(e['id'], e['name']\\) for e in json.load\\(sys.stdin\\) if 'nacha' in e['name'].lower\\(\\)]\")",
+      "Bash(curl -s -X POST \"http://localhost:8000/api/events/add-to-calendar?event_id=2\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(python3 setup_google_calendar.py)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\)['installed']; print\\('client_id:', d['client_id']\\); print\\('redirect_uris:', d.get\\('redirect_uris',[]\\)\\)\")",
+      "Bash(python3 -c \"import secrets; print\\(secrets.token_hex\\(32\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)\\)\")",
+      "Bash(curl -s http://localhost:8000/api/health)",
+      "Bash(curl -s http://localhost:8000/auth/me)",
+      "Bash(curl -sI http://localhost:8000/auth/login)",
+      "Bash(curl -sI -X GET \"http://localhost:8000/auth/login\")",
+      "Bash(pkill -f cloudflared)",
+      "Bash(disown)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ],
+    "additionalDirectories": [
+      "/Users/santiagoaldana/.cloudflared"
+    ]
+  }
+}

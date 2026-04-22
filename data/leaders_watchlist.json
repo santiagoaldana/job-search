@@ -1,0 +1,39 @@
+[
+  {
+    "name": "Paul Baier",
+    "organization": "GAI Insights",
+    "topics": [
+      "generative AI",
+      "enterprise AI",
+      "AI strategy",
+      "Boston AI"
+    ],
+    "substack_url": "https://gaiinsights.substack.com",
+    "luma_profile_url": null,
+    "meetup_url": null,
+    "website_url": "https://gaiinsights.com",
+    "notes": "Discovered MIT Imagination in Action 2026 via his email. Active MIT ecosystem connector \u2014 spoke at MIT CSAIL March 2026. Substack RSS confirmed at gaiinsights.substack.com/feed.",
+    "added_date": "2026-04-09",
+    "last_checked": "2026-04-09",
+    "events_found": [
+      "https://imaginationinaction.co/2604mit/workshop"
+    ]
+  },
+  {
+    "name": "Judah Phillips",
+    "organization": "Boston Generative AI Meetup",
+    "topics": [
+      "generative AI",
+      "LLM",
+      "Boston AI"
+    ],
+    "substack_url": null,
+    "luma_profile_url": null,
+    "meetup_url": "https://www.meetup.com/boston-generative-ai-meetup/",
+    "website_url": "https://aiweek.boston",
+    "notes": "Organizer of Boston Generative AI Meetup (Meetup.com) and Boston AI Week.",
+    "added_date": "2026-04-09",
+    "last_checked": "2026-04-09",
+    "events_found": []
+  }
+]

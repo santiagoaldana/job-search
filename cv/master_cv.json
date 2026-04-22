@@ -1,0 +1,154 @@
+{
+  "name": "Santiago Aldana",
+  "contact": {
+    "phone": "617-216-7003",
+    "email": "aldana.santiago@gmail.com",
+    "linkedin": "linkedin.com/in/santiago-aldana",
+    "location": "Boston, MA"
+  },
+  "summary": "MIT Sloan MBA executive with 20+ years of strategic leadership in fintech, AI, payments, and digital transformation across Latin America and the U.S.",
+  "competencies": [
+    "Strategic Product & Value Creation",
+    "FinTech & Digital Payments",
+    "AI/ML & Emerging Tech Strategy",
+    "New Business Creation",
+    "Global Transformation & P&L Impact",
+    "Fraud Prevention",
+    "Digital Identity",
+    "Open Banking & Embedded Finance",
+    "Biometrics & Authentication",
+    "Agentic AI",
+    "Blockchain",
+    "Cybersecurity",
+    "KYC & Compliance",
+    "Design Thinking & Agile Methodologies"
+  ],
+  "experience": [
+    {
+      "company": "AI Data Solutions",
+      "title": "Managing Partner",
+      "location": "Bogota, Colombia",
+      "dates": "2024\u2013Present",
+      "bullets": [
+        "Secured an exclusive LATAM distribution agreement with Maven AGI (Agentic AI for Customer Experience), expanding reach through a network of regional distributors.",
+        "Implemented agentic AI CX platform that optimizes sales, marketing, and customer support, increasing efficiency and customer engagement.",
+        "Explored Agentic AI in lower risk scenarios to learn innovation alternatives that will emerge in regulated industries at the intersection of payments, blockchain, digital identity, and cybersecurity."
+      ],
+      "accomplishment": "Keep updated with Agentic AI, learning what can be valuable for financial services/payments."
+    },
+    {
+      "company": "SoyYo (Digital Identity and fraud prevention platform owned by the 3 main banks)",
+      "title": "CEO",
+      "location": "Bogota, Colombia",
+      "dates": "2020\u20132024",
+      "bullets": [
+        "Created and scaled a user-centric digital identity platform adopted by 3M+ users, delivering onboarding, KYC, biometrics, authentication, and cybersecurity services; negotiated its successful sale to Redeban, Colombia's leading payment processor.",
+        "Forged strategic alliances with Mastercard, Lexis Nexis, Experian, Thales, and TransUnion, positioning SoyYo as a trusted ecosystem for digital identity and fraud prevention.",
+        "Directed cross-bank collaboration among Colombia's top 3 financial institutions, aligning stakeholders on AI-driven biometrics, authentication, consent management, and fraud prevention initiatives in highly regulated financial products and compliance-conscious business processes.",
+        "Built a high-performing digital business team from scratch, achieving an employee NPS of 9.1 and fostering a culture of innovation and execution."
+      ],
+      "accomplishment": "Startup Growth & Exit: Launched SoyYo APIfied identity platform to improve payments experience and onboarding processes. Led to successful exit via acquisition by Colombia's leading PSP, after growth to 3M+ user identities."
+    },
+    {
+      "company": "Avianca",
+      "title": "Chief Digital & Technology Officer",
+      "location": "Bogota, Colombia",
+      "dates": "2017\u20132019",
+      "bullets": [
+        "Directed a $110M IT budget, delivering a company-wide digital transformation that enabled omnichannel customer knowledge and personalization.",
+        "Grew online sales by 15% YoY, generating $700\u2013800M annually and representing 47% of Avianca's sales growth.",
+        "Enabled Amazon partnership, positioning Avianca Cargo as LatAm's primary distribution partner.",
+        "Improved digital NPS by 12+ points by redesigning customer touchpoints through digital channels.",
+        "Embedded analytics, data, and innovation into core operations, enabling faster decision-making, leaner processes, and business transformation through design thinking, agile cells, and lean startup methodologies."
+      ],
+      "accomplishment": "Performed airline-wide digital transformation including digital channels, flight/land operations, finance, analytics. In digital channels alone, achieved 47% of total sales growth, increased NPS by 12 points, and an increase in 10pp through better payments experience."
+    },
+    {
+      "company": "IQ Outsourcing (BPO and IT services to banking, telecom, and insurance sectors)",
+      "title": "CEO",
+      "location": "Bogota, Colombia",
+      "dates": "2015\u20132017",
+      "bullets": [
+        "Transformed the business from a traditional BPO into a digital solutions provider for banking, health, and telecom sectors.",
+        "Reduced HR cost-to-revenue ratio by 21 percentage points through AI, automation and IT-driven efficiency.",
+        "Launched new digital products for banking and health industries, enhancing customer knowledge and engagement.",
+        "Pioneered the adoption of Blockchain, AI, mobile, DevOps, and cloud technologies, driving innovation and competitiveness."
+      ],
+      "accomplishment": "Improved conversion rate for new credit card issuing by performing digital transformation of processes at retail, incorporating AI."
+    },
+    {
+      "company": "Uff M\u00f3vil",
+      "title": "CEO & Founding Partner",
+      "location": "Bogota, Colombia",
+      "dates": "2010\u20132015",
+      "bullets": [
+        "Founded and launched LATAM's first Mobile Virtual-Network Operator, expanding financial inclusion through mobile tools, education, and digital channels.",
+        "Scaled to 400K customers in the first year, demonstrating rapid market adoption.",
+        "Partnered with Grupo Ardila L\u00fclle and later negotiated the sale of 70% of the company to Bancolombia at an $18M valuation.",
+        "Advised Bancolombia Group ventures on mobile, digital, and fintech innovation, driving cultural and customer experience transformation."
+      ],
+      "accomplishment": "Pioneering Fintech \u2013 Founded and scaled Uff Movil, LatAm's first Mobile Virtual-Network Operator, reaching 400K customers in the first year, valued at $18M, acquired by Bancolombia."
+    },
+    {
+      "company": "Telef\u00f3nica",
+      "title": "CIO & Director Customer Loyalty",
+      "location": "Bogot\u00e1, Colombia",
+      "dates": "2004\u20132009",
+      "bullets": [
+        "Delivered a \u20ac60M IT transformation program across 5 countries in just 17 months (vs. a 4-year plan), modernizing operations and enabling rapid product launches.",
+        "Enabled 100%+ annual sales growth by improving provisioning and expanding new product offerings.",
+        "Led the operational and technological merger of 40 business units, positioning the company for acquisition by Telef\u00f3nica.",
+        "Directed a team of 500+ professionals across multiple countries, improving customer retention and sales conversion by 5+ percentage points through broadband and TV strategies."
+      ],
+      "accomplishment": "Technology at Scale \u2013 Led Telef\u00f3nica's $60M+ IT transformation across 5 countries in 17 months (vs. 4-year plan)."
+    }
+  ],
+  "previous_experience": [
+    {
+      "company": "Chamber of Commerce of Bogot\u00e1",
+      "title": "CFO",
+      "summary": "Led digital transformation through SAP implementation, managed as Board Member a digital certificate subsidiary, and introduced a risk-based model for a COP 70B investment portfolio."
+    },
+    {
+      "company": "Citibank",
+      "title": "Marketing & Sales Manager",
+      "summary": "Launched Mastercard and Visa credit cards in Colombia, cut onboarding time from two weeks to one day, and developed the \"Citigold\" high-value customer segment."
+    }
+  ],
+  "board": [
+    {
+      "company": "Zulu",
+      "role": "Board Member",
+      "dates": "2024\u20132025",
+      "summary": "Advising a cross-border payments platform using crypto and stablecoins; coaching founders to reach product-market fit."
+    },
+    {
+      "company": "Tuya Credit Card",
+      "role": "Independent Board Member",
+      "dates": "2021\u20132024",
+      "summary": "Guided Colombia's largest card issuer (bank + retailer JV) to industry leadership in open banking and embedded finance."
+    },
+    {
+      "company": "Colombia Fintech",
+      "role": "Board Member",
+      "dates": "2019\u20132022",
+      "summary": "Led regulatory efforts to promote open finance, instant payments, and financial inclusion for unbanked populations."
+    }
+  ],
+  "education": [
+    {
+      "institution": "MIT Sloan School of Management",
+      "degree": "MBA - Management of Technology, Emphasis on Strategy, Innovation, and Technology",
+      "location": "Boston, MA"
+    },
+    {
+      "institution": "Universidad de los Andes",
+      "degree": "Bachelor's in Industrial Engineering, Thesis: Credit Score Model for Diners Club Credit Card",
+      "location": "Bogot\u00e1, Colombia"
+    }
+  ],
+  "additional": {
+    "languages": "Fully bilingual in Spanish and English",
+    "work_authorization": "U.S.A. and Colombia"
+  }
+}

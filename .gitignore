@@ -1,0 +1,16 @@
+.env
+*.db
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+node_modules/
+web/node_modules/
+cv/output/
+*.pdf
+*.log
+/tmp/
+.cloudflared/
+~/.config/job-search/
+skills/__pycache__/
+app/__pycache__/

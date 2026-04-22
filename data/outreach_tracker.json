@@ -1,0 +1,20 @@
+[
+  {
+    "company": "Ketryx",
+    "contact_name": "Erez Kaminski",
+    "contact_role": "CEO",
+    "contact_email": "",
+    "channel": "email",
+    "sent_date": "2026-04-09",
+    "status": "responded",
+    "follow_up_due": "2026-04-14",
+    "second_contact_due": "2026-04-20",
+    "second_contact_name": "",
+    "notes": "Met today, sent intro email\n[Auto] Reply received Fri, 10 Apr 2026 14:26:40 +0000 (UTC): See Erez Kaminski&#39;s connections, experience, and more ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏ ͏",
+    "informational_done": false,
+    "referral_received": false,
+    "referral_contact": "",
+    "generated_email": "",
+    "generated_subject": ""
+  }
+]

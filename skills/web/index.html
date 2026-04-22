@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Search — Santiago Aldana</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #222535;
+    --border: #2e3148;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --blue: #3b82f6;
+    --blue-dim: #1e3a5f;
+    --green: #22c55e;
+    --green-dim: #14532d;
+    --yellow: #eab308;
+    --yellow-dim: #422006;
+    --red: #ef4444;
+    --red-dim: #450a0a;
+    --purple: #a855f7;
+    --orange: #f97316;
+    --radius: 10px;
+    --gap: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.5; }
+
+  /* Layout */
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .logo { font-size: 16px; font-weight: 700; color: var(--text); }
+  .logo span { color: var(--blue); }
+  .date-label { color: var(--muted); font-size: 13px; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+
+  .main { display: grid; grid-template-columns: 1fr; gap: var(--gap); padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+
+  /* Pulse bar */
+  .pulse { display: grid; grid-template-columns: repeat(5, 1fr) 2fr; gap: 10px; }
+  .pulse-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; text-align: center; }
+  .pulse-card .num { font-size: 28px; font-weight: 700; line-height: 1; }
+  .pulse-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+  .pulse-card.boosters .num { color: var(--yellow); }
+  .pulse-card.responded .num { color: var(--green); }
+  .pulse-card.waiting .num { color: var(--blue); }
+  .pulse-card.drafts .num { color: var(--purple); }
+  .pulse-card.overdue .num { color: var(--red); }
+  .goal-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .goal-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+  .goal-bar-wrap { background: var(--surface2); border-radius: 99px; height: 10px; overflow: hidden; }
+  .goal-bar { background: var(--yellow); height: 100%; border-radius: 99px; transition: width .4s; }
+  .goal-text { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  /* Three-column grid */
+  .cols { display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: var(--gap); }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .card-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .card-body { padding: 0; }
+  .badge { font-size: 11px; font-weight: 600; border-radius: 99px; padding: 2px 8px; }
+  .badge-red { background: var(--red-dim); color: var(--red); }
+  .badge-yellow { background: var(--yellow-dim); color: var(--yellow); }
+  .badge-green { background: var(--green-dim); color: var(--green); }
+  .badge-blue { background: var(--blue-dim); color: var(--blue); }
+  .badge-muted { background: var(--surface2); color: var(--muted); }
+
+  /* Action items */
+  .action-item { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .action-item:last-child { border-bottom: none; }
+  .action-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .action-company { font-weight: 600; font-size: 14px; }
+  .action-contact { color: var(--muted); font-size: 13px; }
+  .action-instruction { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .action-cmd { font-family: monospace; font-size: 11px; color: var(--blue); background: var(--surface2); border-radius: 4px; padding: 6px 10px; margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+  /* LAMP table */
+  .lamp-table { width: 100%; border-collapse: collapse; }
+  .lamp-table th { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 500; }
+  .lamp-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .lamp-table tr:last-child td { border-bottom: none; }
+  .lamp-table tr:hover td { background: var(--surface2); cursor: pointer; }
+  .mot-badge { font-size: 12px; font-weight: 700; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+  .mot-high { background: rgba(234,179,8,.15); color: var(--yellow); }
+  .mot-med  { background: rgba(59,130,246,.15); color: var(--blue); }
+  .mot-low  { background: var(--surface2); color: var(--muted); }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+  .dot-start     { background: var(--muted); }
+  .dot-sent      { background: var(--blue); }
+  .dot-responded { background: var(--yellow); }
+  .dot-booster   { background: var(--green); }
+  .company-name { font-weight: 600; font-size: 13px; }
+  .contact-pill { font-size: 11px; color: var(--muted); }
+  .btn-outreach { font-size: 11px; background: var(--blue-dim); color: var(--blue); border: none; border-radius: 5px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+  .btn-outreach:hover { background: var(--blue); color: white; }
+
+  /* Events */
+  .event-item { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .event-item:last-child { border-bottom: none; }
+  .event-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .event-name { font-weight: 500; font-size: 13px; line-height: 1.3; }
+  .event-date { font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .event-date.today    { color: var(--red); }
+  .event-date.tomorrow { color: var(--orange); }
+  .event-date.soon     { color: var(--yellow); }
+  .event-date.normal   { color: var(--blue); }
+  .event-loc { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .event-link { font-size: 11px; color: var(--blue); text-decoration: none; }
+  .event-link:hover { text-decoration: underline; }
+
+  /* Draft review panel */
+  .draft-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .draft-item { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .draft-item:last-child { border-bottom: none; }
+  .draft-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .draft-to { font-weight: 600; }
+  .draft-age { font-size: 11px; color: var(--muted); }
+  .draft-subject { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .draft-body { font-size: 13px; background: var(--surface2); border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; margin-bottom: 10px; max-height: 120px; overflow: hidden; position: relative; }
+  .draft-body.expanded { max-height: none; }
+  .draft-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .draft-email-input { flex: 1; min-width: 160px; background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; padding: 5px 10px; color: var(--text); font-size: 12px; }
+  .draft-email-input:focus { outline: none; border-color: var(--blue); }
+  .wc { font-size: 11px; color: var(--muted); margin-left: auto; }
+  .wc.over { color: var(--red); }
+
+  /* Buttons */
+  .btn { border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-send   { background: var(--green); color: #000; }
+  .btn-skip   { background: var(--surface2); color: var(--muted); }
+  .btn-delete { background: var(--red-dim); color: var(--red); }
+  .btn-edit   { background: var(--blue-dim); color: var(--blue); }
+  .btn-scan   { background: var(--blue); color: white; font-size: 13px; padding: 7px 18px; }
+  .btn-scan.running { background: var(--surface2); color: var(--muted); }
+  .btn-primary { background: var(--blue); color: white; }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+
+  /* Add contact form */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px; }
+  .form-grid.full { grid-template-columns: 1fr; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .field input, .field select, .field textarea { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 13px; font-family: inherit; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--blue); }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .form-footer { padding: 0 16px 16px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+  .tab { padding: 10px 14px; font-size: 12px; font-weight: 500; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab.active { color: var(--text); border-bottom-color: var(--blue); }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* Empty state */
+  .empty { padding: 32px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+  .empty-icon { font-size: 28px; margin-bottom: 8px; }
+
+  /* Toast */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 18px; font-size: 13px; z-index: 999; display: none; box-shadow: 0 8px 24px rgba(0,0,0,.4); max-width: 320px; }
+  #toast.success { border-color: var(--green); color: var(--green); }
+  #toast.error   { border-color: var(--red); color: var(--red); }
+
+  /* Spinner */
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--surface2); border-top-color: var(--blue); border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Scrollable */
+  .scroll { max-height: 480px; overflow-y: auto; }
+  .scroll::-webkit-scrollbar { width: 4px; }
+  .scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Utility */
+  .flex { display: flex; align-items: center; }
+  .gap-8 { gap: 8px; }
+  .text-muted { color: var(--muted); }
+  .text-green { color: var(--green); }
+  .text-red   { color: var(--red); }
+  .mt-4 { margin-top: 4px; }
+  .hidden { display: none !important; }
+
+  /* LinkedIn tab styles */
+  .li-draft-item { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .li-draft-item:last-child { border-bottom: none; }
+  .li-type-badge { font-size: 10px; font-weight: 700; letter-spacing: .08em; border-radius: 4px; padding: 2px 7px; text-transform: uppercase; }
+  .li-type-post    { background: rgba(59,130,246,.15); color: var(--blue); }
+  .li-type-comment { background: rgba(168,85,247,.15); color: var(--purple); }
+  .li-type-sched   { background: rgba(34,197,94,.12); color: var(--green); }
+  .li-target { font-size: 11px; color: var(--muted); margin: 4px 0; }
+  .li-snippet { font-size: 11px; color: var(--muted); font-style: italic; margin-bottom: 6px; max-height: 40px; overflow: hidden; }
+  .li-body { font-size: 13px; background: var(--surface2); border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; margin-bottom: 10px; max-height: 100px; overflow: hidden; }
+  .li-body.expanded { max-height: none; }
+  .li-score { font-size: 11px; color: var(--muted); }
+  .li-sched-time { font-size: 11px; font-weight: 600; color: var(--green); }
+  .li-manual-section { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .li-manual-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 10px; }
+  .li-input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 13px; font-family: inherit; margin-bottom: 8px; }
+  .li-input:focus { outline: none; border-color: var(--blue); }
+  .li-textarea { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 13px; font-family: inherit; resize: vertical; min-height: 70px; margin-bottom: 8px; }
+  .li-textarea:focus { outline: none; border-color: var(--blue); }
+  .li-auth-bar { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+  .li-header-bar { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">Job Search <span>·</span> Santiago Aldana</div>
+    <div class="date-label" id="dateLabel">—</div>
+  </div>
+  <div class="topbar-right">
+    <span id="scanStatus" class="text-muted" style="font-size:12px"></span>
+    <button class="btn btn-scan" id="btnScan" onclick="triggerScan()">Scan Gmail</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Pulse -->
+  <div class="pulse" id="pulse">
+    <div class="pulse-card boosters"><div class="num" id="pBoosters">—</div><div class="label">Boosters</div></div>
+    <div class="pulse-card responded"><div class="num" id="pResponded">—</div><div class="label">Responded</div></div>
+    <div class="pulse-card waiting"><div class="num" id="pWaiting">—</div><div class="label">Waiting</div></div>
+    <div class="pulse-card drafts"><div class="num" id="pDrafts">—</div><div class="label">Drafts</div></div>
+    <div class="pulse-card overdue"><div class="num" id="pOverdue">—</div><div class="label">Overdue</div></div>
+    <div class="goal-card">
+      <div class="goal-label">Booster goal — 6 boosters → referral → job</div>
+      <div class="goal-bar-wrap"><div class="goal-bar" id="goalBar" style="width:0%"></div></div>
+      <div class="goal-text" id="goalText">0 / 6 boosters</div>
+    </div>
+  </div>
+
+  <!-- Three columns -->
+  <div class="cols">
+
+    <!-- Left: Actions + Add contact -->
+    <div style="display:flex;flex-direction:column;gap:var(--gap)">
+
+      <!-- Actions due -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Actions Due</span>
+          <span class="badge badge-red hidden" id="overdueCount">0 overdue</span>
+        </div>
+        <div class="card-body scroll" id="actionsBody">
+          <div class="empty"><div class="spin"></div></div>
+        </div>
+      </div>
+
+      <!-- Add contact -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Add New Contact</span></div>
+        <div class="form-grid">
+          <div class="field"><label>Company *</label><input id="fCompany" placeholder="Ketryx"></div>
+          <div class="field"><label>Full Name *</label><input id="fContact" placeholder="Erez Kaminski"></div>
+          <div class="field"><label>Title *</label><input id="fRole" placeholder="CEO"></div>
+          <div class="field"><label>Email</label><input id="fEmail" placeholder="erez@ketryx.com" type="email"></div>
+          <div class="field"><label>Channel</label>
+            <select id="fChannel">
+              <option value="email">Email</option>
+              <option value="linkedin_group">LinkedIn</option>
+              <option value="linkedin_connect">LinkedIn Connect</option>
+            </select>
+          </div>
+          <div class="field"><label>How you met</label><input id="fNotes" placeholder="Met at MIT event"></div>
+        </div>
+        <div class="form-footer">
+          <button class="btn btn-primary" style="width:100%" onclick="addContact()">Add Contact + Start 3B7 Timer</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Center: Tabs — Drafts / LAMP / Leads -->
+    <div class="card">
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('drafts',this)">Drafts <span id="draftCountTab" class="badge badge-muted" style="margin-left:4px">—</span></div>
+        <div class="tab" onclick="showTab('linkedin',this)">LinkedIn <span id="liCountTab" class="badge badge-muted" style="margin-left:4px">—</span></div>
+        <div class="tab" onclick="showTab('lamp',this)">LAMP Targets</div>
+        <div class="tab" onclick="showTab('leads',this)">Leads</div>
+        <div class="tab" onclick="showTab('tracker',this)">Tracker</div>
+      </div>
+
+      <!-- Drafts -->
+      <div class="tab-pane active scroll" id="tab-drafts" style="max-height:640px">
+        <div class="empty"><div class="spin"></div></div>
+      </div>
+
+      <!-- LinkedIn -->
+      <div class="tab-pane" id="tab-linkedin" style="max-height:640px;overflow-y:auto">
+        <div class="empty"><div class="spin"></div></div>
+      </div>
+
+      <!-- LAMP -->
+      <div class="tab-pane scroll" id="tab-lamp" style="max-height:640px">
+        <div class="empty"><div class="spin"></div></div>
+      </div>
+
+      <!-- Leads -->
+      <div class="tab-pane scroll" id="tab-leads" style="max-height:640px">
+        <div class="empty"><div class="spin"></div></div>
+      </div>
+
+      <!-- Tracker -->
+      <div class="tab-pane scroll" id="tab-tracker" style="max-height:640px">
+        <div class="empty"><div class="spin"></div></div>
+      </div>
+    </div>
+
+    <!-- Right: Events -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Next 14 Days</span></div>
+      <div class="card-body scroll" id="eventsBody">
+        <div class="empty"><div class="spin"></div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Utilities ──────────────────────────────────────────────────────────────
+
+function toast(msg, type='success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = type;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3500);
+}
+
+async function api(path, opts={}) {
+  const r = await fetch(path, { headers: {'Content-Type':'application/json'}, ...opts });
+  return r.json();
+}
+
+function showTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'lamp'     && !document.getElementById('tab-lamp').dataset.loaded)     loadLamp();
+  if (name === 'leads'    && !document.getElementById('tab-leads').dataset.loaded)    loadLeads();
+  if (name === 'tracker'  && !document.getElementById('tab-tracker').dataset.loaded)  loadTracker();
+  if (name === 'linkedin' && !document.getElementById('tab-linkedin').dataset.loaded) loadLinkedIn();
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+
+async function loadDashboard() {
+  const d = await api('/api/dashboard');
+
+  // Pulse
+  document.getElementById('dateLabel').textContent = d.pulse.date;
+  document.getElementById('pBoosters').textContent  = d.pulse.boosters;
+  document.getElementById('pResponded').textContent = d.pulse.responded;
+  document.getElementById('pWaiting').textContent   = d.pulse.waiting;
+  document.getElementById('pDrafts').textContent    = d.pulse.pending_drafts;
+  document.getElementById('pOverdue').textContent   = d.pulse.overdue;
+  const pct = Math.min(100, Math.round(d.pulse.boosters / d.pulse.booster_target * 100));
+  document.getElementById('goalBar').style.width = pct + '%';
+  document.getElementById('goalText').textContent = `${d.pulse.boosters} / ${d.pulse.booster_target} boosters`;
+
+  if (d.pulse.overdue > 0) {
+    const el = document.getElementById('overdueCount');
+    el.textContent = d.pulse.overdue + ' overdue';
+    el.classList.remove('hidden');
+  }
+
+  // Actions
+  renderActions(d.actions, d.pulse.pending_drafts);
+
+  // Events
+  renderEvents(d.events);
+
+  // Scan status
+  if (d.scan.last_run) {
+    const dt = new Date(d.scan.last_run);
+    document.getElementById('scanStatus').textContent = 'Last scan: ' + dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  }
+}
+
+function renderActions(actions, draftCount) {
+  const el = document.getElementById('actionsBody');
+  let html = '';
+
+  if (actions.length === 0 && draftCount === 0) {
+    html = '<div class="empty"><div class="empty-icon">✓</div>Nothing overdue — good standing.</div>';
+  }
+
+  actions.forEach(a => {
+    const badgeClass = a.overdue ? 'badge-red' : 'badge-yellow';
+    const tagText    = a.overdue ? `OVERDUE +${a.days_diff}d` : `DUE ${fmtDate(a.due)}`;
+    html += `
+      <div class="action-item">
+        <div class="action-top">
+          <span class="badge ${badgeClass}">${tagText}</span>
+          <span class="badge badge-muted">${a.label}</span>
+        </div>
+        <div class="action-company">${a.company} <span class="action-contact">— ${a.contact}</span></div>
+        <div class="action-instruction">${a.instruction}</div>
+        ${a.label !== 'Harvest' ? `
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn btn-sm btn-primary" onclick="generateEmail('${esc(a.company)}','${esc(a.contact)}','${esc(a.contact_role)}')">Generate email</button>
+          <button class="btn btn-sm btn-skip" onclick="markResponded('${esc(a.company)}','${esc(a.contact)}',false)">Mark responded</button>
+          <button class="btn btn-sm" style="background:var(--yellow-dim);color:var(--yellow)" onclick="markResponded('${esc(a.company)}','${esc(a.contact)}',true)">★ Booster</button>
+        </div>` : `
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn btn-sm btn-primary" onclick="generateEmail('${esc(a.company)}','${esc(a.contact)}','${esc(a.contact_role)}')">Draft check-in</button>
+        </div>`}
+      </div>`;
+  });
+
+  if (draftCount > 0) {
+    html += `
+      <div class="action-item">
+        <div class="action-top"><span class="badge" style="background:rgba(168,85,247,.15);color:#a855f7">${draftCount} DRAFTS</span></div>
+        <div class="action-company">Follow-up emails awaiting approval</div>
+        <div class="action-instruction">Review, edit, and send from the Drafts tab →</div>
+      </div>`;
+  }
+
+  el.innerHTML = html || '<div class="empty">Nothing due today.</div>';
+}
+
+function renderEvents(events) {
+  const el = document.getElementById('eventsBody');
+  if (!events.length) { el.innerHTML = '<div class="empty">No relevant events in next 14 days.</div>'; return; }
+  let html = '';
+  events.forEach(e => {
+    const cls = e.days_away === 0 ? 'today' : e.days_away === 1 ? 'tomorrow' : e.days_away <= 7 ? 'soon' : 'normal';
+    const nameLink = e.url ? `<a class="event-link" href="${e.url}" target="_blank">${e.name}</a>` : e.name;
+    const urgent = e.urgent ? ' <span style="color:var(--red);font-size:11px">⚠ Soon</span>' : '';
+    html += `<div class="event-item">
+      <div class="event-top">
+        <div class="event-name">${nameLink}${urgent}</div>
+        <div class="event-date ${cls}">${e.date_label}</div>
+      </div>
+      ${e.location ? `<div class="event-loc">${e.location}</div>` : ''}
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+// ── Drafts ─────────────────────────────────────────────────────────────────
+
+async function loadDrafts() {
+  const d = await api('/api/drafts');
+  const count = d.total;
+  document.getElementById('draftCountTab').textContent = count;
+
+  const el = document.getElementById('tab-drafts');
+  if (count === 0) { el.innerHTML = '<div class="empty"><div class="empty-icon">✓</div>No pending drafts.</div>'; return; }
+
+  let html = '';
+  d.drafts.forEach(draft => {
+    const wc    = draft.word_count || 0;
+    const wcCls = wc > 75 ? 'over' : '';
+    const age   = draft.days_elapsed ? `${draft.days_elapsed}d overdue` : '';
+    const hasEmail = draft.contact_email ? true : false;
+    html += `
+    <div class="draft-item" id="draft-${draft.draft_id}">
+      <div class="draft-header">
+        <span class="draft-to">${draft.contact_name} <span class="text-muted">@ ${draft.company}</span></span>
+        <span class="draft-age">${age}</span>
+      </div>
+      <div class="draft-subject text-muted">Subject: ${draft.subject}</div>
+      <div class="draft-body" id="body-${draft.draft_id}">${draft.body}</div>
+      <div class="draft-actions">
+        ${!hasEmail ? `<input class="draft-email-input" id="email-${draft.draft_id}" placeholder="their@email.com" type="email">` : `<span style="font-size:11px;color:var(--muted)">${draft.contact_email}</span>`}
+        <span class="wc ${wcCls}">${wc}w</span>
+        <button class="btn btn-edit btn-sm" onclick="editDraft('${draft.draft_id}')">Edit</button>
+        <button class="btn btn-send btn-sm" onclick="approveDraft('${draft.draft_id}', ${hasEmail})">Send</button>
+        <button class="btn btn-delete btn-sm" onclick="deleteDraft('${draft.draft_id}')">×</button>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+async function approveDraft(id, hasEmail) {
+  // If no email on file, grab from the input
+  if (!hasEmail) {
+    const emailEl = document.getElementById('email-' + id);
+    const email = emailEl ? emailEl.value.trim() : '';
+    if (!email) { toast('Enter an email address first', 'error'); return; }
+    await api(`/api/drafts/${id}/edit`, {method:'POST', body: JSON.stringify({contact_email: email})});
+  }
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const r = await api(`/api/drafts/${id}/approve`, {method:'POST'});
+  if (r.ok) {
+    toast('Sent ✓');
+    document.getElementById('draft-' + id).remove();
+    const countEl = document.getElementById('draftCountTab');
+    countEl.textContent = Math.max(0, parseInt(countEl.textContent) - 1);
+    document.getElementById('pDrafts').textContent = Math.max(0, parseInt(document.getElementById('pDrafts').textContent) - 1);
+  } else {
+    toast(r.error || 'Send failed', 'error');
+    btn.disabled = false; btn.textContent = 'Send';
+  }
+}
+
+async function editDraft(id) {
+  const bodyEl = document.getElementById('body-' + id);
+  if (bodyEl.contentEditable === 'true') {
+    // Save
+    const newBody = bodyEl.innerText;
+    await api(`/api/drafts/${id}/edit`, {method:'POST', body: JSON.stringify({body: newBody})});
+    bodyEl.contentEditable = 'false';
+    bodyEl.style.border = '';
+    toast('Saved');
+  } else {
+    bodyEl.contentEditable = 'true';
+    bodyEl.style.border = '1px solid var(--blue)';
+    bodyEl.style.borderRadius = '4px';
+    bodyEl.focus();
+  }
+}
+
+async function deleteDraft(id) {
+  await api(`/api/drafts/${id}/delete`, {method:'POST'});
+  document.getElementById('draft-' + id).remove();
+  const countEl = document.getElementById('draftCountTab');
+  countEl.textContent = Math.max(0, parseInt(countEl.textContent) - 1);
+  toast('Draft deleted');
+}
+
+// ── LAMP ───────────────────────────────────────────────────────────────────
+
+async function loadLamp() {
+  document.getElementById('tab-lamp').dataset.loaded = '1';
+  const d = await api('/api/lamp');
+  const el = document.getElementById('tab-lamp');
+
+  const statusDot = s => {
+    const map = {not_started:'dot-start',outreach_sent:'dot-sent',sent:'dot-sent',responded:'dot-responded',booster:'dot-booster',booster_found:'dot-booster'};
+    return `<span class="status-dot ${map[s]||'dot-start'}"></span>`;
+  };
+
+  let rows = '';
+  d.entries.slice(0, 30).forEach((e, i) => {
+    const motCls = e.motivation >= 8 ? 'mot-high' : e.motivation >= 6 ? 'mot-med' : 'mot-low';
+    const contact = e.contacts && e.contacts.length ? e.contacts[0] + (e.contacts.length > 1 ? ` +${e.contacts.length-1}` : '') : '—';
+    rows += `<tr>
+      <td style="color:var(--muted);font-size:12px">${i+1}</td>
+      <td><span class="company-name">${e.company}</span></td>
+      <td><span class="mot-badge ${motCls}">${e.motivation}</span></td>
+      <td style="font-size:12px">${e.lamp_score.toFixed(1)}</td>
+      <td class="contact-pill">${contact}</td>
+      <td>${statusDot(e.status)}${fmtStatus(e.status)}</td>
+      <td>${e.contacts && e.contacts.length ? `<button class="btn-outreach" onclick="generateEmail('${esc(e.company)}','${esc(e.contacts[0])}','')">Outreach</button>` : '<span style="font-size:11px;color:var(--muted)">Find contact</span>'}</td>
+    </tr>`;
+  });
+
+  el.innerHTML = `<table class="lamp-table">
+    <thead><tr><th>#</th><th>Company</th><th>M</th><th>Score</th><th>Contact</th><th>Status</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Leads ──────────────────────────────────────────────────────────────────
+
+async function loadLeads() {
+  document.getElementById('tab-leads').dataset.loaded = '1';
+  const d = await api('/api/leads');
+  const el = document.getElementById('tab-leads');
+  if (!d.leads.length) { el.innerHTML = '<div class="empty">No leads — run: orchestrate.py leads</div>'; return; }
+
+  const tierColor = t => t === 'HOT' ? 'var(--green)' : t === 'WARM' ? 'var(--yellow)' : 'var(--muted)';
+  let html = '';
+  d.leads.forEach(l => {
+    const link = l.url ? `<a href="${l.url}" target="_blank" style="color:var(--blue);font-size:11px">View →</a>` : '';
+    html += `<div style="padding:10px 14px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div style="font-weight:600;font-size:13px">${l.title}</div>
+          <div style="font-size:12px;color:var(--muted)">${l.company} · ${l.location||'Remote'}</div>
+        </div>
+        <div style="text-align:right;white-space:nowrap">
+          <div style="font-size:12px;font-weight:600;color:${tierColor(l.tier)}">${l.tier}</div>
+          <div style="font-size:11px;color:var(--muted)">${l.net_score.toFixed(1)}</div>
+          ${link}
+        </div>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+// ── Tracker ────────────────────────────────────────────────────────────────
+
+async function loadTracker() {
+  document.getElementById('tab-tracker').dataset.loaded = '1';
+  const d = await api('/api/tracker');
+  const el = document.getElementById('tab-tracker');
+  if (!d.records.length) { el.innerHTML = '<div class="empty">No contacts tracked yet.</div>'; return; }
+
+  const statusColor = s => ({booster:'var(--green)',responded:'var(--yellow)',sent:'var(--blue)',no_response:'var(--muted)'}[s]||'var(--muted)');
+  let html = '';
+  d.records.forEach(r => {
+    html += `<div style="padding:10px 14px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <span style="font-weight:600">${r.contact_name}</span>
+          <span style="color:var(--muted);font-size:12px"> @ ${r.company}</span>
+          ${r.contact_role ? `<span style="color:var(--muted);font-size:11px"> · ${r.contact_role}</span>` : ''}
+        </div>
+        <span style="font-size:12px;font-weight:600;color:${statusColor(r.status)}">${fmtStatus(r.status)}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px">
+        Sent: ${r.sent_date||'—'} · Day-3: ${r.follow_up_due||'—'} · Day-7: ${r.second_contact_due||'—'}
+      </div>
+      ${r.notes ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${r.notes}</div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-sm"
+          style="${r.status==='responded' ? 'background:var(--yellow-dim);color:var(--yellow)' : 'background:var(--surface2);color:var(--muted)'}"
+          onclick="markResponded('${esc(r.company)}','${esc(r.contact_name)}',false)">Responded</button>
+        <button class="btn btn-sm"
+          style="${r.status==='booster' ? 'background:var(--green);color:#000' : 'background:var(--yellow-dim);color:var(--yellow)'}"
+          onclick="markResponded('${esc(r.company)}','${esc(r.contact_name)}',${r.status==='booster' ? 'false' : 'true'})">★ Booster${r.status==='booster' ? ' ✓' : ''}</button>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+
+async function addContact() {
+  const body = {
+    company:      document.getElementById('fCompany').value.trim(),
+    contact_name: document.getElementById('fContact').value.trim(),
+    contact_role: document.getElementById('fRole').value.trim(),
+    contact_email:document.getElementById('fEmail').value.trim(),
+    channel:      document.getElementById('fChannel').value,
+    notes:        document.getElementById('fNotes').value.trim(),
+  };
+  if (!body.company || !body.contact_name || !body.contact_role) {
+    toast('Company, name, and title are required', 'error'); return;
+  }
+  const r = await api('/api/tracker/add', {method:'POST', body: JSON.stringify(body)});
+  if (r.ok) {
+    toast(`${body.contact_name} @ ${body.company} added — 3B7 timer started ✓`);
+    ['fCompany','fContact','fRole','fEmail','fNotes'].forEach(id => document.getElementById(id).value = '');
+    loadDashboard();
+    if (document.getElementById('tab-tracker').dataset.loaded) loadTracker();
+  } else {
+    toast(r.error || 'Failed to add contact', 'error');
+  }
+}
+
+async function markResponded(company, contact, isBooster) {
+  const r = await api('/api/tracker/respond', {method:'POST', body: JSON.stringify({company, contact_name: contact, is_booster: isBooster})});
+  if (r.ok) {
+    toast(isBooster ? `★ ${contact} marked as booster!` : `${contact} marked as responded`);
+    loadDashboard();
+    if (document.getElementById('tab-tracker').dataset.loaded) loadTracker();
+  } else {
+    toast(r.error || 'Update failed', 'error');
+  }
+}
+
+function generateEmail(company, contact, role) {
+  const cmd = `python3 orchestrate.py outreach --company "${company}" --contact "${contact}" --role "${role||'Title'}"`;
+  navigator.clipboard.writeText(cmd).then(() => toast('Command copied to clipboard — paste in Terminal'));
+}
+
+async function triggerScan() {
+  const btn = document.getElementById('btnScan');
+  btn.disabled = true; btn.textContent = 'Scanning…'; btn.classList.add('running');
+  const r = await api('/api/scan', {method:'POST'});
+  toast(r.message || 'Scan started');
+  // Poll for completion
+  const poll = setInterval(async () => {
+    const s = await api('/api/scan/status');
+    if (!s.running) {
+      clearInterval(poll);
+      btn.disabled = false; btn.textContent = 'Scan Gmail'; btn.classList.remove('running');
+      if (s.last_result) toast(s.last_result);
+      loadDashboard();
+      loadDrafts();
+    }
+  }, 3000);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+
+function fmtStatus(s) {
+  return {not_started:'Not started',outreach_sent:'Sent',booster_found:'Booster ★',done:'Done',sent:'Sent',responded:'Responded',booster:'Booster ★',obligate:'Obligate',no_response:'No response',closed:'Closed'}[s] || s;
+}
+
+function esc(s) { return (s||'').replace(/'/g, "\\'").replace(/"/g, '\\"'); }
+
+// ── LinkedIn ───────────────────────────────────────────────────────────────
+
+let _liScanPoll = null;
+
+async function loadLinkedIn() {
+  document.getElementById('tab-linkedin').dataset.loaded = '1';
+  const el = document.getElementById('tab-linkedin');
+  el.innerHTML = '<div class="empty"><div class="spin"></div></div>';
+
+  const [draftsData, authData] = await Promise.all([
+    api('/api/linkedin/drafts'),
+    api('/api/linkedin/auth/status'),
+  ]);
+
+  // Update count badge
+  document.getElementById('liCountTab').textContent = draftsData.total;
+
+  // Auth bar
+  const authHtml = authData.connected
+    ? `<span class="text-green">✓ LinkedIn connected</span><span style="color:var(--muted);font-size:11px">${authData.person_name} · expires ${authData.expires_at}</span>`
+    : `<span class="text-red">⚠ Not connected</span><button class="btn btn-sm btn-primary" onclick="liAuth()">Connect LinkedIn</button>`;
+
+  // Manual input section
+  const manualHtml = `
+  <div class="li-manual-section">
+    <div class="li-manual-title">Add Manual Comment</div>
+    <input class="li-input" id="liCommentUrl" placeholder="LinkedIn post URL to comment on" type="url">
+    <input class="li-input" id="liCommentAuthor" placeholder="Author name (optional)">
+    <button class="btn btn-primary btn-sm" onclick="liDraftComment()" style="margin-right:6px">Draft Comment</button>
+    <span style="font-size:11px;color:var(--muted)">Claude will generate a comment in background</span>
+  </div>
+  <div class="li-manual-section">
+    <div class="li-manual-title">Write Original Post</div>
+    <textarea class="li-textarea" id="liPostBody" placeholder="Write your LinkedIn post here (≤3000 chars)..."></textarea>
+    <input class="li-input" id="liPostUrl" placeholder="Source article URL (optional)" type="url">
+    <button class="btn btn-primary btn-sm" onclick="liAddPost()">Add Post Draft</button>
+  </div>`;
+
+  // Draft list
+  let draftsHtml = '';
+  if (!draftsData.drafts.length) {
+    draftsHtml = `<div class="empty"><div class="empty-icon">🔗</div>No LinkedIn drafts yet.<br><span style="font-size:12px">Click "Scan Feed" or add a URL above.</span></div>`;
+  } else {
+    draftsData.drafts.forEach(d => {
+      const isPost    = d.type === 'post';
+      const isSched   = d.status === 'scheduled';
+      const typeLabel = isPost ? 'POST' : 'COMMENT';
+      const typeCls   = isPost ? 'li-type-post' : 'li-type-comment';
+      const schedBadge = isSched ? `<span class="li-type-badge li-type-sched">SCHEDULED</span>` : '';
+      const bodyText  = isPost ? d.body : d.comment_body;
+      const scoreText = isPost
+        ? `Net: ${(d.net_score||0).toFixed(1)} · Controversy: ${d.controversy_potential||'—'}/10`
+        : `Quality: ${d.quality_score||'—'}/10 · Relevance: ${d.relevance_score||'—'}/10`;
+      const targetHtml = !isPost
+        ? `<div class="li-target">→ ${esc(d.target_post_author||'')}${d.target_post_author_title ? ' · '+esc(d.target_post_author_title) : ''}</div>
+           <div class="li-snippet">${esc((d.target_post_snippet||'').slice(0,180))}${(d.target_post_snippet||'').length>180?'…':''}</div>`
+        : (d.source_article_title ? `<div class="li-target">Based on: ${esc(d.source_article_title)}</div>` : '');
+      const schedLabel = d.scheduled_time
+        ? (() => { try { const dt=new Date(d.scheduled_time); return dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' · '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); } catch(e){return d.scheduled_time;} })()
+        : '';
+      const schedDisplay = isSched && schedLabel ? `<div class="li-sched-time">⏱ ${schedLabel}</div>` : '';
+
+      const approveBtnStyle = isSched
+        ? 'background:var(--surface2);color:var(--muted)'
+        : 'background:var(--green);color:#000';
+      const approveBtnLabel = isSched ? '✓ Scheduled' : 'Approve';
+
+      draftsHtml += `
+      <div class="li-draft-item" id="li-draft-${d.draft_id}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span class="li-type-badge ${typeCls}">${typeLabel}</span>
+          ${schedBadge}
+          <span class="li-score">${scoreText}</span>
+        </div>
+        ${targetHtml}
+        <div class="li-body" id="li-body-${d.draft_id}" onclick="this.classList.toggle('expanded')">${esc(bodyText||'')}</div>
+        ${schedDisplay}
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn btn-edit btn-sm" onclick="liEdit('${d.draft_id}',${isPost})">Edit</button>
+          <button class="btn btn-sm" style="${approveBtnStyle}" onclick="liApprove('${d.draft_id}')">${approveBtnLabel}</button>
+          <button class="btn btn-delete btn-sm" onclick="liDiscard('${d.draft_id}')">Discard</button>
+          ${d.target_post_url ? `<a href="${d.target_post_url}" target="_blank" class="btn btn-sm" style="background:var(--surface2);color:var(--muted);text-decoration:none">View post ↗</a>` : ''}
+        </div>
+      </div>`;
+    });
+  }
+
+  const publishedNote = draftsData.published > 0
+    ? `<div style="padding:8px 16px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border)">${draftsData.published} published total</div>`
+    : '';
+
+  el.innerHTML = `
+    <div class="li-auth-bar">${authHtml}<button class="btn btn-sm" style="background:var(--blue-dim);color:var(--blue)" id="btnLiScan" onclick="liScanFeed()">Scan Feed</button></div>
+    ${manualHtml}
+    ${publishedNote}
+    ${draftsHtml}`;
+}
+
+async function liAuth() {
+  const r = await api('/api/linkedin/auth/start', {method:'POST'});
+  if (r.ok) {
+    toast(r.message);
+    setTimeout(() => loadLinkedIn(), 5000); // Refresh after 5s
+  } else {
+    toast(r.error || 'Auth failed — check .env for LINKEDIN_CLIENT_ID', 'error');
+  }
+}
+
+async function liScanFeed() {
+  const btn = document.getElementById('btnLiScan');
+  btn.disabled = true; btn.textContent = 'Scanning…';
+  const r = await api('/api/linkedin/drafts/scan', {method:'POST'});
+  toast(r.message || 'Scan started');
+  if (_liScanPoll) clearInterval(_liScanPoll);
+  _liScanPoll = setInterval(async () => {
+    const s = await api('/api/linkedin/drafts/scan/status');
+    if (!s.running) {
+      clearInterval(_liScanPoll); _liScanPoll = null;
+      btn.disabled = false; btn.textContent = 'Scan Feed';
+      if (s.last_result) toast(s.last_result);
+      document.getElementById('tab-linkedin').dataset.loaded = '';
+      loadLinkedIn();
+    }
+  }, 3000);
+}
+
+async function liDraftComment() {
+  const url    = document.getElementById('liCommentUrl').value.trim();
+  const author = document.getElementById('liCommentAuthor').value.trim();
+  if (!url) { toast('Enter a LinkedIn post URL', 'error'); return; }
+  const r = await api('/api/linkedin/drafts/add-url', {method:'POST', body: JSON.stringify({url, author})});
+  if (r.ok) {
+    toast('Drafting comment in background — refresh LinkedIn tab in ~30s');
+    document.getElementById('liCommentUrl').value = '';
+    document.getElementById('liCommentAuthor').value = '';
+    setTimeout(() => { document.getElementById('tab-linkedin').dataset.loaded=''; loadLinkedIn(); }, 30000);
+  } else {
+    toast(r.error || 'Failed', 'error');
+  }
+}
+
+async function liAddPost() {
+  const body = document.getElementById('liPostBody').value.trim();
+  const url  = document.getElementById('liPostUrl').value.trim();
+  if (!body) { toast('Write your post first', 'error'); return; }
+  const r = await api('/api/linkedin/drafts/add-post', {method:'POST', body: JSON.stringify({body, source_url: url})});
+  if (r.ok) {
+    toast('Post draft added ✓');
+    document.getElementById('liPostBody').value = '';
+    document.getElementById('liPostUrl').value = '';
+    document.getElementById('tab-linkedin').dataset.loaded = '';
+    loadLinkedIn();
+  } else {
+    toast(r.error || 'Failed', 'error');
+  }
+}
+
+async function liEdit(id, isPost) {
+  const bodyEl = document.getElementById('li-body-' + id);
+  if (bodyEl.contentEditable === 'true') {
+    const newText = bodyEl.innerText;
+    const payload = isPost ? {body: newText} : {comment_body: newText};
+    await api(`/api/linkedin/drafts/${id}/edit`, {method:'POST', body: JSON.stringify(payload)});
+    bodyEl.contentEditable = 'false';
+    bodyEl.style.border = '';
+    toast('Saved');
+  } else {
+    bodyEl.contentEditable = 'true';
+    bodyEl.classList.add('expanded');
+    bodyEl.style.border = '1px solid var(--blue)';
+    bodyEl.style.borderRadius = '4px';
+    bodyEl.focus();
+  }
+}
+
+async function liApprove(id) {
+  const r = await api(`/api/linkedin/drafts/${id}/approve`, {method:'POST'});
+  if (r.ok) {
+    toast(`Scheduled for ${r.label} ✓`);
+    document.getElementById('tab-linkedin').dataset.loaded = '';
+    loadLinkedIn();
+  } else {
+    toast(r.error || 'Failed', 'error');
+  }
+}
+
+async function liDiscard(id) {
+  const r = await api(`/api/linkedin/drafts/${id}/discard`, {method:'POST'});
+  if (r.ok) {
+    document.getElementById('li-draft-' + id)?.remove();
+    const countEl = document.getElementById('liCountTab');
+    countEl.textContent = Math.max(0, parseInt(countEl.textContent||'0') - 1);
+    toast('Discarded');
+  } else {
+    toast(r.error || 'Failed', 'error');
+  }
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+
+loadDashboard();
+loadDrafts();
+
+// Auto-refresh every 5 minutes
+setInterval(() => { loadDashboard(); loadDrafts(); }, 5 * 60 * 1000);
+</script>
+</body>
+</html>
