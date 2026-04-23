@@ -38,16 +38,19 @@ def list_companies(
     active_only: bool = Query(True, description="Only motivation ≥ 7, not archived"),
     stage: Optional[str] = Query(None),
     motivation_min: int = Query(1),
+    q: Optional[str] = Query(None, description="Search by company name"),
     session: Session = Depends(get_session),
 ):
-    q = select(Company)
-    if active_only:
-        q = q.where(Company.is_archived == False, Company.motivation >= 7)
+    stmt = select(Company)
+    if q:
+        stmt = stmt.where(Company.name.ilike(f"%{q}%"))
+    elif active_only:
+        stmt = stmt.where(Company.is_archived == False, Company.motivation >= 7)
     if stage:
-        q = q.where(Company.stage == stage)
+        stmt = stmt.where(Company.stage == stage)
     if motivation_min > 1:
-        q = q.where(Company.motivation >= motivation_min)
-    companies = session.exec(q.order_by(Company.lamp_score.desc())).all()
+        stmt = stmt.where(Company.motivation >= motivation_min)
+    companies = session.exec(stmt.order_by(Company.lamp_score.desc())).all()
     return companies
 
 
