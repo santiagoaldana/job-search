@@ -49,7 +49,7 @@ function OutreachModal({ company, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center" onClick={onClose}>
-      <div className="bg-card w-full max-w-lg rounded-t-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-card w-full max-w-lg rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div className="font-semibold text-body">Log Outreach — {company.name}</div>
           <button onClick={onClose}><X size={18} className="text-muted" /></button>
