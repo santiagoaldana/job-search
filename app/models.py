@@ -222,6 +222,17 @@ class ContentDraft(SQLModel, table=True):
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
+# ── ContentFeed (thought leader / publication RSS feeds) ──────────────────────
+
+class ContentFeed(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    url: str = Field(index=True)
+    category: str = Field(default="publication")  # thought_leader | publication | news
+    active: bool = Field(default=True)
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+
 # ── AITargetSuggestion (weekly startup discovery) ─────────────────────────────
 
 class AITargetSuggestion(SQLModel, table=True):

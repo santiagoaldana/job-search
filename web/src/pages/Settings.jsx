@@ -1,9 +1,154 @@
 import { useEffect, useState, useCallback } from 'react'
-import { RefreshCw, Check, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { RefreshCw, Check, X, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
 import Badge from '../components/Badge'
 import Spinner from '../components/Spinner'
+
+const CATEGORY_COLORS = { thought_leader: 'purple', publication: 'blue', news: 'slate' }
+const CATEGORY_LABELS = { thought_leader: 'Thought Leader', publication: 'Publication', news: 'News' }
+
+function ThoughtLeaderFeeds() {
+  const [feeds, setFeeds] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [url, setUrl] = useState('')
+  const [category, setCategory] = useState('thought_leader')
+  const [adding, setAdding] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    api.getFeeds()
+      .then(setFeeds)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { if (open) load() }, [open, load])
+
+  async function handleAdd() {
+    if (!name.trim() || !url.trim()) return
+    setAdding(true)
+    try {
+      await api.addFeed({ name: name.trim(), url: url.trim(), category })
+      setName(''); setUrl(''); setCategory('thought_leader'); setShowForm(false)
+      load()
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  async function handleDelete(id) {
+    try {
+      await api.deleteFeed(id)
+      setFeeds(fs => fs.filter(f => f.id !== id))
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
+  return (
+    <div className="px-4 mb-4">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between bg-card border border-theme rounded-xl px-4 py-3"
+      >
+        <div>
+          <div className="text-sm font-medium text-body text-left">Content Feeds</div>
+          <div className="text-xs text-muted text-left">Thought leaders & publications for post generation</div>
+        </div>
+        {open ? <ChevronUp size={16} className="text-muted" /> : <ChevronDown size={16} className="text-muted" />}
+      </button>
+
+      {open && (
+        <div className="mt-2 bg-card border border-theme rounded-xl overflow-hidden">
+          {loading ? (
+            <div className="flex justify-center py-8"><Spinner size={6} /></div>
+          ) : (
+            <>
+              <div className="divide-y divide-theme max-h-[50vh] overflow-y-auto">
+                {feeds.length === 0 && (
+                  <div className="py-6 text-center text-sm text-muted">No feeds yet</div>
+                )}
+                {feeds.map(f => (
+                  <div key={f.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-body truncate">{f.name}</div>
+                      <div className="text-xs text-muted truncate">{f.url}</div>
+                    </div>
+                    <Badge color={CATEGORY_COLORS[f.category] || 'slate'}>
+                      {CATEGORY_LABELS[f.category] || f.category}
+                    </Badge>
+                    <button onClick={() => handleDelete(f.id)} className="text-muted hover:text-red-500 transition-colors flex-shrink-0">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {showForm ? (
+                <div className="border-t border-theme p-4 space-y-3">
+                  <input
+                    className="w-full bg-bg border border-theme rounded-lg px-3 py-2 text-sm text-body"
+                    placeholder="Name (e.g. Judah Phillips)"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    autoFocus
+                  />
+                  <input
+                    className="w-full bg-bg border border-theme rounded-lg px-3 py-2 text-sm text-body"
+                    placeholder="RSS URL (e.g. https://name.substack.com/feed)"
+                    value={url}
+                    onChange={e => setUrl(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    {['thought_leader', 'publication', 'news'].map(c => (
+                      <button
+                        key={c}
+                        onClick={() => setCategory(c)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          category === c ? 'bg-blue-500 border-blue-400 text-white' : 'bg-bg border-theme text-muted'
+                        }`}
+                      >
+                        {CATEGORY_LABELS[c]}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAdd}
+                      disabled={adding || !name.trim() || !url.trim()}
+                      className="flex-1 bg-blue-500 text-white rounded-lg py-2 text-xs font-medium disabled:opacity-50"
+                    >
+                      {adding ? 'Adding…' : 'Add Feed'}
+                    </button>
+                    <button
+                      onClick={() => { setShowForm(false); setName(''); setUrl('') }}
+                      className="px-4 border border-theme rounded-lg text-xs text-muted"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="w-full flex items-center justify-center gap-1.5 py-3 text-xs text-blue-500 border-t border-theme"
+                >
+                  <Plus size={13} /> Add Feed
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function BulkReview() {
   const [companies, setCompanies] = useState([])
@@ -143,6 +288,8 @@ export default function SettingsPage() {
       <PageHeader title="Settings & Targets" />
 
       <BulkReview />
+
+      <ThoughtLeaderFeeds />
 
       <div className="px-4 mb-4">
         <div className="flex items-center justify-between mb-3">

@@ -76,6 +76,14 @@ async def job_startup_discovery():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_tables()
+    try:
+        from app.migrate import seed_feeds
+        from sqlmodel import Session
+        from app.database import engine
+        with Session(engine) as session:
+            seed_feeds(session)
+    except Exception as e:
+        print(f"[startup] seed_feeds error: {e}")
 
     # Every 6 hours: refresh leads for active companies
     scheduler.add_job(

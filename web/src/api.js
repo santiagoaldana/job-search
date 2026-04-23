@@ -81,6 +81,11 @@ export const api = {
   regenerateDraft: (id, instructions) => post(`/content/${id}/regenerate`, { instructions }),
   composePost: (context) => post('/content/compose', { context }),
 
+  // Content feeds
+  getFeeds: () => get('/content/feeds'),
+  addFeed: (data) => post('/content/feeds', data),
+  deleteFeed: (id) => request('DELETE', `/content/feeds/${id}`),
+
   // AI Suggestions
   getSuggestions: () => get('/daily-brief/suggestions'),
   approveSuggestion: (id) => post(`/daily-brief/suggestions/${id}/approve`),

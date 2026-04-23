@@ -30,10 +30,15 @@ DB_PATH = BASE_DIR / "jobsearch.db"
 
 from app.models import (
     Company, Contact, Lead, OutreachRecord,
-    Event, ContentDraft, AITargetSuggestion
+    Event, ContentDraft, ContentFeed, AITargetSuggestion
 )
 
-engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
+_db_url = os.environ.get("DATABASE_URL")
+if _db_url:
+    _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+    engine = create_engine(_db_url, echo=False)
+else:
+    engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
 
 
 def create_tables():
@@ -320,6 +325,29 @@ def report(session: Session) -> None:
     print("───────────────────────────────────────────────")
 
 
+SEED_FEEDS = [
+    {"name": "Paul Baier — GAI Insights", "url": "https://gaiinsights.substack.com/feed", "category": "thought_leader"},
+    {"name": "Joshua Summers — Flopsy", "url": "https://flopsy.substack.com/feed", "category": "thought_leader"},
+    {"name": "MIT Technology Review", "url": "https://www.technologyreview.com/feed/", "category": "publication"},
+    {"name": "MIT Sloan Management Review", "url": "https://sloanreview.mit.edu/feed/", "category": "publication"},
+    {"name": "MIT News — AI", "url": "https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml", "category": "publication"},
+    {"name": "MIT News — Finance", "url": "https://news.mit.edu/topic/mitfinance-rss.xml", "category": "publication"},
+]
+
+
+def seed_feeds(session: Session) -> None:
+    """Seed default thought leader and publication RSS feeds (idempotent)."""
+    created = 0
+    for f in SEED_FEEDS:
+        existing = session.exec(select(ContentFeed).where(ContentFeed.url == f["url"])).first()
+        if existing:
+            continue
+        session.add(ContentFeed(name=f["name"], url=f["url"], category=f["category"]))
+        created += 1
+    session.commit()
+    print(f"✓ Content feeds seeded: {created} added ({len(SEED_FEEDS)} total)")
+
+
 def main():
     print("Job Search System v2 — Data Migration")
     print("=" * 45)
@@ -343,6 +371,9 @@ def main():
 
         print("\nMigrating content drafts…")
         migrate_content(session)
+
+        print("\nSeeding content feeds…")
+        seed_feeds(session)
 
         report(session)
 

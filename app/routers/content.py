@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 
 from app.database import get_session
-from app.models import ContentDraft
+from app.models import ContentDraft, ContentFeed
 
 router = APIRouter()
 
@@ -100,6 +100,39 @@ async def regenerate_draft(
         return draft
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class FeedCreate(BaseModel):
+    name: str
+    url: str
+    category: str = "publication"
+
+
+@router.get("/feeds")
+def list_feeds(session: Session = Depends(get_session)):
+    return session.exec(select(ContentFeed).where(ContentFeed.active == True).order_by(ContentFeed.category, ContentFeed.name)).all()
+
+
+@router.post("/feeds")
+def add_feed(data: FeedCreate, session: Session = Depends(get_session)):
+    existing = session.exec(select(ContentFeed).where(ContentFeed.url == data.url)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Feed URL already exists")
+    feed = ContentFeed(name=data.name, url=data.url, category=data.category)
+    session.add(feed)
+    session.commit()
+    session.refresh(feed)
+    return feed
+
+
+@router.delete("/feeds/{feed_id}")
+def delete_feed(feed_id: int, session: Session = Depends(get_session)):
+    feed = session.get(ContentFeed, feed_id)
+    if not feed:
+        raise HTTPException(status_code=404, detail="Feed not found")
+    session.delete(feed)
+    session.commit()
+    return {"deleted": feed_id}
 
 
 @router.patch("/{draft_id}")

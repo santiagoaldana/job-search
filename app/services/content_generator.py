@@ -10,12 +10,13 @@ import anthropic
 
 EXECUTIVE_PROFILE = None
 
-RSS_FEEDS = [
-    "https://techcrunch.com/category/fintech/feed/",
-    "https://www.pymnts.com/feed/",
-    "https://www.finextra.com/rss/headlines.aspx",
-    "https://paymentsdive.com/feeds/news/",
-    "https://bankingdive.com/feeds/news/",
+# Fallback feeds used only when ContentFeed table is empty
+FALLBACK_FEEDS = [
+    {"name": "TechCrunch FinTech", "url": "https://techcrunch.com/category/fintech/feed/", "category": "news"},
+    {"name": "PYMNTS", "url": "https://www.pymnts.com/feed/", "category": "news"},
+    {"name": "Finextra", "url": "https://www.finextra.com/rss/headlines.aspx", "category": "news"},
+    {"name": "Payments Dive", "url": "https://paymentsdive.com/feeds/news/", "category": "news"},
+    {"name": "Banking Dive", "url": "https://bankingdive.com/feeds/news/", "category": "news"},
 ]
 
 # ── Prompts (edit these to tune tone and persona) ─────────────────────────────
@@ -32,13 +33,15 @@ AUTHOR PROFILE:
 ARTICLE: {title}
 SUMMARY: {summary}
 SOURCE: {source}
+SOURCE TYPE: {source_type}
 
 WRITING RULES:
 - First Principles: Break the topic into fundamental truths. Not "improving payments" but "the atomic unit of trust in digital exchange."
 - Anti-Sales Mandate: No hashtags of any kind. The post must make Santiago appear deeply embedded in the future of industry.
 - Style: Clever, minimalist, authoritative. Short punchy sentences. No corporate jargon — use "friction" not "synergistic challenges."
 - Hook: Start with a Pattern Interrupt — a first line that challenges a common assumption or states a surprising fact. Never open with "I".
-- Analyze the article through three lenses:
+- If SOURCE TYPE is "thought_leader": frame the post as peer-level commentary or a direct response to the author's idea. Cite them by name. Santiago is engaging as an intellectual equal, not summarizing their work.
+- If SOURCE TYPE is "publication" or "news": analyze the article through three lenses:
   1. Macro Trend: Why does this matter to the economy/industry right now?
   2. The "So What?": What is the non-obvious insight Santiago has, grounded in his specific experience (SoyYo, Avianca, Uff Móvil, MIT Sloan)?
   3. Call to Conversation: End with a high-level question that invites peers (CEOs, Founders) to comment.
@@ -129,19 +132,28 @@ def _parse_response(raw: str) -> tuple:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 async def generate_linkedin_drafts(days: int = 7, count: int = 3) -> list:
-    """Pull FinTech news and generate LinkedIn post drafts."""
+    """Pull articles from configured feeds and generate LinkedIn post drafts."""
     from datetime import datetime, timedelta
     from app.database import engine
-    from app.models import ContentDraft
-    from sqlmodel import Session
+    from app.models import ContentDraft, ContentFeed
+    from sqlmodel import Session, select
 
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    # Load active feeds from DB; fall back to hardcoded list if table empty
+    with Session(engine) as session:
+        db_feeds = session.exec(select(ContentFeed).where(ContentFeed.active == True)).all()
+
+    feeds = [{"name": f.name, "url": f.url, "category": f.category} for f in db_feeds] if db_feeds else FALLBACK_FEEDS
+
+    # Thought leaders get a wider 14-day window; news sources use the requested window
+    news_cutoff = datetime.utcnow() - timedelta(days=days)
+    leader_cutoff = datetime.utcnow() - timedelta(days=14)
+
     articles = []
-
-    for feed_url in RSS_FEEDS:
+    for feed_def in feeds:
+        cutoff = leader_cutoff if feed_def["category"] == "thought_leader" else news_cutoff
         try:
-            feed = feedparser.parse(feed_url)
-            for entry in feed.entries[:10]:
+            feed = feedparser.parse(feed_def["url"])
+            for entry in feed.entries[:5]:
                 pub = entry.get("published_parsed")
                 if pub:
                     from time import mktime
@@ -152,7 +164,8 @@ async def generate_linkedin_drafts(days: int = 7, count: int = 3) -> list:
                     "title": entry.get("title", ""),
                     "url": entry.get("link", ""),
                     "summary": entry.get("summary", "")[:500],
-                    "source": feed.feed.get("title", feed_url),
+                    "source": feed_def["name"],
+                    "source_type": feed_def["category"],
                 })
         except Exception:
             continue
@@ -160,16 +173,26 @@ async def generate_linkedin_drafts(days: int = 7, count: int = 3) -> list:
     if not articles:
         return []
 
+    # Interleave thought leaders and publications for variety
+    leaders = [a for a in articles if a["source_type"] == "thought_leader"]
+    others = [a for a in articles if a["source_type"] != "thought_leader"]
+    interleaved = []
+    for pair in zip(leaders, others):
+        interleaved.extend(pair)
+    interleaved += leaders[len(others):] + others[len(leaders):]
+    selected = interleaved[:count]
+
     client = anthropic.Anthropic()
     profile = _get_profile()
     saved = []
 
-    for article in articles[:count]:
+    for article in selected:
         prompt = NEWS_PROMPT.format(
             profile=profile,
             title=article["title"],
             summary=article["summary"],
             source=article["source"],
+            source_type=article["source_type"],
         )
         try:
             response = client.messages.create(
@@ -182,7 +205,7 @@ async def generate_linkedin_drafts(days: int = 7, count: int = 3) -> list:
             with Session(engine) as session:
                 draft = ContentDraft(
                     source_url=article["url"],
-                    source_title=article["title"],
+                    source_title=f"{article['source']} — {article['title']}",
                     body=body,
                     net_score=net_score,
                     controversy_score=controversy,
