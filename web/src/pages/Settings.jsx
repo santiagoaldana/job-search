@@ -1,9 +1,110 @@
-import { useEffect, useState } from 'react'
-import { RefreshCw, Check, X } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { RefreshCw, Check, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
 import Badge from '../components/Badge'
 import Spinner from '../components/Spinner'
+
+function BulkReview() {
+  const [companies, setCompanies] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState({})
+  const [filter, setFilter] = useState('all')
+
+  const load = useCallback(() => {
+    setLoading(true)
+    api.getCompanies({ active_only: false })
+      .then(data => setCompanies(data.sort((a, b) => (b.lamp_score || 0) - (a.lamp_score || 0))))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { if (open) load() }, [open, load])
+
+  async function setMotivation(company, val) {
+    const m = Math.max(1, Math.min(10, val))
+    setCompanies(cs => cs.map(c => c.id === company.id ? { ...c, motivation: m } : c))
+    setSaving(s => ({ ...s, [company.id]: true }))
+    try {
+      await api.updateCompany(company.id, { motivation: m })
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setSaving(s => ({ ...s, [company.id]: false }))
+    }
+  }
+
+  const filtered = companies.filter(c => {
+    if (filter === 'active') return c.motivation >= 7
+    if (filter === 'inactive') return c.motivation < 7
+    return true
+  })
+
+  return (
+    <div className="px-4 mb-4">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between bg-card border border-theme rounded-xl px-4 py-3"
+      >
+        <div>
+          <div className="text-sm font-medium text-body text-left">Bulk Review — Set Motivations</div>
+          <div className="text-xs text-muted text-left">Review all {companies.length || '847'} companies, set priority 1–10</div>
+        </div>
+        {open ? <ChevronUp size={16} className="text-muted" /> : <ChevronDown size={16} className="text-muted" />}
+      </button>
+
+      {open && (
+        <div className="mt-2 bg-card border border-theme rounded-xl overflow-hidden">
+          {/* Filter tabs */}
+          <div className="flex border-b border-theme">
+            {[['all', 'All'], ['active', 'Active (≥7)'], ['inactive', 'Inactive (<7)']].map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setFilter(val)}
+                className={`flex-1 py-2 text-xs font-medium transition-colors ${
+                  filter === val ? 'text-blue-500 border-b-2 border-blue-500' : 'text-muted'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-8"><Spinner size={6} /></div>
+          ) : (
+            <div className="divide-y divide-theme max-h-[60vh] overflow-y-auto">
+              {filtered.map(c => (
+                <div key={c.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-body truncate">{c.name}</div>
+                    <div className="text-xs text-muted">LAMP {c.lamp_score?.toFixed(0) || '—'} · {c.stage}</div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => setMotivation(c, c.motivation - 1)}
+                      className="w-7 h-7 rounded-lg bg-bg border border-theme text-muted text-sm flex items-center justify-center"
+                    >−</button>
+                    <span className={`w-7 text-center text-sm font-semibold ${
+                      c.motivation >= 7 ? 'text-blue-500' : 'text-muted'
+                    }`}>
+                      {saving[c.id] ? '…' : c.motivation}
+                    </span>
+                    <button
+                      onClick={() => setMotivation(c, c.motivation + 1)}
+                      className="w-7 h-7 rounded-lg bg-bg border border-theme text-muted text-sm flex items-center justify-center"
+                    >+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const [suggestions, setSuggestions] = useState([])
@@ -40,6 +141,8 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col">
       <PageHeader title="Settings & Targets" />
+
+      <BulkReview />
 
       <div className="px-4 mb-4">
         <div className="flex items-center justify-between mb-3">
@@ -97,7 +200,7 @@ export default function SettingsPage() {
         <div className="text-xs text-muted font-medium uppercase tracking-wide mb-2">System</div>
         <div className="bg-card border border-theme rounded-xl divide-y divide-theme">
           {[
-            { label: 'Backend', value: 'FastAPI + SQLite' },
+            { label: 'Backend', value: 'FastAPI + PostgreSQL' },
             { label: 'Models', value: 'Opus 4.6 / Haiku 4.5' },
             { label: 'Lead scraping', value: 'Greenhouse + Lever + BeautifulSoup' },
             { label: 'Scheduler', value: 'APScheduler (6h refresh)' },
