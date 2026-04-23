@@ -44,6 +44,32 @@ async def generate_drafts(req: GenerateRequest = GenerateRequest()):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class ComposeRequest(BaseModel):
+    context: str
+
+
+@router.post("/compose")
+async def compose_draft(req: ComposeRequest, session: Session = Depends(get_session)):
+    """Generate a LinkedIn post from Santiago's own topic/context."""
+    try:
+        from app.services.content_generator import compose_linkedin_post
+        body, net_score, controversy, risk = await compose_linkedin_post(req.context)
+        draft = ContentDraft(
+            source_title=req.context[:120],
+            body=body,
+            net_score=net_score,
+            controversy_score=controversy,
+            risk_score=risk,
+            status="pending",
+        )
+        session.add(draft)
+        session.commit()
+        session.refresh(draft)
+        return draft
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 class RegenerateRequest(BaseModel):
     instructions: str
 

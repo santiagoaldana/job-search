@@ -1,14 +1,66 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, Check, X, ExternalLink, Pencil } from 'lucide-react'
+import { RefreshCw, Check, X, ExternalLink, Pencil, PenLine } from 'lucide-react'
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
 import Badge from '../components/Badge'
 import Spinner from '../components/Spinner'
 
+function ComposeModal({ onClose, onSaved }) {
+  const [context, setContext] = useState('')
+  const [composing, setComposing] = useState(false)
+
+  async function handleCompose() {
+    if (!context.trim()) return
+    setComposing(true)
+    try {
+      await api.composePost(context.trim())
+      onSaved()
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setComposing(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center" onClick={onClose}>
+      <div
+        className="bg-card w-full max-w-lg rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div className="font-semibold text-body">New Post from Scratch</div>
+          <button onClick={onClose}><X size={18} className="text-muted" /></button>
+        </div>
+
+        <div>
+          <label className="text-xs text-muted mb-1 block">What do you want to write about?</label>
+          <textarea
+            autoFocus
+            rows={5}
+            value={context}
+            onChange={e => setContext(e.target.value)}
+            className="w-full bg-bg border border-theme rounded-lg px-3 py-2 text-sm text-body resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
+          />
+        </div>
+
+        <button
+          onClick={handleCompose}
+          disabled={composing || !context.trim()}
+          className="w-full bg-blue-500 text-white rounded-xl py-3 text-sm font-medium disabled:opacity-50"
+        >
+          {composing ? 'Generating…' : 'Generate Post'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Content() {
   const [drafts, setDrafts] = useState([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [showCompose, setShowCompose] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -56,11 +108,18 @@ export default function Content() {
         title="LinkedIn Queue"
         subtitle={`${pending.length} pending · ${approved.length} approved`}
         action={
-          <button onClick={handleGenerate} disabled={generating}
-            className="flex items-center gap-1.5 text-sm text-blue-500 disabled:opacity-50">
-            <RefreshCw size={14} className={generating ? 'animate-spin' : ''} />
-            Generate
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowCompose(true)}
+              className="flex items-center gap-1.5 text-sm text-blue-500">
+              <PenLine size={14} />
+              New Post
+            </button>
+            <button onClick={handleGenerate} disabled={generating}
+              className="flex items-center gap-1.5 text-sm text-muted disabled:opacity-50">
+              <RefreshCw size={14} className={generating ? 'animate-spin' : ''} />
+              Generate
+            </button>
+          </div>
         }
       />
 
@@ -88,6 +147,13 @@ export default function Content() {
           )}
           {approved.map(d => <DraftCard key={d.id} draft={d} onApprove={handleApprove} onDiscard={handleDiscard} onRegenerate={handleRegenerate} />)}
         </div>
+      )}
+
+      {showCompose && (
+        <ComposeModal
+          onClose={() => setShowCompose(false)}
+          onSaved={() => { setShowCompose(false); load() }}
+        />
       )}
     </div>
   )

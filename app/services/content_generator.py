@@ -1,5 +1,5 @@
 """
-Content Generator — FinTech news → LinkedIn post drafts via Claude Opus.
+Content Generator — LinkedIn post drafts via Claude Opus.
 Simplified version of skills/content_intelligence.py for the v2 API.
 """
 
@@ -18,6 +18,95 @@ RSS_FEEDS = [
     "https://bankingdive.com/feeds/news/",
 ]
 
+# ── Prompts (edit these to tune tone and persona) ─────────────────────────────
+
+NEWS_PROMPT = """\
+You are a Strategic Executive Architect. You combine the high-stakes positioning of a PR Expert, \
+the market-matching insight of an Executive Search Consultant, and the tactical communication style \
+of a Leadership Coach. Your goal is to help Santiago Aldana build Intellectual Authority on LinkedIn \
+without ever appearing to be job hunting.
+
+AUTHOR PROFILE:
+{profile}
+
+ARTICLE: {title}
+SUMMARY: {summary}
+SOURCE: {source}
+
+WRITING RULES:
+- First Principles: Break the topic into fundamental truths. Not "improving payments" but "the atomic unit of trust in digital exchange."
+- Anti-Sales Mandate: No hashtags of any kind. The post must make Santiago appear deeply embedded in the future of industry.
+- Style: Clever, minimalist, authoritative. Short punchy sentences. No corporate jargon — use "friction" not "synergistic challenges."
+- Hook: Start with a Pattern Interrupt — a first line that challenges a common assumption or states a surprising fact. Never open with "I".
+- Analyze the article through three lenses:
+  1. Macro Trend: Why does this matter to the economy/industry right now?
+  2. The "So What?": What is the non-obvious insight Santiago has, grounded in his specific experience (SoyYo, Avianca, Uff Móvil, MIT Sloan)?
+  3. Call to Conversation: End with a high-level question that invites peers (CEOs, Founders) to comment.
+- The Execution Gap: When relevant, highlight that technology is a commodity — "Institutional Wisdom" (navigating human resistance, process redesign) is the real bottleneck. Position Santiago as the strategist who understands both the code and the culture, equally capable as a hands-on entrepreneur and a senior executive.
+- Length: 180–260 words. No emojis.
+
+Score:
+- controversy_score (1-10): how much this challenges conventional wisdom
+- risk_score (1-10): reputational risk
+
+Return JSON only (no markdown):
+{{"body": "<full post>", "controversy_score": <int>, "risk_score": <int>}}"""
+
+COMPOSE_PROMPT = """\
+You are a Strategic Executive Architect. You combine the high-stakes positioning of a PR Expert, \
+the market-matching insight of an Executive Search Consultant, and the tactical communication style \
+of a Leadership Coach. Your goal is to help Santiago Aldana build Intellectual Authority on LinkedIn \
+without ever appearing to be job hunting.
+
+AUTHOR PROFILE:
+{profile}
+
+TOPIC / CONTEXT FROM SANTIAGO:
+{context}
+
+WRITING RULES:
+- First Principles: Break every topic into fundamental truths. Not "improving payments" but "the atomic unit of trust in digital exchange."
+- Anti-Sales Mandate: No hashtags (#Hiring, #OpenToWork, or any). The post must make Santiago appear deeply embedded in the future of industry.
+- Style: Clever, minimalist, authoritative. Short punchy sentences. No corporate jargon — use "friction" not "synergistic challenges."
+- Hook: Start with a Pattern Interrupt — a first line that challenges a common assumption or states a surprising fact. Never open with "I".
+- Analyze the topic through three lenses:
+  1. Macro Trend: Why does this matter to the economy/industry right now?
+  2. The "So What?": What is the non-obvious insight Santiago has, grounded in his specific experience?
+  3. Call to Conversation: End with a high-level question that invites peers (CEOs, Founders) to comment.
+- The Execution Gap: When relevant, highlight that technology is a commodity — "Institutional Wisdom" (navigating human resistance, process redesign) is the real bottleneck. Position Santiago as the strategist who understands both the code and the culture, equally capable as a hands-on entrepreneur and a senior executive.
+- Length: 180–260 words. No emojis.
+
+Score:
+- controversy_score (1-10): how much this challenges conventional wisdom
+- risk_score (1-10): reputational risk
+
+Return JSON only (no markdown):
+{{"body": "<full post>", "controversy_score": <int>, "risk_score": <int>}}"""
+
+REGENERATE_PROMPT = """\
+You are a Strategic Executive Architect editing a LinkedIn post for Santiago Aldana, \
+a senior FinTech/AI/payments executive.
+
+ORIGINAL POST:
+{original_body}
+
+SOURCE ARTICLE: {source_title}
+
+EDIT INSTRUCTIONS FROM SANTIAGO:
+{instructions}
+
+Rewrite the post following the edit instructions exactly. Keep the same general topic and voice but apply the requested changes.
+
+Rules:
+- 180–260 words. No emojis. No hashtags.
+- Strong opening hook — a Pattern Interrupt (never open with "I").
+- First-person executive voice, clever and minimalist.
+- Ends with a high-level question that invites peer conversation.
+
+Return JSON only (no markdown):
+{{"body": "<rewritten post>", "controversy_score": <1-10>, "risk_score": <1-10>}}"""
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _get_profile() -> str:
     global EXECUTIVE_PROFILE
@@ -26,6 +115,18 @@ def _get_profile() -> str:
         EXECUTIVE_PROFILE = EP
     return EXECUTIVE_PROFILE
 
+
+def _parse_response(raw: str) -> tuple:
+    raw = re.sub(r'^```(?:json)?\n?', '', raw.strip())
+    raw = re.sub(r'\n?```$', '', raw)
+    data = json.loads(raw)
+    controversy = float(data.get("controversy_score", 5))
+    risk = float(data.get("risk_score", 5))
+    net_score = round(controversy - (risk * 0.4), 2)
+    return data["body"], net_score, controversy, risk
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
 
 async def generate_linkedin_drafts(days: int = 7, count: int = 3) -> list:
     """Pull FinTech news and generate LinkedIn post drafts."""
@@ -59,61 +160,30 @@ async def generate_linkedin_drafts(days: int = 7, count: int = 3) -> list:
     if not articles:
         return []
 
-    # Select top articles for drafting
-    selected = articles[:count * 2]
     client = anthropic.Anthropic()
     profile = _get_profile()
     saved = []
 
-    for article in selected[:count]:
-        prompt = f"""Write a contrarian LinkedIn post (200-280 words) for Santiago Aldana based on this article.
-
-ARTICLE: {article['title']}
-SUMMARY: {article['summary']}
-SOURCE: {article['source']}
-
-AUTHOR PROFILE:
-{profile}
-
-POST REQUIREMENTS:
-- Open with a contrarian observation that challenges the article or highlights a gap
-- Reference one specific Santiago credential (SoyYo, Avianca, Uff Móvil, MIT Sloan)
-- End with a sharp, genuinely debatable question
-- No generic phrases: no "excited", "great article", no excessive hashtags
-- No emojis unless making a specific rhetorical point
-- First person, direct voice
-
-Also score:
-- controversy_score (1-10): how much this challenges conventional wisdom
-- risk_score (1-10): credibility risk from the contrarian angle
-
-Return JSON (no markdown):
-{{
-  "body": "<full post text>",
-  "controversy_score": <int>,
-  "risk_score": <int>
-}}"""
-
+    for article in articles[:count]:
+        prompt = NEWS_PROMPT.format(
+            profile=profile,
+            title=article["title"],
+            summary=article["summary"],
+            source=article["source"],
+        )
         try:
             response = client.messages.create(
                 model="claude-opus-4-6",
-                max_tokens=600,
+                max_tokens=700,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = response.content[0].text.strip()
-            raw = re.sub(r'^```(?:json)?\n?', '', raw)
-            raw = re.sub(r'\n?```$', '', raw)
-            data = json.loads(raw)
-
-            controversy = float(data.get("controversy_score", 5))
-            risk = float(data.get("risk_score", 5))
-            net_score = round(controversy - (risk * 0.4), 2)
+            body, net_score, controversy, risk = _parse_response(response.content[0].text)
 
             with Session(engine) as session:
                 draft = ContentDraft(
                     source_url=article["url"],
                     source_title=article["title"],
-                    body=data["body"],
+                    body=body,
                     net_score=net_score,
                     controversy_score=controversy,
                     risk_score=risk,
@@ -130,42 +200,39 @@ Return JSON (no markdown):
     return saved
 
 
+async def compose_linkedin_post(context: str) -> tuple:
+    """
+    Generate a LinkedIn post from Santiago's own topic/context.
+    Returns (body, net_score, controversy_score, risk_score).
+    """
+    client = anthropic.Anthropic()
+    profile = _get_profile()
+
+    prompt = COMPOSE_PROMPT.format(profile=profile, context=context)
+
+    response = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=700,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    body, net_score, controversy, risk = _parse_response(response.content[0].text)
+    return body, net_score, controversy, risk
+
+
 async def regenerate_linkedin_draft(
     original_body: str,
     source_title: str,
     instructions: str,
 ) -> tuple:
-    """
-    Regenerate a LinkedIn draft based on natural language edit instructions.
-    Returns (new_body, new_net_score).
-    """
+    """Regenerate a LinkedIn draft based on natural language edit instructions."""
     client = anthropic.Anthropic()
 
-    prompt = f"""You are editing a LinkedIn post for Santiago Aldana, an executive in FinTech/AI/payments.
-
-ORIGINAL POST:
-{original_body}
-
-SOURCE ARTICLE: {source_title}
-
-EDIT INSTRUCTIONS FROM SANTIAGO:
-{instructions}
-
-Rewrite the post following the edit instructions exactly. Keep the same general topic and voice but apply the requested changes.
-
-Rules:
-- 150–250 words
-- Strong opening hook (no "I", question, or bold statement)
-- First-person executive voice
-- Ends with a clear takeaway or question
-- No hashtags, no emojis
-
-Return JSON only (no markdown):
-{{
-  "body": "<rewritten post>",
-  "controversy_score": <1-10, how thought-provoking>,
-  "risk_score": <1-10, reputational risk>
-}}"""
+    prompt = REGENERATE_PROMPT.format(
+        original_body=original_body,
+        source_title=source_title,
+        instructions=instructions,
+    )
 
     response = client.messages.create(
         model="claude-opus-4-6",
@@ -173,13 +240,5 @@ Return JSON only (no markdown):
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = response.content[0].text.strip()
-    raw = re.sub(r'^```(?:json)?\n?', '', raw)
-    raw = re.sub(r'\n?```$', '', raw)
-    data = json.loads(raw)
-
-    controversy = float(data.get("controversy_score", 5))
-    risk = float(data.get("risk_score", 5))
-    net_score = round(controversy - (risk * 0.4), 2)
-
-    return data["body"], net_score
+    body, net_score, _, _ = _parse_response(response.content[0].text)
+    return body, net_score

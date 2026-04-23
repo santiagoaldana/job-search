@@ -79,6 +79,7 @@ export const api = {
   approveDraft: (id) => patch(`/content/${id}`, { status: 'approved' }),
   discardDraft: (id) => patch(`/content/${id}`, { status: 'discarded' }),
   regenerateDraft: (id, instructions) => post(`/content/${id}/regenerate`, { instructions }),
+  composePost: (context) => post('/content/compose', { context }),
 
   // AI Suggestions
   getSuggestions: () => get('/daily-brief/suggestions'),
