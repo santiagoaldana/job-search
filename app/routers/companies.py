@@ -212,6 +212,52 @@ def create_company(data: CompanyCreate, session: Session = Depends(get_session))
     return company
 
 
+@router.post("/{company_id}/find-contacts")
+async def find_contacts(company_id: int, session: Session = Depends(get_session)):
+    company = session.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    try:
+        from app.services.contact_finder import find_contacts as _find_contacts
+
+        # Infer domain from career page URL or guess from name
+        domain = None
+        if company.career_page_url:
+            m = __import__("re").search(r"https?://(?:www\.)?([^/]+)", company.career_page_url)
+            if m:
+                domain = m.group(1)
+
+        contacts_data = await _find_contacts(company.name, company_id, domain)
+
+        # Persist new contacts, skip duplicates by name
+        existing_names = {c.name.lower() for c in session.exec(
+            select(Contact).where(Contact.company_id == company_id)
+        ).all()}
+
+        new_contacts = []
+        for cd in contacts_data:
+            if cd["name"].lower() in existing_names:
+                continue
+            contact = Contact(
+                company_id=company_id,
+                name=cd["name"],
+                title=cd.get("title") or "",
+                email=cd.get("email") or "",
+                linkedin_url=cd.get("linkedin_url") or "",
+                connection_degree=3,
+                warmth="cold",
+            )
+            session.add(contact)
+            new_contacts.append(cd)
+            existing_names.add(cd["name"].lower())
+
+        session.commit()
+
+        return {"found": len(new_contacts), "contacts": new_contacts}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/{company_id}/intel/refresh")
 async def refresh_intel(company_id: int, session: Session = Depends(get_session)):
     company = session.get(Company, company_id)

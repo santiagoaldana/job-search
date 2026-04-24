@@ -32,6 +32,7 @@ export const api = {
   advanceStage: (id, stage) => post(`/companies/${id}/stage`, { stage }),
   archiveCompany: (id) => post(`/companies/${id}/archive`),
   refreshIntel: (id) => post(`/companies/${id}/intel/refresh`),
+  findContacts: (id) => post(`/companies/${id}/find-contacts`),
 
   // Leads
   getLeads: (params = {}) => {

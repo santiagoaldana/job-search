@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy, Users } from 'lucide-react'
 import { api } from '../api'
 import Badge from '../components/Badge'
 import FitBar from '../components/FitBar'
@@ -23,6 +23,7 @@ export default function CompanyCard() {
   const [savingMotivation, setSavingMotivation] = useState(false)
   const [generatingOutreach, setGeneratingOutreach] = useState(false)
   const [outreachDraft, setOutreachDraft] = useState(null)
+  const [findingContacts, setFindingContacts] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -56,6 +57,21 @@ export default function CompanyCard() {
     if (!confirm('Archive this company?')) return
     try { await api.archiveCompany(id); navigate(-1) }
     catch (e) { alert(e.message) }
+  }
+
+  const handleFindContacts = async () => {
+    setFindingContacts(true)
+    try {
+      const result = await api.findContacts(id)
+      if (result.found === 0) {
+        alert('No new contacts found. Try generating intel first, then searching again.')
+      }
+      load()
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setFindingContacts(false)
+    }
   }
 
   const handleGenerateOutreach = async () => {
@@ -154,31 +170,53 @@ export default function CompanyCard() {
 
         {tab === 'Contacts' && (
           <div className="space-y-3">
-            {(!company.contacts || company.contacts.length === 0) && (
-              <div className="text-center text-muted text-sm py-8">No contacts found</div>
-            )}
-            {company.contacts?.map(c => (
-              <div key={c.id} className="bg-card border border-theme rounded-xl p-4">
-                <div className="font-medium text-body">{c.name}</div>
-                <div className="text-sm text-muted mt-0.5">{c.title}</div>
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  {c.connection_degree && (
-                    <Badge color={c.connection_degree === 1 ? 'green' : c.connection_degree === 2 ? 'blue' : 'slate'}>
-                      {c.connection_degree}° connection
-                    </Badge>
-                  )}
-                  {c.warmth && (
-                    <Badge color={c.warmth === 'hot' ? 'red' : c.warmth === 'warm' ? 'orange' : 'slate'}>
-                      {c.warmth}
-                    </Badge>
-                  )}
-                </div>
-                {c.linkedin_url && (
-                  <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-blue-500 mt-2 block">LinkedIn →</a>
-                )}
+            {(!company.contacts || company.contacts.length === 0) ? (
+              <div className="py-10 text-center">
+                <div className="text-muted text-sm mb-4">No contacts yet</div>
+                <button
+                  onClick={handleFindContacts}
+                  disabled={findingContacts}
+                  className="flex items-center gap-2 mx-auto bg-blue-500 text-white rounded-xl px-5 py-2.5 text-sm font-medium disabled:opacity-50"
+                >
+                  <Users size={15} />
+                  {findingContacts ? 'Searching…' : 'Find Contacts'}
+                </button>
               </div>
-            ))}
+            ) : (
+              <>
+                {company.contacts.map(c => (
+                  <div key={c.id} className="bg-card border border-theme rounded-xl p-4">
+                    <div className="font-medium text-body">{c.name}</div>
+                    {c.title && <div className="text-sm text-muted mt-0.5">{c.title}</div>}
+                    {c.email && <div className="text-xs text-blue-500 mt-1">{c.email}</div>}
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      {c.connection_degree && (
+                        <Badge color={c.connection_degree === 1 ? 'green' : c.connection_degree === 2 ? 'blue' : 'slate'}>
+                          {c.connection_degree}° connection
+                        </Badge>
+                      )}
+                      {c.warmth && (
+                        <Badge color={c.warmth === 'hot' ? 'red' : c.warmth === 'warm' ? 'orange' : 'slate'}>
+                          {c.warmth}
+                        </Badge>
+                      )}
+                    </div>
+                    {c.linkedin_url && (
+                      <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-blue-500 mt-2 block">LinkedIn →</a>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={handleFindContacts}
+                  disabled={findingContacts}
+                  className="flex items-center gap-1.5 text-xs text-blue-500 disabled:opacity-50 mt-1"
+                >
+                  <Users size={12} />
+                  {findingContacts ? 'Searching…' : 'Find more contacts'}
+                </button>
+              </>
+            )}
           </div>
         )}
 
