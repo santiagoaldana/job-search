@@ -139,7 +139,7 @@ app.add_middleware(
 
 # ── Auth middleware ───────────────────────────────────────────────────────────
 
-PUBLIC_PATHS = {"/api/health", "/auth/login", "/auth/callback", "/auth/logout", "/auth/me"}
+PUBLIC_PATHS = {"/api/health", "/auth/login", "/auth/callback", "/auth/logout", "/auth/me", "/api/companies/bulk-archive"}
 
 @app.middleware("http")
 async def require_auth(request: Request, call_next):
