@@ -27,6 +27,7 @@ export const api = {
   getFunnel: () => get('/companies/funnel'),
   getCompany: (id) => get(`/companies/${id}`),
   createCompany: (data) => post('/companies', data),
+  bulkArchive: (names) => post('/companies/bulk-archive', { names }),
   updateCompany: (id, data) => patch(`/companies/${id}`, data),
   advanceStage: (id, stage) => post(`/companies/${id}/stage`, { stage }),
   archiveCompany: (id) => post(`/companies/${id}/archive`),

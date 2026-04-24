@@ -150,8 +150,31 @@ export default function Funnel() {
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [outreachTarget, setOutreachTarget] = useState(null)
+  const [fetchingIntel, setFetchingIntel] = useState({})
   const debounceRef = useRef(null)
   const navigate = useNavigate()
+
+  async function getIntel(company, e) {
+    e.stopPropagation()
+    setFetchingIntel(s => ({ ...s, [company.id]: true }))
+    try {
+      const result = await api.refreshIntel(company.id)
+      setFunnel(f => {
+        const updated = { ...f }
+        for (const stage of Object.keys(updated)) {
+          updated[stage] = updated[stage].map(c =>
+            c.id === company.id ? { ...c, intel_summary: result.intel_summary } : c
+          )
+        }
+        return updated
+      })
+      setSearchResults(rs => rs.map(c => c.id === company.id ? { ...c, intel_summary: result.intel_summary } : c))
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setFetchingIntel(s => ({ ...s, [company.id]: false }))
+    }
+  }
 
   useEffect(() => {
     loadFunnel()
@@ -260,6 +283,8 @@ export default function Funnel() {
               onNavigate={() => navigate(`/company/${c.id}`)}
               onLogOutreach={() => setOutreachTarget(c)}
               onUpdated={loadFunnel}
+              fetchingIntel={fetchingIntel[c.id]}
+              onGetIntel={(e) => getIntel(c, e)}
             />
           ))}
         </div>
@@ -290,6 +315,16 @@ export default function Funnel() {
                         <span className="text-xs text-muted">LAMP {c.lamp_score?.toFixed(0) || '—'}</span>
                         <span className="text-xs text-muted">Motivation {c.motivation}/10</span>
                       </div>
+                      {c.intel_summary
+                        ? <div className="text-xs text-muted mt-1.5 line-clamp-2 leading-relaxed">{c.intel_summary}</div>
+                        : <button
+                            onClick={(e) => getIntel(c, e)}
+                            disabled={fetchingIntel[c.id]}
+                            className="text-xs text-blue-500 mt-1.5 disabled:opacity-50"
+                          >
+                            {fetchingIntel[c.id] ? 'Getting intel…' : 'Get Intel'}
+                          </button>
+                      }
                     </div>
                     <ChevronRight size={16} className="text-faint mt-1 flex-shrink-0" />
                   </div>
@@ -311,7 +346,7 @@ export default function Funnel() {
   )
 }
 
-function SearchResultCard({ company, onNavigate, onLogOutreach, onUpdated }) {
+function SearchResultCard({ company, onNavigate, onLogOutreach, onUpdated, fetchingIntel, onGetIntel }) {
   const funding = FUNDING_BADGE[company.funding_stage] || FUNDING_BADGE.unknown
   const stageColor = STAGE_COLORS[company.stage] || 'slate'
   return (
@@ -324,6 +359,16 @@ function SearchResultCard({ company, onNavigate, onLogOutreach, onUpdated }) {
             <Badge color={funding.color}>{funding.label}</Badge>
             <MotivationEdit company={company} onUpdated={onUpdated} />
           </div>
+          {company.intel_summary
+            ? <div className="text-xs text-muted mt-1.5 line-clamp-2 leading-relaxed">{company.intel_summary}</div>
+            : <button
+                onClick={onGetIntel}
+                disabled={fetchingIntel}
+                className="text-xs text-blue-500 mt-1.5 disabled:opacity-50"
+              >
+                {fetchingIntel ? 'Getting intel…' : 'Get Intel'}
+              </button>
+          }
         </button>
       </div>
       <button

@@ -155,6 +155,7 @@ function BulkReview() {
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState({})
+  const [fetchingIntel, setFetchingIntel] = useState({})
   const [filter, setFilter] = useState('all')
 
   const load = useCallback(() => {
@@ -177,6 +178,18 @@ function BulkReview() {
       console.error(e)
     } finally {
       setSaving(s => ({ ...s, [company.id]: false }))
+    }
+  }
+
+  async function getIntel(company) {
+    setFetchingIntel(s => ({ ...s, [company.id]: true }))
+    try {
+      const result = await api.refreshIntel(company.id)
+      setCompanies(cs => cs.map(c => c.id === company.id ? { ...c, intel_summary: result.intel_summary } : c))
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setFetchingIntel(s => ({ ...s, [company.id]: false }))
     }
   }
 
@@ -221,10 +234,20 @@ function BulkReview() {
           ) : (
             <div className="divide-y divide-theme max-h-[60vh] overflow-y-auto">
               {filtered.map(c => (
-                <div key={c.id} className="flex items-center gap-3 px-4 py-3">
+                <div key={c.id} className="flex items-start gap-3 px-4 py-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-body truncate">{c.name}</div>
                     <div className="text-xs text-muted">LAMP {c.lamp_score?.toFixed(0) || '—'} · {c.stage}</div>
+                    {c.intel_summary
+                      ? <div className="text-xs text-muted mt-0.5 line-clamp-2 leading-relaxed">{c.intel_summary}</div>
+                      : <button
+                          onClick={() => getIntel(c)}
+                          disabled={fetchingIntel[c.id]}
+                          className="text-xs text-blue-500 mt-0.5 disabled:opacity-50"
+                        >
+                          {fetchingIntel[c.id] ? 'Getting intel…' : 'Get Intel'}
+                        </button>
+                    }
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button

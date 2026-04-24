@@ -75,6 +75,7 @@ def funnel_view(session: Session = Depends(get_session)):
             "motivation": c.motivation,
             "funding_stage": c.funding_stage,
             "stage": c.stage,
+            "intel_summary": c.intel_summary,
         })
     return result
 
@@ -171,6 +172,26 @@ def archive_company(company_id: int, session: Session = Depends(get_session)):
     session.add(company)
     session.commit()
     return {"id": company_id, "archived": True}
+
+
+class BulkArchiveRequest(BaseModel):
+    names: List[str]
+
+
+@router.post("/bulk-archive")
+def bulk_archive(req: BulkArchiveRequest, session: Session = Depends(get_session)):
+    """Archive a list of companies by exact name match."""
+    archived = 0
+    for name in req.names:
+        company = session.exec(select(Company).where(Company.name == name)).first()
+        if company:
+            company.is_archived = True
+            company.motivation = 1
+            company.updated_at = datetime.utcnow().isoformat()
+            session.add(company)
+            archived += 1
+    session.commit()
+    return {"archived": archived, "requested": len(req.names)}
 
 
 @router.post("")
