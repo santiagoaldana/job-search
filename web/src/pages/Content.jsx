@@ -25,7 +25,7 @@ function ComposeModal({ onClose, onSaved }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center" onClick={onClose}>
       <div
-        className="bg-card w-full max-w-lg rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]"
+        className="bg-card w-full max-w-lg rounded-t-2xl p-4 space-y-3 overflow-y-auto max-h-[55vh]"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -37,7 +37,7 @@ function ComposeModal({ onClose, onSaved }) {
           <label className="text-xs text-muted mb-1 block">What do you want to write about?</label>
           <textarea
             autoFocus
-            rows={5}
+            rows={3}
             value={context}
             onChange={e => setContext(e.target.value)}
             className="w-full bg-bg border border-theme rounded-lg px-3 py-2 text-sm text-body resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
