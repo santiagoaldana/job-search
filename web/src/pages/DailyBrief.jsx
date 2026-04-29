@@ -374,7 +374,7 @@ export default function DailyBrief() {
             />
             <div className="mx-4 border-t border-theme my-1" />
             <Section
-              title="Positions"
+              title="Companies"
               icon={Briefcase}
               items={brief.positions || []}
               onAction={handleAction}
