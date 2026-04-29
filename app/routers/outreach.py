@@ -262,13 +262,11 @@ def send_followup(
     contact = session.get(Contact, record.contact_id) if record.contact_id else None
     to_email = (contact.email or "") if contact else ""
 
-    # Build mailto link so user can send from their Gmail
-    mailto_params = urllib.parse.urlencode({
-        "subject": req.subject,
-        "body": req.body,
-        **({"to": to_email} if to_email else {}),
-    })
-    mailto_url = f"mailto:{to_email}?{mailto_params}"
+    # Build mailto link — must use %20 (RFC 3986), not + (form encoding)
+    subject_enc = urllib.parse.quote(req.subject or "", safe="")
+    body_enc = urllib.parse.quote(req.body or "", safe="")
+    to_part = f"mailto:{urllib.parse.quote(to_email, safe='@.')}" if to_email else "mailto:"
+    mailto_url = f"{to_part}?subject={subject_enc}&body={body_enc}"
 
     # Mark the appropriate follow-up sent
     if req.followup_day == 3:
