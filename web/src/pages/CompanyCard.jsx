@@ -593,16 +593,42 @@ function OutreachTab({ company, onReload, defaultContactId }) {
 
       {/* Contact selector */}
       {company.contacts?.length > 0 && (
-        <select
-          value={selectedContact || ''}
-          onChange={e => setSelectedContact(Number(e.target.value) || null)}
-          className="w-full bg-card border border-theme text-body rounded-xl px-3 py-2 text-sm outline-none"
-        >
-          <option value="">No specific contact</option>
-          {company.contacts.map(c => (
-            <option key={c.id} value={c.id}>{c.name} — {c.title}</option>
-          ))}
-        </select>
+        <div className="space-y-1.5">
+          <div className="text-xs text-muted font-medium uppercase tracking-wide">Contact</div>
+          <div className="space-y-1.5">
+            {[{ id: null, name: 'No specific contact' }, ...company.contacts].map(c => {
+              const isSelected = selectedContact === c.id
+              const contact = company.contacts.find(x => x.id === c.id)
+              return (
+                <button
+                  key={c.id ?? 'none'}
+                  onClick={() => {
+                    setSelectedContact(c.id)
+                    if (contact?.met_via && !context) setContext(`Met via ${contact.met_via}${contact.relationship_notes ? '. ' + contact.relationship_notes : ''}`)
+                  }}
+                  className={`w-full text-left rounded-xl px-3 py-2.5 border transition-all ${
+                    isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-400' : 'bg-card border-theme'
+                  }`}
+                >
+                  <div className="text-sm font-medium text-body">{c.name}</div>
+                  {contact && (
+                    <div className="text-xs text-muted mt-0.5 space-y-0.5">
+                      {contact.title && <div>{contact.title}</div>}
+                      {contact.met_via && <div className="text-blue-500">Met via {contact.met_via}</div>}
+                      {contact.relationship_notes && <div className="italic">{contact.relationship_notes}</div>}
+                      {contact.connected_on && <div>Connected {contact.connected_on}</div>}
+                      {contact.warmth && contact.warmth !== 'cold' && (
+                        <div className={contact.warmth === 'hot' ? 'text-red-500' : 'text-orange-500'}>
+                          {contact.warmth} contact
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       )}
 
       {/* Context fields */}
