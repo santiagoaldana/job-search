@@ -150,6 +150,10 @@ async def require_auth(request: Request, call_next):
         return await call_next(request)
     # Allow API calls only if authenticated
     if path.startswith("/api/"):
+        # MCP server bypass — trusted caller identified by shared secret
+        mcp_secret = os.environ.get("MCP_SECRET", "")
+        if mcp_secret and request.headers.get("X-MCP-Secret") == mcp_secret:
+            return await call_next(request)
         from app.routers.auth import get_session_email
         if not get_session_email(request):
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)

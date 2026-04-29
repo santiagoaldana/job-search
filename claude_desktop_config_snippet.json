@@ -1,0 +1,15 @@
+{
+  "_readme": "Merge the 'mcpServers' block below into ~/Library/Application Support/Claude/claude_desktop_config.json, then restart Claude desktop.",
+  "mcpServers": {
+    "job-search": {
+      "command": "/Users/santiagoaldana/Library/CloudStorage/OneDrive-Personal/OneDrive Personal/Claude Code/Job search/.mcp-venv/bin/python3.12",
+      "args": [
+        "/Users/santiagoaldana/Library/CloudStorage/OneDrive-Personal/OneDrive Personal/Claude Code/Job search/mcp_server.py"
+      ],
+      "env": {
+        "MCP_SECRET": "UZjbZp9c_9zQTaloCD2EUkUsTuHoAnIhxzxd6-jReKU",
+        "API_BASE_URL": "https://job-search-do1r.onrender.com"
+      }
+    }
+  }
+}
