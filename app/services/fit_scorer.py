@@ -30,6 +30,28 @@ def _get_profile() -> str:
     return EXECUTIVE_PROFILE
 
 
+EXCLUDED_TITLE_KEYWORDS = [
+    "engineer", "developer", "architect", "data scientist",
+    "analyst", "programmer", "devops", "sre", "qa tester",
+    "tester", "scientist", "data engineer",
+]
+
+# Titles that contain excluded keywords but are actually exec/leadership roles
+EXCLUDED_TITLE_EXEMPTIONS = [
+    "chief", "vp", "svp", "evp", "director", "head of", "principal",
+    "solutions architect",  # solutions architects are often strategic
+]
+
+
+def _apply_role_type_penalty(title: str, fit_score: float) -> float:
+    title_lower = title.lower()
+    if any(exempt in title_lower for exempt in EXCLUDED_TITLE_EXEMPTIONS):
+        return fit_score
+    if any(kw in title_lower for kw in EXCLUDED_TITLE_KEYWORDS):
+        return min(fit_score, 40.0)
+    return fit_score
+
+
 def _is_location_compatible(location: str, title: str, fit_score: float) -> bool:
     """Cambridge/Boston/Remote = True. Onsite-only elsewhere = False unless SVP+ with high fit."""
     if not location:
@@ -99,6 +121,7 @@ Return ONLY valid JSON (no markdown fences):
         data = {"fit_score": 50, "fit_strengths": [], "fit_gaps": [], "reasoning": "parse error"}
 
     fit_score = float(data.get("fit_score", 50))
+    fit_score = _apply_role_type_penalty(title, fit_score)
     location_compatible = _is_location_compatible(location, title, fit_score)
 
     return {

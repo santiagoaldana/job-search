@@ -11,8 +11,6 @@ import json
 import httpx
 from bs4 import BeautifulSoup
 
-from skills.shared import MODEL_HAIKU
-
 # Headers to avoid trivial bot blocks
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -145,6 +143,7 @@ async def _try_github(company_name: str) -> list[dict]:
 async def _try_claude_synthesis(company_name: str, domain: str = None) -> list[dict]:
     import anthropic
     import os
+    from skills.shared import MODEL_HAIKU
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, forwardRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ExternalLink, MapPin, Clock, Calendar, Users, CheckCircle, PlusCircle } from 'lucide-react'
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
@@ -37,6 +38,9 @@ export default function Events() {
   const [thisWeek, setThisWeek] = useState([])
   const [upcoming, setUpcoming] = useState([])
   const [loading, setLoading] = useState(true)
+  const [searchParams] = useSearchParams()
+  const highlightId = searchParams.get('highlight') ? Number(searchParams.get('highlight')) : null
+  const highlightRef = useRef(null)
 
   const load = () => {
     setLoading(true)
@@ -51,6 +55,13 @@ export default function Events() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Scroll to highlighted event after load
+  useEffect(() => {
+    if (!loading && highlightId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [loading, highlightId])
 
   const onCalendarAdded = (eventId) => {
     setThisWeek(prev => prev.map(e => e.id === eventId ? { ...e, in_calendar: true } : e))
@@ -105,7 +116,8 @@ export default function Events() {
                 <div className="py-12 text-center text-muted text-sm">No events this week</div>
               ) : (
                 thisWeek.map(e => (
-                  <ThisWeekCard key={e.id} event={e} onCalendarAdded={onCalendarAdded} />
+                  <ThisWeekCard key={e.id} event={e} onCalendarAdded={onCalendarAdded}
+                    highlight={highlightId === e.id} ref={highlightId === e.id ? highlightRef : null} />
                 ))
               )}
             </>
@@ -121,7 +133,8 @@ export default function Events() {
                   No upcoming Boston/Cambridge events found
                 </div>
               ) : (
-                upcoming.map(e => <RegisterCard key={e.id} event={e} onAdded={onCalendarAdded} />)
+                upcoming.map(e => <RegisterCard key={e.id} event={e} onAdded={onCalendarAdded}
+                    highlight={highlightId === e.id} ref={highlightId === e.id ? highlightRef : null} />)
               )}
             </>
           )}
@@ -131,7 +144,7 @@ export default function Events() {
   )
 }
 
-function ThisWeekCard({ event, onCalendarAdded }) {
+const ThisWeekCard = forwardRef(function ThisWeekCard({ event, onCalendarAdded, highlight }, ref) {
   const daysAway = event.days_away
   const isToday = daysAway === 0
   const isTomorrow = daysAway === 1
@@ -150,7 +163,7 @@ function ThisWeekCard({ event, onCalendarAdded }) {
   }
 
   return (
-    <div className={`bg-card border rounded-xl p-4 ${isToday ? 'border-orange-300 dark:border-orange-600' : 'border-theme'}`}>
+    <div ref={ref} className={`bg-card border rounded-xl p-4 ${highlight ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-800' : isToday ? 'border-orange-300 dark:border-orange-600' : 'border-theme'}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-body text-sm leading-snug">{event.name}</div>
@@ -212,9 +225,9 @@ function ThisWeekCard({ event, onCalendarAdded }) {
       )}
     </div>
   )
-}
+})
 
-function RegisterCard({ event, onAdded }) {
+const RegisterCard = forwardRef(function RegisterCard({ event, onAdded, highlight }, ref) {
   const weeks = event.weeks_away
   const urgency = weeks <= 3 ? 'red' : weeks <= 6 ? 'orange' : 'slate'
   const [busy, setBusy] = useState(false)
@@ -253,7 +266,7 @@ function RegisterCard({ event, onAdded }) {
   }
 
   return (
-    <div className={`bg-card border rounded-xl p-4 ${registered ? 'border-green-300 dark:border-green-700' : 'border-theme'}`}>
+    <div ref={ref} className={`bg-card border rounded-xl p-4 ${highlight ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-800' : registered ? 'border-green-300 dark:border-green-700' : 'border-theme'}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-body text-sm leading-snug">{event.name}</div>
@@ -323,4 +336,4 @@ function RegisterCard({ event, onAdded }) {
       )}
     </div>
   )
-}
+})

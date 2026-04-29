@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
-import { RefreshCw, Check, X, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { RefreshCw, Check, X, ChevronDown, ChevronUp, Plus, Trash2, Upload } from 'lucide-react'
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
 import Badge from '../components/Badge'
@@ -150,6 +150,29 @@ function ThoughtLeaderFeeds() {
   )
 }
 
+function IntelSummary({ company: c, onRefresh, refreshing }) {
+  const [expanded, setExpanded] = useState(false)
+  const preview = (c.intel_summary || '').replace(/[#*►]/g, '').trim().slice(0, 120)
+  return (
+    <div className="mt-0.5">
+      {expanded
+        ? <div className="text-xs text-muted leading-relaxed whitespace-pre-wrap pr-1">{c.intel_summary.replace(/[#*►]/g, '').trim()}</div>
+        : <div className="text-xs text-muted leading-relaxed">{preview}{c.intel_summary.length > 120 ? '…' : ''}</div>
+      }
+      <div className="flex gap-3 mt-1">
+        {c.intel_summary.length > 120 && (
+          <button onClick={() => setExpanded(e => !e)} className="text-xs text-blue-500">
+            {expanded ? 'Show less' : 'Read more'}
+          </button>
+        )}
+        <button onClick={onRefresh} disabled={refreshing} className="text-xs text-muted disabled:opacity-50">
+          {refreshing ? 'Refreshing…' : 'Refresh intel'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function BulkReview() {
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
@@ -239,7 +262,7 @@ function BulkReview() {
                     <div className="text-sm font-medium text-body truncate">{c.name}</div>
                     <div className="text-xs text-muted">LAMP {c.lamp_score?.toFixed(0) || '—'} · {c.stage}</div>
                     {c.intel_summary
-                      ? <div className="text-xs text-muted mt-0.5 line-clamp-2 leading-relaxed">{c.intel_summary}</div>
+                      ? <IntelSummary company={c} onRefresh={() => getIntel(c)} refreshing={fetchingIntel[c.id]} />
                       : <button
                           onClick={() => getIntel(c)}
                           disabled={fetchingIntel[c.id]}
@@ -270,6 +293,124 @@ function BulkReview() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function LinkedInContactsImport() {
+  const [importing, setImporting] = useState(false)
+  const [result, setResult] = useState(null)
+  const inputRef = useRef(null)
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true); setResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const data = await api.importLinkedInContacts(formData)
+      let msg = `✓ ${data.imported} contacts imported`
+      if (data.matched_to_funnel > 0) {
+        msg += ` · ${data.matched_to_funnel} warm path${data.matched_to_funnel > 1 ? 's' : ''} found: ${(data.new_warm_paths || []).slice(0, 3).join(', ')}`
+      }
+      setResult(msg)
+    } catch (err) {
+      setResult(`Error: ${err.message}`)
+    } finally {
+      setImporting(false)
+      e.target.value = ''
+    }
+  }
+
+  return (
+    <div className="px-4 mb-4">
+      <div className="bg-card border border-theme rounded-xl p-4">
+        <div className="text-sm font-medium text-body mb-0.5">LinkedIn Contacts</div>
+        <div className="text-xs text-muted mb-3 leading-relaxed">
+          Cross-reference your network against funnel companies to find warm paths.{' '}
+          <span className="font-medium text-body">How to export:</span>{'\n'}
+          1. linkedin.com → Me → Settings &amp; Privacy{'\n'}
+          2. Data Privacy → Get a copy of your data{'\n'}
+          3. Select Connections only → Request archive{'\n'}
+          4. LinkedIn emails you the download link (~10 min){'\n'}
+          5. Download zip → extract Connections.csv → upload below
+        </div>
+        <input
+          type="file"
+          accept=".csv"
+          ref={inputRef}
+          onChange={handleFile}
+          className="hidden"
+        />
+        <button
+          onClick={() => inputRef.current?.click()}
+          disabled={importing}
+          className="w-full flex items-center justify-center gap-2 bg-card2 hover:bg-card border border-theme text-body rounded-lg py-2.5 text-sm font-medium disabled:opacity-50 transition-colors"
+        >
+          {importing ? <Spinner size={4} /> : <Upload size={14} />}
+          {importing ? 'Importing contacts…' : 'Import LinkedIn Contacts (.csv)'}
+        </button>
+        {result && (
+          <div className={`mt-2 text-xs text-center leading-relaxed ${result.startsWith('Error') ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+            {result}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function MasterCVUpload() {
+  const [uploading, setUploading] = useState(false)
+  const [result, setResult] = useState(null)
+  const fileInputRef = useRef(null)
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true); setResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const data = await api.uploadMasterCV(formData)
+      setResult(`✓ Master CV updated — ${data.experience_count} roles loaded for ${data.name}`)
+    } catch (err) {
+      setResult(`Error: ${err.message}`)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  return (
+    <div className="px-4 mb-4">
+      <div className="bg-card border border-theme rounded-xl p-4">
+        <div className="text-sm font-medium text-body mb-0.5">Master CV</div>
+        <div className="text-xs text-muted mb-3">
+          Upload your edited .docx to update the base template used for all tailored versions.
+        </div>
+        <input
+          type="file"
+          accept=".docx,.json"
+          ref={fileInputRef}
+          onChange={handleFile}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full flex items-center justify-center gap-2 bg-card2 hover:bg-card border border-theme text-body rounded-lg py-2.5 text-sm font-medium disabled:opacity-50 transition-colors"
+        >
+          {uploading ? <Spinner size={4} /> : <Upload size={14} />}
+          {uploading ? 'Uploading & parsing…' : 'Upload Master CV (.docx or .json)'}
+        </button>
+        {result && (
+          <div className={`mt-2 text-xs text-center ${result.startsWith('Error') ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+            {result}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -311,6 +452,10 @@ export default function SettingsPage() {
       <PageHeader title="Settings & Targets" />
 
       <BulkReview />
+
+      <MasterCVUpload />
+
+      <LinkedInContactsImport />
 
       <ThoughtLeaderFeeds />
 

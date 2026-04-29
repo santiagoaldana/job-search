@@ -1,7 +1,9 @@
 """Outreach router — log outreach, generate scripts, track 3B7 follow-ups."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
+import json
+import urllib.parse
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from pydantic import BaseModel
@@ -150,3 +152,148 @@ def update_response(
     session.add(record)
     session.commit()
     return record
+
+
+class FollowUpDraftRequest(BaseModel):
+    followup_day: int  # 3 or 7
+
+
+class SendFollowUpRequest(BaseModel):
+    subject: str
+    body: str
+    followup_day: int  # 3 or 7
+
+
+@router.post("/{record_id}/draft-followup")
+async def draft_followup(
+    record_id: int,
+    req: FollowUpDraftRequest,
+    session: Session = Depends(get_session),
+):
+    """Generate an AI-drafted follow-up email for a pending outreach record."""
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    company = session.get(Company, record.company_id) if record.company_id else None
+    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+
+    days_since = 0
+    if record.sent_at:
+        try:
+            sent = datetime.fromisoformat(record.sent_at[:10])
+            days_since = (datetime.utcnow() - sent).days
+        except Exception:
+            pass
+
+    if req.followup_day == 3:
+        followup_type = "soft bump"
+        instruction = (
+            "This is a gentle Day 3 bump — short, warm, no pressure. "
+            "Reference the original email topic briefly. Ask if they had a chance to see it. "
+            "2-3 sentences max. No new pitch."
+        )
+    else:
+        followup_type = "polite close"
+        instruction = (
+            "This is a Day 7 polite close — wrap up gracefully. "
+            "Say you don't want to clog their inbox, leave the door open for the future. "
+            "3-4 sentences max. Positive and professional tone."
+        )
+
+    contact_name = contact.name if contact else "there"
+    original_subject = record.subject or "my previous note"
+    company_name = company.name if company else "your company"
+    original_body_snippet = (record.body or "")[:300]
+
+    prompt = f"""You are writing a follow-up email for Santiago Aldana, a FinTech executive (MIT Sloan MBA, 20+ years payments/AI/LATAM leadership).
+
+Company: {company_name}
+Contact: {contact_name}
+Days since initial outreach: {days_since}
+Follow-up type: {followup_type}
+Original subject: {original_subject}
+Original email (excerpt): {original_body_snippet}
+
+Instructions: {instruction}
+
+Return ONLY a JSON object with exactly two keys:
+{{"subject": "Re: {original_subject}", "body": "the email body text"}}
+
+The subject should be natural, starting with "Re: ". Body should be plain text (no HTML), professional but warm."""
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        parsed = json.loads(raw)
+        return {
+            "subject": parsed.get("subject", f"Re: {original_subject}"),
+            "body": parsed.get("body", ""),
+            "followup_day": req.followup_day,
+            "company_name": company_name,
+            "contact_name": contact_name,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{record_id}/send-followup")
+def send_followup(
+    record_id: int,
+    req: SendFollowUpRequest,
+    session: Session = Depends(get_session),
+):
+    """Mark follow-up as sent, log new outreach record, return mailto link."""
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    to_email = (contact.email or "") if contact else ""
+
+    # Build mailto link so user can send from their Gmail
+    mailto_params = urllib.parse.urlencode({
+        "subject": req.subject,
+        "body": req.body,
+        **({"to": to_email} if to_email else {}),
+    })
+    mailto_url = f"mailto:{to_email}?{mailto_params}"
+
+    # Mark the appropriate follow-up sent
+    if req.followup_day == 3:
+        record.follow_up_3_sent = True
+    else:
+        record.follow_up_7_sent = True
+    record.updated_at = datetime.utcnow().isoformat()
+
+    # Log new outreach record for the follow-up itself
+    today = date.today()
+    follow_up_record = OutreachRecord(
+        company_id=record.company_id,
+        contact_id=record.contact_id,
+        lead_id=record.lead_id,
+        channel="email",
+        subject=req.subject,
+        body=req.body,
+        sent_at=datetime.utcnow().isoformat(),
+        response_status="pending",
+        follow_up_3_due=(today + timedelta(days=3)).isoformat(),
+        follow_up_7_due=(today + timedelta(days=7)).isoformat(),
+    )
+
+    session.add(record)
+    session.add(follow_up_record)
+    session.commit()
+
+    return {"ok": True, "mailto_url": mailto_url, "to_email": to_email or None}

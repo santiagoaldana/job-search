@@ -40,8 +40,11 @@ export const api = {
     return get('/leads' + (q ? '?' + q : ''))
   },
   getHotLeads: () => get('/leads/hot'),
+  getLead: (id) => get(`/leads/${id}`),
   refreshLeads: () => post('/leads/refresh'),
   scoreLead: (id) => post(`/leads/${id}/score`),
+  fetchLeadJD: (id) => post(`/leads/${id}/fetch-jd`),
+  updateLeadStatus: (id, status) => request('PATCH', `/leads/${id}/status?status=${status}`),
 
   // Outreach
   getDueToday: () => get('/outreach/due-today'),
@@ -50,6 +53,8 @@ export const api = {
   logOutreach: (data) => post('/outreach', data),
   updateOutreachResponse: (id, status) => patch(`/outreach/${id}/response`, { response_status: status }),
   updateResponse: (id, status, notes) => patch(`/outreach/${id}/response`, { response_status: status, notes }),
+  draftFollowup: (id, followup_day) => post(`/outreach/${id}/draft-followup`, { followup_day }),
+  sendFollowup: (id, data) => post(`/outreach/${id}/send-followup`, data),
 
   // CV
   getMasterCV: () => get('/cv/master'),
@@ -61,6 +66,11 @@ export const api = {
     return BASE + '/cv/export?' + q
   },
   synthesizeCV: (lead_id, version_name) => post('/cv/synthesize', { lead_id, version_name }),
+  atsScore: (version_name) => post('/cv/ats-score', { version_name }),
+  generateCoverLetter: (data) => post('/cv/cover-letter', data),
+  uploadMasterCV: (formData) => fetch(BASE + '/cv/upload-master', {
+    method: 'POST', credentials: 'include', body: formData,
+  }).then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.detail) })),
 
   // Applications
   getApplications: () => get('/applications'),
@@ -87,6 +97,14 @@ export const api = {
   getFeeds: () => get('/content/feeds'),
   addFeed: (data) => post('/content/feeds', data),
   deleteFeed: (id) => request('DELETE', `/content/feeds/${id}`),
+
+  // Contacts
+  importLinkedInContacts: (formData) => fetch(BASE + '/contacts/import-linkedin', {
+    method: 'POST', credentials: 'include', body: formData,
+  }).then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.detail) })),
+  quickAddContact: (data) => post('/contacts/quick-add', data),
+  updateContact: (id, data) => patch(`/contacts/${id}`, data),
+  getNetworkPath: (companyId) => get(`/companies/${companyId}/network-path`),
 
   // AI Suggestions
   getSuggestions: () => get('/daily-brief/suggestions'),

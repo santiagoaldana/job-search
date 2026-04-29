@@ -54,20 +54,35 @@ def list_companies(
     return companies
 
 
+STAGE_GROUPS = {
+    "target":  {"pool", "researched"},
+    "in_play": {"outreach", "response", "meeting", "applied", "interview"},
+    "closed":  {"offer", "closed"},
+}
+
+DISPLAY_TO_INTERNAL = {
+    "target": "researched",
+    "in_play": "outreach",
+    "closed": "closed",
+}
+
+
 @router.get("/funnel")
 def funnel_view(session: Session = Depends(get_session)):
-    """Return active companies grouped by funnel stage."""
+    """Return active companies grouped into 3 stages: target / in_play / closed."""
     companies = session.exec(
         select(Company)
         .where(Company.is_archived == False, Company.motivation >= 7)
         .order_by(Company.lamp_score.desc())
     ).all()
 
-    stages = ["pool", "researched", "outreach", "response", "meeting",
-              "applied", "interview", "offer", "closed"]
-    result = {s: [] for s in stages}
+    result = {"target": [], "in_play": [], "closed": []}
     for c in companies:
-        bucket = c.stage if c.stage in result else "pool"
+        bucket = "target"
+        for group, stages in STAGE_GROUPS.items():
+            if c.stage in stages:
+                bucket = group
+                break
         result[bucket].append({
             "id": c.id,
             "name": c.name,
@@ -146,6 +161,8 @@ def set_stage(
     stage: str,
     session: Session = Depends(get_session),
 ):
+    # Accept display names (target/in_play/closed) and map to internal stages
+    stage = DISPLAY_TO_INTERNAL.get(stage, stage)
     valid = {"pool", "researched", "outreach", "response", "meeting",
              "applied", "interview", "offer", "closed"}
     if stage not in valid:
@@ -256,6 +273,82 @@ async def find_contacts(company_id: int, session: Session = Depends(get_session)
         return {"found": len(new_contacts), "contacts": new_contacts}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{company_id}/network-path")
+async def get_network_path(company_id: int, session: Session = Depends(get_session)):
+    """Return direct connections + Claude-inferred likely intro connectors."""
+    company = session.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    direct = session.exec(
+        select(Contact).where(
+            Contact.company_id == company_id,
+            Contact.connection_degree == 1,
+        )
+    ).all()
+
+    all_1st = session.exec(
+        select(Contact).where(
+            Contact.connection_degree == 1,
+            Contact.company_id != None,
+            Contact.company_id != company_id,
+        )
+    ).all()
+
+    likely_connectors = []
+    if all_1st:
+        contacts_text = "\n".join(
+            f"- {c.name} ({c.title or 'title unknown'}) at company_id {c.company_id}"
+            for c in all_1st[:40]
+        )
+        prompt = f"""Santiago Aldana is targeting {company.name} ({company.intel_summary or 'fintech company'}).
+
+These are his 1st-degree LinkedIn contacts at other companies:
+{contacts_text}
+
+Which 3-5 of these contacts are most likely to know someone at {company.name}?
+Consider: shared fintech/payments industry, geographic proximity to Boston, alumni connections.
+
+Return ONLY a JSON array:
+[{{"name": "...", "title": "...", "reason": "one sentence why they likely know someone at {company.name}"}}]"""
+
+        try:
+            import anthropic
+            import json
+            client = anthropic.Anthropic()
+            response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=500,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = response.content[0].text.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            likely_connectors = json.loads(raw)
+        except Exception:
+            likely_connectors = []
+
+    return {
+        "direct_connections": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "title": c.title,
+                "linkedin_url": c.linkedin_url,
+                "warmth": c.warmth,
+                "outreach_status": c.outreach_status,
+                "met_via": getattr(c, 'met_via', None),
+                "relationship_notes": getattr(c, 'relationship_notes', None),
+            }
+            for c in direct
+        ],
+        "likely_connectors": likely_connectors,
+        "has_warm_path": len(direct) > 0,
+    }
 
 
 @router.post("/{company_id}/intel/refresh")

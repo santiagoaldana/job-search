@@ -1,0 +1,217 @@
+"""Contacts router — LinkedIn CSV import, quick-add, update."""
+
+import csv
+import io
+from datetime import datetime
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from sqlmodel import Session, select
+from pydantic import BaseModel
+
+from app.database import get_session
+from app.models import Contact, Company
+
+router = APIRouter()
+
+
+class QuickAddRequest(BaseModel):
+    name: str
+    title: Optional[str] = None
+    company_name: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    email: Optional[str] = None
+    met_via: Optional[str] = None
+    relationship_notes: Optional[str] = None
+
+
+class ContactUpdateRequest(BaseModel):
+    met_via: Optional[str] = None
+    relationship_notes: Optional[str] = None
+    met_at_event_id: Optional[int] = None
+    warmth: Optional[str] = None
+    outreach_status: Optional[str] = None
+    title: Optional[str] = None
+
+
+def _match_company(company_name: str, session: Session) -> Optional[int]:
+    if not company_name:
+        return None
+    name_lower = company_name.lower().strip()
+    companies = session.exec(select(Company).where(Company.is_archived == False)).all()
+    for company in companies:
+        cname = (company.name or "").lower()
+        if cname == name_lower or cname in name_lower or name_lower in cname:
+            return company.id
+    return None
+
+
+def _refresh_advocacy_scores(company_ids: list, session: Session):
+    for cid in set(company_ids):
+        company = session.get(Company, cid)
+        if not company:
+            continue
+        count = len(session.exec(
+            select(Contact).where(
+                Contact.company_id == cid,
+                Contact.connection_degree == 1,
+            )
+        ).all())
+        # advocacy_score = min(10, count * 1.5 + existing base)
+        new_score = min(10.0, count * 1.5 + 1.0)
+        if new_score > company.advocacy_score:
+            company.advocacy_score = new_score
+            # Recompute lamp_score
+            company.lamp_score = round(
+                (company.motivation * 0.5)
+                + (company.postings_score * 0.3)
+                + (company.advocacy_score * 0.2),
+                2,
+            )
+            company.updated_at = datetime.utcnow().isoformat()
+            session.add(company)
+
+
+@router.post("/import-linkedin")
+async def import_linkedin_csv(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+):
+    """Parse LinkedIn Connections CSV and cross-reference against funnel companies."""
+    content = (await file.read()).decode("utf-8", errors="ignore")
+    lines = content.splitlines()
+
+    # LinkedIn CSV starts with some notes before the actual header row
+    csv_start = None
+    for i, line in enumerate(lines):
+        if line.startswith("First Name"):
+            csv_start = i
+            break
+
+    if csv_start is None:
+        raise HTTPException(status_code=400, detail="Could not find CSV header. Expected 'First Name' column.")
+
+    reader = csv.DictReader(lines[csv_start:])
+
+    imported = 0
+    matched_company_ids = []
+
+    for row in reader:
+        first = (row.get("First Name") or "").strip()
+        last = (row.get("Last Name") or "").strip()
+        name = f"{first} {last}".strip()
+        if not name:
+            continue
+
+        company_name = (row.get("Company") or "").strip()
+        position = (row.get("Position") or "").strip()
+        linkedin_url = (row.get("URL") or "").strip()
+        email = (row.get("Email Address") or "").strip() or None
+        connected_on = (row.get("Connected On") or "").strip() or None
+
+        company_id = _match_company(company_name, session)
+
+        # Upsert by linkedin_url (if present) or name
+        existing = None
+        if linkedin_url:
+            existing = session.exec(
+                select(Contact).where(Contact.linkedin_url == linkedin_url)
+            ).first()
+        if not existing and name:
+            existing = session.exec(
+                select(Contact).where(Contact.name == name)
+            ).first()
+
+        if existing:
+            if company_id and not existing.company_id:
+                existing.company_id = company_id
+                matched_company_ids.append(company_id)
+            if position and not existing.title:
+                existing.title = position
+            if email and not existing.email:
+                existing.email = email
+            session.add(existing)
+        else:
+            contact = Contact(
+                name=name,
+                title=position or None,
+                linkedin_url=linkedin_url or None,
+                email=email,
+                company_id=company_id,
+                connection_degree=1,
+                warmth="warm" if company_id else "cold",
+                connected_on=connected_on,
+            )
+            session.add(contact)
+            if company_id:
+                matched_company_ids.append(company_id)
+
+        imported += 1
+
+    _refresh_advocacy_scores(matched_company_ids, session)
+    session.commit()
+
+    matched_company_names = []
+    for cid in set(matched_company_ids):
+        company = session.get(Company, cid)
+        if company:
+            matched_company_names.append(company.name)
+
+    return {
+        "imported": imported,
+        "matched_to_funnel": len(set(matched_company_ids)),
+        "new_warm_paths": matched_company_names[:10],
+    }
+
+
+@router.post("/quick-add")
+def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_session)):
+    company_id = _match_company(req.company_name or "", session)
+
+    contact = Contact(
+        name=req.name,
+        title=req.title,
+        linkedin_url=req.linkedin_url,
+        email=req.email,
+        company_id=company_id,
+        connection_degree=1,
+        warmth="warm" if company_id else "cold",
+    )
+
+    # Store context fields if model supports them
+    if hasattr(contact, 'met_via'):
+        contact.met_via = req.met_via
+    if hasattr(contact, 'relationship_notes'):
+        contact.relationship_notes = req.relationship_notes
+
+    session.add(contact)
+    if company_id:
+        _refresh_advocacy_scores([company_id], session)
+    session.commit()
+    session.refresh(contact)
+
+    matched_company = None
+    if company_id:
+        c = session.get(Company, company_id)
+        matched_company = c.name if c else None
+
+    return {"ok": True, "contact_id": contact.id, "matched_company": matched_company}
+
+
+@router.patch("/{contact_id}")
+def update_contact(
+    contact_id: int,
+    req: ContactUpdateRequest,
+    session: Session = Depends(get_session),
+):
+    contact = session.get(Contact, contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    for field, val in req.dict(exclude_none=True).items():
+        if hasattr(contact, field):
+            setattr(contact, field, val)
+
+    session.add(contact)
+    session.commit()
+    session.refresh(contact)
+    return contact

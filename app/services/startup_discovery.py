@@ -58,19 +58,24 @@ Return ONLY valid JSON (no markdown fences):
 ]"""
 
     response = client.messages.create(
-        model="claude-opus-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=1500,
         messages=[{"role": "user", "content": prompt}],
     )
 
     raw = response.content[0].text.strip()
+    # Strip markdown fences
     raw = re.sub(r'^```(?:json)?\n?', '', raw)
-    raw = re.sub(r'\n?```$', '', raw)
+    raw = re.sub(r'\n?```.*$', '', raw, flags=re.DOTALL)
+    # Extract JSON array even if there's preamble text
+    match = re.search(r'\[.*\]', raw, re.DOTALL)
+    if match:
+        raw = match.group(0)
 
     try:
         suggestions = json.loads(raw)
     except Exception:
-        print(f"[startup_discovery] Failed to parse suggestions: {raw[:200]}")
+        print(f"[startup_discovery] Failed to parse suggestions: {raw[:300]}")
         return
 
     from app.database import engine

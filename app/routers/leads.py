@@ -106,6 +106,31 @@ async def score_lead(lead_id: int, session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{lead_id}/fetch-jd")
+async def fetch_full_jd(lead_id: int, session: Session = Depends(get_session)):
+    """Scrape the full job description from the posting URL and store it."""
+    lead = session.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if not lead.url:
+        raise HTTPException(status_code=400, detail="Lead has no URL")
+    try:
+        import httpx
+        from bs4 import BeautifulSoup
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
+            r = await client.get(lead.url, headers={"User-Agent": "Mozilla/5.0"})
+        soup = BeautifulSoup(r.text, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header"]):
+            tag.decompose()
+        text = " ".join(soup.get_text(" ", strip=True).split())[:8000]
+        lead.description = text
+        session.add(lead)
+        session.commit()
+        return {"ok": True, "length": len(text)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.patch("/{lead_id}/status")
 def update_lead_status(
     lead_id: int,

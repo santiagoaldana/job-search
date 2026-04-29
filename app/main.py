@@ -157,13 +157,14 @@ async def require_auth(request: Request, call_next):
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 
-from app.routers import companies, leads, outreach, cv, applications, events, content, daily_brief
+from app.routers import companies, leads, outreach, cv, applications, events, content, daily_brief, contacts
 from app.routers.auth import router as auth_router
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(companies.router, prefix="/api/companies", tags=["companies"])
 app.include_router(leads.router, prefix="/api/leads", tags=["leads"])
 app.include_router(outreach.router, prefix="/api/outreach", tags=["outreach"])
+app.include_router(contacts.router, prefix="/api/contacts", tags=["contacts"])
 app.include_router(cv.router, prefix="/api/cv", tags=["cv"])
 app.include_router(applications.router, prefix="/api/applications", tags=["applications"])
 app.include_router(events.router, prefix="/api/events", tags=["events"])

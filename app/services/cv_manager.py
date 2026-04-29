@@ -68,7 +68,7 @@ async def chat_edit_cv(
             with Session(engine) as session:
                 lead = session.get(Lead, lead_id)
                 if lead:
-                    jd_context = f"\nJob Title: {lead.title}\nLocation: {lead.location}\nJD: {(lead.description or '')[:2000]}"
+                    jd_context = f"\nJob Title: {lead.title}\nLocation: {lead.location}\nJD:\n{(lead.description or '')[:6000]}"
         except Exception:
             pass
 
@@ -186,16 +186,260 @@ async def apply_approved_diff(version_name: str, approved_sections: list) -> Pat
 
 async def synthesize_for_lead(lead, company_name: str, version_name: Optional[str] = None) -> dict:
     """Generate a tailored CV version for a specific lead."""
+    master = load_master_cv()
+    jd_text = (lead.description or "")[:2000]
+
+    # Step 1: Customize competencies with a focused haiku call
+    customized_competencies = None
+    if jd_text and master.get("competencies"):
+        try:
+            client = anthropic.Anthropic()
+            comp_prompt = f"""The candidate has these core competencies:
+{', '.join(master['competencies'])}
+
+The job posting for '{lead.title}' at {company_name} says:
+{jd_text}
+
+Return a customized competencies list (JSON array of strings, same length ±2) that:
+1. Puts the most JD-relevant competencies FIRST
+2. Replaces 2-3 low-relevance items with JD-specific terms the candidate has real experience with
+3. Keeps all items truthful — only real skills, no fabrication
+4. Uses exact JD terminology where possible for ATS matching
+
+Return ONLY a JSON array, no markdown, no explanation."""
+
+            comp_response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=400,
+                messages=[{"role": "user", "content": comp_prompt}],
+            )
+            raw_comp = comp_response.content[0].text.strip()
+            raw_comp = re.sub(r'^```(?:json)?\n?', '', raw_comp)
+            raw_comp = re.sub(r'\n?```$', '', raw_comp)
+            parsed = json.loads(raw_comp)
+            if isinstance(parsed, list) and parsed:
+                customized_competencies = parsed
+        except Exception:
+            pass  # fall back to master competencies if haiku call fails
+
+    # Step 2: Run main Opus synthesis, injecting the pre-customized competencies
     instruction = (
         f"Tailor this CV for the role of '{lead.title}' at {company_name}. "
         f"Reorder bullets to lead with the most relevant experience. "
         f"Use the JD's vocabulary where authentic."
     )
-    return await chat_edit_cv(
+    if customized_competencies:
+        instruction += (
+            f" Use EXACTLY these competencies in this order (already optimized for ATS): "
+            f"{json.dumps(customized_competencies)}"
+        )
+
+    slug = version_name or f"{company_name}_{lead.title}".replace(" ", "_")[:40]
+    result = await chat_edit_cv(
         instruction=instruction,
         lead_id=lead.id,
-        version_name=version_name or f"{company_name}_{lead.title}".replace(" ", "_")[:40],
+        version_name=slug,
     )
+
+    # If haiku produced different competencies than master but Opus didn't change them,
+    # inject the haiku competencies as an explicit diff section
+    if customized_competencies and customized_competencies != master.get("competencies"):
+        comp_already_diffed = any(d["section"] == "competencies" for d in result["diff"])
+        if not comp_already_diffed:
+            result["diff"].insert(0, {
+                "section": "competencies",
+                "original": master.get("competencies", []),
+                "proposed": customized_competencies,
+            })
+            # Also update the pending_cv in _pending_diffs so approve works correctly
+            pending = _pending_diffs.get(_version_slug(slug))
+            if pending:
+                pending["pending_cv"]["competencies"] = customized_competencies
+                pending["diff"] = result["diff"]
+
+    return result
+
+
+async def generate_cover_letter(req) -> dict:
+    """
+    Two-stage cover letter generation:
+    1. Haiku extracts 3-5 fit themes from JD/company context
+    2. Opus writes the full letter using those themes + master CV + EXECUTIVE_PROFILE
+    """
+    from skills.shared import EXECUTIVE_PROFILE
+
+    client = anthropic.Anthropic()
+    master = load_master_cv()
+
+    # Resolve job/company context
+    jd_text = ""
+    company_intel = ""
+    resolved_company = req.company_name or ""
+    resolved_title = req.job_title or ""
+
+    if req.lead_id or req.company_id:
+        try:
+            from app.database import engine
+            from sqlmodel import Session
+            from app.models import Lead, Company
+            with Session(engine) as session:
+                if req.lead_id:
+                    lead = session.get(Lead, req.lead_id)
+                    if lead:
+                        jd_text = lead.description or ""
+                        resolved_title = resolved_title or lead.title or ""
+                        if lead.company_id and not req.company_id:
+                            company = session.get(Company, lead.company_id)
+                            if company:
+                                resolved_company = resolved_company or company.name or ""
+                                company_intel = company.intel_summary or ""
+                if req.company_id:
+                    company = session.get(Company, req.company_id)
+                    if company:
+                        resolved_company = resolved_company or company.name or ""
+                        company_intel = company_intel or company.intel_summary or ""
+        except Exception:
+            pass
+
+    # Manual overrides
+    jd_text = jd_text or req.job_description or ""
+
+    # Step 1: Haiku — extract fit themes
+    themes_context = ""
+    if jd_text or company_intel:
+        context_for_themes = f"Job: {resolved_title} at {resolved_company}\n"
+        if jd_text:
+            context_for_themes += f"JD excerpt:\n{jd_text[:2000]}\n"
+        if company_intel:
+            context_for_themes += f"Company intel: {company_intel[:500]}\n"
+
+        theme_prompt = f"""You are helping prepare a cover letter for an executive job applicant.
+
+CANDIDATE PROFILE:
+{EXECUTIVE_PROFILE}
+
+ROLE CONTEXT:
+{context_for_themes}
+
+Identify the 3-5 strongest fit angles between the candidate and this role/company.
+Return ONLY a JSON array (no markdown):
+[
+  {{"theme": "short label", "jd_signal": "what the JD emphasizes", "candidate_evidence": "specific experience/metric that maps to it"}}
+]"""
+
+        try:
+            theme_response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=600,
+                messages=[{"role": "user", "content": theme_prompt}],
+            )
+            raw_themes = theme_response.content[0].text.strip()
+            raw_themes = re.sub(r'^```(?:json)?\n?', '', raw_themes)
+            raw_themes = re.sub(r'\n?```$', '', raw_themes)
+            match = re.search(r'\[.*\]', raw_themes, re.DOTALL)
+            if match:
+                raw_themes = match.group(0)
+            themes = json.loads(raw_themes)
+            if isinstance(themes, list):
+                themes_context = "\n".join(
+                    f"- {t.get('theme')}: JD wants '{t.get('jd_signal')}' → candidate has '{t.get('candidate_evidence')}'"
+                    for t in themes
+                )
+        except Exception:
+            pass
+
+    # Step 2: Opus — write the letter
+    salutation = f"Dear {req.contact_name}," if req.contact_name else "Dear Hiring Team,"
+    contact_section = ""
+    if req.contact_name:
+        contact_section = f"\nContact: {req.contact_name}"
+        if req.contact_title:
+            contact_section += f", {req.contact_title}"
+        if req.contact_notes:
+            contact_section += f"\nShared context: {req.contact_notes}"
+
+    speculative = not resolved_title and not jd_text
+    role_line = f"the {resolved_title} role at {resolved_company}" if resolved_title else f"a leadership opportunity at {resolved_company}"
+
+    cv_snippet = json.dumps({
+        "summary": master.get("summary", ""),
+        "competencies": master.get("competencies", []),
+        "experience": [
+            {"company": e.get("company"), "title": e.get("title"),
+             "bullets": e.get("bullets", [])[:3]}
+            for e in master.get("experience", [])[:4]
+        ]
+    }, indent=2)
+
+    letter_prompt = f"""You are writing a cover letter for Santiago Aldana, an executive job candidate.
+
+CANDIDATE:
+{EXECUTIVE_PROFILE}
+
+CV HIGHLIGHTS:
+{cv_snippet[:3000]}
+
+TARGET:
+Role: {role_line}
+{f"JD context: {jd_text[:2000]}" if jd_text else ""}
+{f"Company intel: {company_intel[:400]}" if company_intel else ""}
+{contact_section}
+
+FIT THEMES (use these to structure your paragraphs):
+{themes_context if themes_context else "Use the strongest angles from the CV vs. the role."}
+
+Write a cover letter following this EXACT structure:
+{salutation}
+
+[Opening sentence: Reference the specific role and state ONE compelling reason Santiago fits — not generic enthusiasm, a real differentiator.]
+
+[Para 1 (2-3 sentences): Lead with the strongest fit theme. Include at least one concrete metric from the CV.]
+
+[Para 2 (2-3 sentences): Address a second fit theme — ideally one that addresses a JD requirement the first para didn't cover.]
+
+[Para 3 (2 sentences): Why this company specifically and why now — draw on company intel or recent positioning if available. Not generic.]
+
+[Close (1-2 sentences): Clear ask for a conversation.{' Reference the shared context naturally.' if req.contact_notes else ''}]
+
+Santiago Aldana
+
+RULES:
+- 250-350 words total (count carefully)
+- First-person, direct, executive register
+- Zero clichés: no "excited to apply", "passionate about", "dynamic team", "leveraging synergies"
+- Do not fabricate metrics not in the CV
+- Return ONLY the letter text, no JSON, no labels, no markdown
+
+After the letter, on a new line write exactly: SUBJECT: <your suggested email subject line>"""
+
+    response = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": letter_prompt}],
+    )
+
+    raw_output = response.content[0].text.strip()
+
+    # Split letter from subject line
+    subject_line = ""
+    letter_text = raw_output
+    if "\nSUBJECT:" in raw_output:
+        parts = raw_output.rsplit("\nSUBJECT:", 1)
+        letter_text = parts[0].strip()
+        subject_line = parts[1].strip()
+
+    slug = _version_slug(
+        req.version_name or
+        f"{resolved_company}_{resolved_title}_cover".replace(" ", "_")[:50]
+    )
+
+    return {
+        "letter": letter_text,
+        "version_name": slug,
+        "subject_line": subject_line,
+        "company": resolved_company,
+        "role": resolved_title,
+    }
 
 
 def export_cv(format: str = "pdf", version_name: Optional[str] = None) -> Path:
