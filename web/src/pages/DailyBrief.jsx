@@ -51,9 +51,12 @@ function FollowUpModal({ action, onClose, onSent }) {
   const [sending, setSending] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState(null)
+  const [language, setLanguage] = useState('en')
 
   useEffect(() => {
-    api.draftFollowup(action.payload_id, action.followup_day)
+    setDrafting(true)
+    setError(null)
+    api.draftFollowup(action.payload_id, action.followup_day, language)
       .then(d => {
         setSubject(d.subject || '')
         setBody(d.body || '')
@@ -63,7 +66,7 @@ function FollowUpModal({ action, onClose, onSent }) {
         setError(e.message)
         setDrafting(false)
       })
-  }, [action.payload_id, action.followup_day])
+  }, [action.payload_id, action.followup_day, language])
 
   const handleSend = async () => {
     setSending(true)
@@ -97,9 +100,21 @@ function FollowUpModal({ action, onClose, onSent }) {
             <div className="font-semibold text-body text-sm">{title} — {companyName}</div>
             <div className="text-xs text-muted mt-0.5">{action.detail}</div>
           </div>
-          <button onClick={onClose} className="p-1 text-muted hover:text-body">
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg border border-theme overflow-hidden text-xs font-medium">
+              <button
+                onClick={() => setLanguage('en')}
+                className={`px-2 py-1 transition-colors ${language === 'en' ? 'bg-blue-500 text-white' : 'text-muted hover:text-body'}`}
+              >EN</button>
+              <button
+                onClick={() => setLanguage('es')}
+                className={`px-2 py-1 transition-colors ${language === 'es' ? 'bg-blue-500 text-white' : 'text-muted hover:text-body'}`}
+              >ES</button>
+            </div>
+            <button onClick={onClose} className="p-1 text-muted hover:text-body">
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}

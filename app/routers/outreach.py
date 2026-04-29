@@ -156,6 +156,7 @@ def update_response(
 
 class FollowUpDraftRequest(BaseModel):
     followup_day: int  # 3 or 7
+    language: str = "en"  # "en" or "es"
 
 
 class SendFollowUpRequest(BaseModel):
@@ -186,25 +187,42 @@ async def draft_followup(
         except Exception:
             pass
 
+    language = req.language if req.language in ("en", "es") else "en"
+
     if req.followup_day == 3:
         followup_type = "soft bump"
-        instruction = (
-            "This is a gentle Day 3 bump — short, warm, no pressure. "
-            "Reference the original email topic briefly. Ask if they had a chance to see it. "
-            "2-3 sentences max. No new pitch."
-        )
+        if language == "es":
+            instruction = (
+                "Este es un recordatorio suave del Día 3 — corto, cálido, sin presión. "
+                "Menciona brevemente el tema del correo original. Pregunta si tuvo oportunidad de verlo. "
+                "Máximo 2-3 oraciones. Sin nuevo pitch. Escribe en español."
+            )
+        else:
+            instruction = (
+                "This is a gentle Day 3 bump — short, warm, no pressure. "
+                "Reference the original email topic briefly. Ask if they had a chance to see it. "
+                "2-3 sentences max. No new pitch."
+            )
     else:
         followup_type = "polite close"
-        instruction = (
-            "This is a Day 7 polite close — wrap up gracefully. "
-            "Say you don't want to clog their inbox, leave the door open for the future. "
-            "3-4 sentences max. Positive and professional tone."
-        )
+        if language == "es":
+            instruction = (
+                "Este es el cierre educado del Día 7 — cierra con gracia. "
+                "Di que no quieres saturar su bandeja de entrada, deja la puerta abierta para el futuro. "
+                "Máximo 3-4 oraciones. Tono positivo y profesional. Escribe en español."
+            )
+        else:
+            instruction = (
+                "This is a Day 7 polite close — wrap up gracefully. "
+                "Say you don't want to clog their inbox, leave the door open for the future. "
+                "3-4 sentences max. Positive and professional tone."
+            )
 
     contact_name = contact.name if contact else "there"
     original_subject = record.subject or "my previous note"
     company_name = company.name if company else "your company"
     original_body_snippet = (record.body or "")[:300]
+    language_instruction = "Write the email in Spanish." if language == "es" else "Write the email in English."
 
     prompt = f"""You are writing a follow-up email for Santiago Aldana, a FinTech executive (MIT Sloan MBA, 20+ years payments/AI/LATAM leadership).
 
@@ -216,6 +234,7 @@ Original subject: {original_subject}
 Original email (excerpt): {original_body_snippet}
 
 Instructions: {instruction}
+Language: {language_instruction}
 
 Return ONLY a JSON object with exactly two keys:
 {{"subject": "Re: {original_subject}", "body": "the email body text"}}

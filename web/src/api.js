@@ -53,7 +53,7 @@ export const api = {
   logOutreach: (data) => post('/outreach', data),
   updateOutreachResponse: (id, status) => patch(`/outreach/${id}/response`, { response_status: status }),
   updateResponse: (id, status, notes) => patch(`/outreach/${id}/response`, { response_status: status, notes }),
-  draftFollowup: (id, followup_day) => post(`/outreach/${id}/draft-followup`, { followup_day }),
+  draftFollowup: (id, followup_day, language = 'en') => post(`/outreach/${id}/draft-followup`, { followup_day, language }),
   sendFollowup: (id, data) => post(`/outreach/${id}/send-followup`, data),
 
   // CV
