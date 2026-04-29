@@ -29,7 +29,10 @@ export default function CompanyCard() {
   const load = () => {
     setLoading(true)
     api.getCompany(id)
-      .then(c => { setCompany(c); setMotivation(c.motivation) })
+      .then(r => {
+        const c = { ...r.company, contacts: r.contacts, leads: r.leads, outreach: r.outreach, applications: r.applications }
+        setCompany(c); setMotivation(c.motivation)
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }
