@@ -8,16 +8,16 @@ import Spinner from '../components/Spinner'
 
 const TABS = ['Intel', 'Contacts', 'Leads', 'Outreach']
 const STAGES = [
-  { value: 'pool', label: 'Target — Pool' },
-  { value: 'researched', label: 'Target — Researched' },
-  { value: 'outreach', label: 'In Play — Outreach' },
-  { value: 'response', label: 'In Play — Response' },
-  { value: 'meeting', label: 'In Play — Meeting' },
-  { value: 'applied', label: 'In Play — Applied' },
-  { value: 'interview', label: 'In Play — Interview' },
-  { value: 'offer', label: 'In Play — Offer' },
+  { value: 'pool', label: 'Target' },
+  { value: 'outreach', label: 'In Play' },
   { value: 'closed', label: 'Closed' },
 ]
+
+const STAGE_DISPLAY = (stage) => {
+  if (['pool', 'researched'].includes(stage)) return 'pool'
+  if (['outreach', 'response', 'meeting', 'applied', 'interview', 'offer'].includes(stage)) return 'outreach'
+  return 'closed'
+}
 const FUNDING_BADGE = {
   series_b: 'Series B', series_c: 'Series C', series_d: 'Series D', public: 'Public', unknown: '?',
 }
@@ -137,7 +137,7 @@ export default function CompanyCard() {
       </div>
 
       <div className="mx-4 mb-3">
-        <select value={company.stage} onChange={e => handleStageChange(e.target.value)}
+        <select value={STAGE_DISPLAY(company.stage)} onChange={e => handleStageChange(e.target.value)}
           className="w-full bg-card border border-theme text-body rounded-xl px-4 py-2.5 text-sm outline-none">
           {STAGES.map(s => (
             <option key={s.value} value={s.value}>{s.label}</option>
