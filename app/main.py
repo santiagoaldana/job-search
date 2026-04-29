@@ -53,14 +53,6 @@ async def job_daily_morning():
         print(f"[scheduler] daily_morning error: {e}")
 
 
-async def job_weekly_digest():
-    """Monday 8am: rebuild LAMP scores + send weekly email digest."""
-    try:
-        from app.services.startup_discovery import run_discovery
-        await run_discovery()
-    except Exception as e:
-        print(f"[scheduler] weekly_digest error: {e}")
-
 
 async def job_startup_discovery():
     """Weekly: surface new Series B/C targets via Claude."""
@@ -127,10 +119,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[startup] seed_feeds error: {e}")
 
-    # Every 6 hours: refresh leads for active companies
+    # Wed + Sat 8am: refresh leads for active companies (was every 6 hours)
     scheduler.add_job(
         job_refresh_leads,
-        IntervalTrigger(hours=6),
+        CronTrigger(day_of_week="wed,sat", hour=8),
         id="refresh_leads",
         replace_existing=True,
     )
@@ -141,13 +133,6 @@ async def lifespan(app: FastAPI):
         id="daily_morning",
         replace_existing=True,
     )
-    # Monday 7am: weekly digest
-    scheduler.add_job(
-        job_weekly_digest,
-        CronTrigger(day_of_week="mon", hour=7),
-        id="weekly_digest",
-        replace_existing=True,
-    )
     # Sunday 7am: startup discovery
     scheduler.add_job(
         job_startup_discovery,
@@ -155,10 +140,10 @@ async def lifespan(app: FastAPI):
         id="startup_discovery",
         replace_existing=True,
     )
-    # Every 30 min: publish scheduled LinkedIn posts
+    # 7:45am and 12:45pm daily: publish scheduled LinkedIn posts (was every 30 min)
     scheduler.add_job(
         job_linkedin_publish,
-        IntervalTrigger(minutes=30),
+        CronTrigger(hour="7,12", minute=45),
         id="linkedin_publish",
         replace_existing=True,
     )
