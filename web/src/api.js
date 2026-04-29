@@ -87,11 +87,20 @@ export const api = {
 
   // Content (router prefix = /api/content)
   getDrafts: () => get('/content'),
+  getPublished: () => get('/content/published'),
   generateDrafts: (days, count) => post('/content/generate', { days, count }),
   approveDraft: (id) => patch(`/content/${id}`, { status: 'approved' }),
+  schedulePost: (id, scheduled_at) => patch(`/content/${id}`, { status: 'scheduled', scheduled_at }),
   discardDraft: (id) => patch(`/content/${id}`, { status: 'discarded' }),
   regenerateDraft: (id, instructions) => post(`/content/${id}/regenerate`, { instructions }),
   composePost: (context) => post('/content/compose', { context }),
+  publishNow: (id) => post(`/content/${id}/publish-now`),
+  runPublishCycle: () => post('/content/linkedin/run-cycle'),
+
+  // LinkedIn OAuth
+  getLinkedInStatus: () => get('/content/linkedin/status'),
+  connectLinkedIn: () => post('/content/linkedin/connect'),
+  getNextSlot: () => get('/content/linkedin/next-slot'),
 
   // Content feeds
   getFeeds: () => get('/content/feeds'),

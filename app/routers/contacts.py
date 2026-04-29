@@ -22,6 +22,7 @@ class QuickAddRequest(BaseModel):
     email: Optional[str] = None
     met_via: Optional[str] = None
     relationship_notes: Optional[str] = None
+    introduced_by_contact_id: Optional[int] = None
 
 
 class ContactUpdateRequest(BaseModel):
@@ -31,6 +32,7 @@ class ContactUpdateRequest(BaseModel):
     warmth: Optional[str] = None
     outreach_status: Optional[str] = None
     title: Optional[str] = None
+    introduced_by_contact_id: Optional[int] = None
 
 
 def _match_company_from_index(company_name: str, company_index: dict) -> Optional[int]:
@@ -198,11 +200,9 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
         warmth="warm" if company_id else "cold",
     )
 
-    # Store context fields if model supports them
-    if hasattr(contact, 'met_via'):
-        contact.met_via = req.met_via
-    if hasattr(contact, 'relationship_notes'):
-        contact.relationship_notes = req.relationship_notes
+    contact.met_via = req.met_via
+    contact.relationship_notes = req.relationship_notes
+    contact.introduced_by_contact_id = req.introduced_by_contact_id
 
     session.add(contact)
     if company_id:

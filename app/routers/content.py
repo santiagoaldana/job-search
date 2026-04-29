@@ -1,7 +1,10 @@
-"""Content router — LinkedIn post drafts."""
+"""Content router — LinkedIn post drafts, scheduling, and publishing."""
 
+import os
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 from pydantic import BaseModel
 
@@ -12,7 +15,8 @@ router = APIRouter()
 
 
 class DraftAction(BaseModel):
-    status: str  # approved | discarded | scheduled
+    status: str  # approved | discarded | scheduled | published | pending
+    scheduled_at: Optional[str] = None  # ISO datetime, used when status=scheduled
 
 
 @router.get("")
@@ -28,9 +32,16 @@ def list_drafts(
     return session.exec(q.order_by(ContentDraft.net_score.desc())).all()
 
 
+@router.get("/published")
+def list_published(session: Session = Depends(get_session)):
+    """Return last 10 published posts, newest first."""
+    q = select(ContentDraft).where(ContentDraft.status == "published").order_by(ContentDraft.published_at.desc())
+    return session.exec(q.limit(10)).all()
+
+
 class GenerateRequest(BaseModel):
     days: int = 7
-    count: int = 3
+    count: int = 5
 
 
 @router.post("/generate")
@@ -102,6 +113,132 @@ async def regenerate_draft(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ── LinkedIn OAuth ─────────────────────────────────────────────────────────────
+
+@router.get("/linkedin/status")
+def linkedin_status():
+    """Return LinkedIn connection status."""
+    try:
+        from skills.linkedin_engine import get_auth_status
+        return get_auth_status()
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@router.post("/linkedin/connect")
+def linkedin_connect():
+    """Return the LinkedIn OAuth URL for the user to visit."""
+    client_id = os.environ.get("LINKEDIN_CLIENT_ID", "")
+    client_secret = os.environ.get("LINKEDIN_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(
+            status_code=400,
+            detail="LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET must be set in .env. "
+                   "Create an app at https://www.linkedin.com/developers/apps/new with the "
+                   "'Share on LinkedIn' product and set redirect URI to http://localhost:8000/linkedin/callback",
+        )
+    import secrets
+    from urllib.parse import urlencode
+    state = secrets.token_urlsafe(16)
+    # Store state in a simple file so callback can verify it
+    state_path = os.path.expanduser("~/.job-search-linkedin/oauth_state")
+    os.makedirs(os.path.dirname(state_path), exist_ok=True)
+    with open(state_path, "w") as f:
+        f.write(state)
+
+    params = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": "http://localhost:8000/linkedin/callback",
+        "state": state,
+        "scope": "w_member_social r_liteprofile openid profile",
+    }
+    auth_url = f"https://www.linkedin.com/oauth/v2/authorization?{urlencode(params)}"
+    return {"auth_url": auth_url}
+
+
+# ── Scheduling ─────────────────────────────────────────────────────────────────
+
+@router.get("/linkedin/next-slot")
+def next_slot():
+    """Return the next optimal posting slot (Wed/Thu 3-5 PM ET)."""
+    try:
+        from skills.linkedin_engine import next_optimal_slot
+        slot = next_optimal_slot()
+        return {"scheduled_at": slot.isoformat()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Publishing ─────────────────────────────────────────────────────────────────
+
+@router.post("/{draft_id}/publish-now")
+def publish_now(draft_id: int, session: Session = Depends(get_session)):
+    """Immediately publish a draft to LinkedIn."""
+    draft = session.get(ContentDraft, draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    try:
+        from skills.linkedin_engine import _get_valid_token, publish_post, LinkedInDraftPost
+        token = _get_valid_token()
+        li_draft = LinkedInDraftPost(
+            draft_id=str(draft.id),
+            type="post",
+            status="scheduled",
+            body=draft.body,
+        )
+        post_id = publish_post(li_draft, token)
+        draft.status = "published"
+        draft.published_at = datetime.utcnow().isoformat()
+        session.add(draft)
+        session.commit()
+        session.refresh(draft)
+        return {"published": True, "linkedin_post_id": post_id, "draft": draft}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/linkedin/run-cycle")
+def run_publish_cycle(session: Session = Depends(get_session)):
+    """Publish all scheduled drafts whose time has arrived."""
+    try:
+        from skills.linkedin_engine import _get_valid_token, publish_post, LinkedInDraftPost
+        token = _get_valid_token()
+    except Exception as e:
+        return {"skipped": True, "reason": str(e), "published": 0}
+
+    now = datetime.utcnow().isoformat()
+    due = session.exec(
+        select(ContentDraft).where(
+            ContentDraft.status == "scheduled",
+            ContentDraft.scheduled_at <= now,
+        )
+    ).all()
+
+    published = []
+    errors = []
+    for draft in due:
+        try:
+            li_draft = LinkedInDraftPost(
+                draft_id=str(draft.id),
+                type="post",
+                status="scheduled",
+                body=draft.body,
+            )
+            post_id = publish_post(li_draft, token)
+            draft.status = "published"
+            draft.published_at = datetime.utcnow().isoformat()
+            session.add(draft)
+            published.append({"id": draft.id, "linkedin_post_id": post_id})
+        except Exception as e:
+            errors.append({"id": draft.id, "error": str(e)})
+
+    session.commit()
+    return {"published": len(published), "errors": errors, "details": published}
+
+
+# ── Feed management ────────────────────────────────────────────────────────────
+
 class FeedCreate(BaseModel):
     name: str
     url: str
@@ -148,6 +285,8 @@ def update_draft(
     if action.status not in valid:
         raise HTTPException(status_code=400, detail="Invalid status")
     draft.status = action.status
+    if action.status == "scheduled" and action.scheduled_at:
+        draft.scheduled_at = action.scheduled_at
     session.add(draft)
     session.commit()
     return draft

@@ -67,9 +67,10 @@ class Contact(SQLModel, table=True):
     is_hiring_manager: bool = Field(default=False)
     outreach_status: str = Field(default="none")  # none|drafted|sent|responded
     connected_on: Optional[str] = Field(default=None)  # ISO date string
-    met_via: Optional[str] = Field(default=None)        # "Boston Fintech Week 2024", "Intro from Maria"
-    relationship_notes: Optional[str] = Field(default=None)  # context for AI outreach
+    met_via: Optional[str] = Field(default=None)
+    relationship_notes: Optional[str] = Field(default=None)
     met_at_event_id: Optional[int] = Field(default=None)
+    introduced_by_contact_id: Optional[int] = Field(default=None, foreign_key="contact.id")
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
     company: Optional[Company] = Relationship(back_populates="contacts")

@@ -101,7 +101,7 @@ def get_company(company_id: int, session: Session = Depends(get_session)):
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    contacts = session.exec(
+    contacts_raw = session.exec(
         select(Contact).where(Contact.company_id == company_id)
     ).all()
     leads = session.exec(
@@ -115,6 +115,17 @@ def get_company(company_id: int, session: Session = Depends(get_session)):
     applications = session.exec(
         select(Application).where(Application.company_id == company_id)
     ).all()
+
+    # Enrich contacts with introducer name
+    contacts = []
+    for c in contacts_raw:
+        d = c.dict()
+        if c.introduced_by_contact_id:
+            introducer = session.get(Contact, c.introduced_by_contact_id)
+            d["introduced_by_name"] = introducer.name if introducer else None
+        else:
+            d["introduced_by_name"] = None
+        contacts.append(d)
 
     return {
         "company": company,

@@ -71,6 +71,47 @@ async def job_startup_discovery():
         print(f"[scheduler] startup_discovery error: {e}")
 
 
+async def job_linkedin_publish():
+    """Every 30 min: publish scheduled LinkedIn posts whose time has arrived."""
+    try:
+        from app.database import engine
+        from app.models import ContentDraft
+        from datetime import datetime
+        from sqlmodel import Session, select
+        from skills.linkedin_engine import _get_valid_token, publish_post, LinkedInDraftPost
+        try:
+            token = _get_valid_token()
+        except Exception:
+            return  # Not connected yet — skip silently
+
+        now = datetime.utcnow().isoformat()
+        with Session(engine) as session:
+            due = session.exec(
+                select(ContentDraft).where(
+                    ContentDraft.status == "scheduled",
+                    ContentDraft.scheduled_at <= now,
+                )
+            ).all()
+            for draft in due:
+                try:
+                    li_draft = LinkedInDraftPost(
+                        draft_id=str(draft.id),
+                        type="post",
+                        status="scheduled",
+                        body=draft.body,
+                    )
+                    publish_post(li_draft, token)
+                    draft.status = "published"
+                    draft.published_at = datetime.utcnow().isoformat()
+                    session.add(draft)
+                    print(f"[linkedin] Published draft {draft.id}")
+                except Exception as e:
+                    print(f"[linkedin] Failed to publish draft {draft.id}: {e}")
+            session.commit()
+    except Exception as e:
+        print(f"[scheduler] linkedin_publish error: {e}")
+
+
 # ── App lifespan ──────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -114,6 +155,13 @@ async def lifespan(app: FastAPI):
         id="startup_discovery",
         replace_existing=True,
     )
+    # Every 30 min: publish scheduled LinkedIn posts
+    scheduler.add_job(
+        job_linkedin_publish,
+        IntervalTrigger(minutes=30),
+        id="linkedin_publish",
+        replace_existing=True,
+    )
 
     scheduler.start()
     print("✓ Job Search System v2 started")
@@ -140,7 +188,7 @@ app.add_middleware(
 
 # ── Auth middleware ───────────────────────────────────────────────────────────
 
-PUBLIC_PATHS = {"/api/health", "/auth/login", "/auth/callback", "/auth/logout", "/auth/me"}
+PUBLIC_PATHS = {"/api/health", "/auth/login", "/auth/callback", "/auth/logout", "/auth/me", "/linkedin/callback"}
 
 @app.middleware("http")
 async def require_auth(request: Request, call_next):
@@ -164,6 +212,78 @@ async def require_auth(request: Request, call_next):
 
 from app.routers import companies, leads, outreach, cv, applications, events, content, daily_brief, contacts
 from app.routers.auth import router as auth_router
+
+
+@app.get("/linkedin/callback", include_in_schema=False)
+async def linkedin_oauth_callback(code: str = None, state: str = None, error: str = None):
+    """Handle LinkedIn OAuth2 callback, exchange code for token."""
+    if error:
+        return JSONResponse({"detail": f"LinkedIn auth error: {error}"}, status_code=400)
+    if not code:
+        return JSONResponse({"detail": "No authorization code received"}, status_code=400)
+
+    # Verify state
+    state_path = os.path.expanduser("~/.job-search-linkedin/oauth_state")
+    try:
+        with open(state_path) as f:
+            expected_state = f.read().strip()
+        if state != expected_state:
+            return JSONResponse({"detail": "CSRF state mismatch"}, status_code=400)
+    except FileNotFoundError:
+        pass  # Skip CSRF check if state file missing
+
+    client_id = os.environ.get("LINKEDIN_CLIENT_ID", "")
+    client_secret = os.environ.get("LINKEDIN_CLIENT_SECRET", "")
+
+    import httpx
+    import json
+    from datetime import timedelta
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://www.linkedin.com/oauth/v2/accessToken",
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": "http://localhost:8000/linkedin/callback",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        if not resp.is_success:
+            return JSONResponse({"detail": f"Token exchange failed: {resp.text}"}, status_code=400)
+        token_data = resp.json()
+
+        # Fetch person URN and name
+        profile_resp = await client.get(
+            "https://api.linkedin.com/v2/userinfo",
+            headers={"Authorization": f"Bearer {token_data['access_token']}"},
+        )
+        profile = profile_resp.json() if profile_resp.is_success else {}
+
+    from datetime import datetime
+    expires_at = (datetime.now() + timedelta(seconds=token_data.get("expires_in", 5184000))).isoformat()
+    token = {
+        "access_token": token_data["access_token"],
+        "expires_at": expires_at,
+        "person_urn": f"urn:li:person:{profile.get('sub', '')}",
+        "person_name": profile.get("name", ""),
+        "person_id": profile.get("sub", ""),
+    }
+
+    token_dir = os.path.expanduser("~/.job-search-linkedin")
+    os.makedirs(token_dir, exist_ok=True)
+    with open(os.path.join(token_dir, "token.json"), "w") as f:
+        json.dump(token, f, indent=2)
+
+    name = token.get("person_name", "you")
+    return JSONResponse({
+        "connected": True,
+        "person_name": name,
+        "expires_at": expires_at[:10],
+        "message": f"LinkedIn connected as {name}. You can close this tab.",
+    })
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(companies.router, prefix="/api/companies", tags=["companies"])
