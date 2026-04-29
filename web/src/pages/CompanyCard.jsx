@@ -251,6 +251,9 @@ export default function CompanyCard() {
                       <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-blue-500 mt-2 block">LinkedIn →</a>
                     )}
+                    {c.introduced_by_name && (
+                      <div className="text-xs text-purple-500 mt-1">Introduced by {c.introduced_by_name}</div>
+                    )}
                   </div>
                 ))}
                 <button
@@ -312,20 +315,25 @@ function ContactModal({ company, contact, onClose, onSaved }) {
     email: contact?.email || '',
     met_via: contact?.met_via || '',
     relationship_notes: contact?.relationship_notes || '',
+    introduced_by_contact_id: contact?.introduced_by_contact_id || '',
   })
   const [saving, setSaving] = useState(false)
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
 
+  const allContacts = company.contacts || []
+
   const handleSave = async () => {
     if (!isEdit && !form.name.trim()) return
     setSaving(true)
+    const introducedById = form.introduced_by_contact_id ? Number(form.introduced_by_contact_id) : undefined
     try {
       if (isEdit) {
         await api.updateContact(contact.id, {
           title: form.title || undefined,
           met_via: form.met_via || undefined,
           relationship_notes: form.relationship_notes || undefined,
+          introduced_by_contact_id: introducedById,
         })
       } else {
         await api.quickAddContact({
@@ -336,6 +344,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           company_name: company.name,
           met_via: form.met_via || undefined,
           relationship_notes: form.relationship_notes || undefined,
+          introduced_by_contact_id: introducedById,
         })
       }
       onSaved()
@@ -410,6 +419,16 @@ function ContactModal({ company, contact, onClose, onSaved }) {
               rows={2}
               className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none"
               placeholder="Runs payments infra team · interested in agentic AI" />
+          </div>
+          <div>
+            <label className="text-xs text-muted block mb-1">Introduced by</label>
+            <select value={form.introduced_by_contact_id} onChange={set('introduced_by_contact_id')}
+              className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body">
+              <option value="">— Direct connection / nobody —</option>
+              {allContacts.filter(c => c.id !== contact?.id).map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.title ? ` (${c.title})` : ''}</option>
+              ))}
+            </select>
           </div>
         </div>
 
