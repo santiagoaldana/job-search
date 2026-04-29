@@ -26,16 +26,20 @@ def list_leads(
     if company_id is not None:
         q = q.where(Lead.company_id == company_id)
 
-    leads = session.exec(q.order_by(Lead.fit_score.desc())).all()
+    leads = session.exec(q).all()
 
-    # Enrich with company name
+    # Enrich with company name and sort by lamp_score desc, then company name asc
     result = []
     for lead in leads:
         company = session.get(Company, lead.company_id) if lead.company_id else None
         result.append({
             **lead.dict(),
             "company_name": company.name if company else "Unknown",
+            "_lamp_score": company.lamp_score if company else 0,
         })
+    result.sort(key=lambda x: (-x["_lamp_score"], x["company_name"].lower()))
+    for r in result:
+        del r["_lamp_score"]
     return result
 
 
