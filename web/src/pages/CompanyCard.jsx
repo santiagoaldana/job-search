@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy, Users, Network, Plus, X } from 'lucide-react'
 import { api } from '../api'
 import Badge from '../components/Badge'
@@ -7,7 +7,17 @@ import FitBar from '../components/FitBar'
 import Spinner from '../components/Spinner'
 
 const TABS = ['Intel', 'Contacts', 'Leads', 'Outreach']
-const STAGES = ['pool', 'researched', 'outreach', 'response', 'meeting', 'applied', 'interview', 'offer']
+const STAGES = [
+  { value: 'pool', label: 'Target — Pool' },
+  { value: 'researched', label: 'Target — Researched' },
+  { value: 'outreach', label: 'In Play — Outreach' },
+  { value: 'response', label: 'In Play — Response' },
+  { value: 'meeting', label: 'In Play — Meeting' },
+  { value: 'applied', label: 'In Play — Applied' },
+  { value: 'interview', label: 'In Play — Interview' },
+  { value: 'offer', label: 'In Play — Offer' },
+  { value: 'closed', label: 'Closed' },
+]
 const FUNDING_BADGE = {
   series_b: 'Series B', series_c: 'Series C', series_d: 'Series D', public: 'Public', unknown: '?',
 }
@@ -15,9 +25,10 @@ const FUNDING_BADGE = {
 export default function CompanyCard() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [company, setCompany] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('Intel')
+  const [tab, setTab] = useState(searchParams.get('tab') || 'Intel')
   const [refreshingIntel, setRefreshingIntel] = useState(false)
   const [motivation, setMotivation] = useState(null)
   const [savingMotivation, setSavingMotivation] = useState(false)
@@ -129,7 +140,7 @@ export default function CompanyCard() {
         <select value={company.stage} onChange={e => handleStageChange(e.target.value)}
           className="w-full bg-card border border-theme text-body rounded-xl px-4 py-2.5 text-sm outline-none">
           {STAGES.map(s => (
-            <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+            <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
       </div>
@@ -276,7 +287,7 @@ export default function CompanyCard() {
         )}
 
         {tab === 'Outreach' && (
-          <OutreachTab company={company} onReload={load} />
+          <OutreachTab company={company} onReload={load} defaultContactId={Number(searchParams.get('contact_id')) || null} />
         )}
       </div>
 
@@ -489,12 +500,12 @@ function NetworkPath({ companyId }) {
   )
 }
 
-function OutreachTab({ company, onReload }) {
+function OutreachTab({ company, onReload, defaultContactId }) {
   const [emailType, setEmailType] = useState('cold')
   const [context, setContext] = useState('')
   const [hook, setHook] = useState('')
   const [ask, setAsk] = useState('')
-  const [selectedContact, setSelectedContact] = useState(company.contacts?.[0]?.id || null)
+  const [selectedContact, setSelectedContact] = useState(defaultContactId || company.contacts?.[0]?.id || null)
   const [generating, setGenerating] = useState(false)
   const [draft, setDraft] = useState(null)
   const [logging, setLogging] = useState(false)

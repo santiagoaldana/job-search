@@ -299,7 +299,8 @@ export default function DailyBrief() {
       navigate('/settings')
     } else if (action.payload_type === 'contact' || action.action_type === 'warm_path') {
       if (action.company_id) {
-        navigate(`/company/${action.company_id}`)
+        const contactParam = action.payload_id ? `&contact_id=${action.payload_id}` : ''
+        navigate(`/company/${action.company_id}?tab=Outreach${contactParam}`)
       }
     } else if (action.payload_type === 'outreach' && action.company_id) {
       navigate(`/company/${action.company_id}`)
