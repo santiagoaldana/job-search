@@ -33,34 +33,36 @@ class ContactUpdateRequest(BaseModel):
     title: Optional[str] = None
 
 
-def _match_company(company_name: str, session: Session) -> Optional[int]:
+def _match_company_from_index(company_name: str, company_index: dict) -> Optional[int]:
+    """Match company name against pre-loaded index. O(n) but done in Python, not DB."""
     if not company_name:
         return None
     name_lower = company_name.lower().strip()
-    companies = session.exec(select(Company).where(Company.is_archived == False)).all()
-    for company in companies:
-        cname = (company.name or "").lower()
-        if cname == name_lower or cname in name_lower or name_lower in cname:
-            return company.id
+    # Exact match first
+    if name_lower in company_index:
+        return company_index[name_lower]
+    # Substring match
+    for cname, cid in company_index.items():
+        if cname in name_lower or name_lower in cname:
+            return cid
     return None
 
 
 def _refresh_advocacy_scores(company_ids: list, session: Session):
+    # Count contacts per company in one pass
+    from collections import Counter
+    all_contacts = session.exec(
+        select(Contact).where(Contact.connection_degree == 1, Contact.company_id != None)
+    ).all()
+    counts = Counter(c.company_id for c in all_contacts)
+
     for cid in set(company_ids):
         company = session.get(Company, cid)
         if not company:
             continue
-        count = len(session.exec(
-            select(Contact).where(
-                Contact.company_id == cid,
-                Contact.connection_degree == 1,
-            )
-        ).all())
-        # advocacy_score = min(10, count * 1.5 + existing base)
-        new_score = min(10.0, count * 1.5 + 1.0)
+        new_score = min(10.0, counts.get(cid, 0) * 1.5 + 1.0)
         if new_score > company.advocacy_score:
             company.advocacy_score = new_score
-            # Recompute lamp_score
             company.lamp_score = round(
                 (company.motivation * 0.5)
                 + (company.postings_score * 0.3)
@@ -76,11 +78,12 @@ async def import_linkedin_csv(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
 ):
-    """Parse LinkedIn Connections CSV and cross-reference against funnel companies."""
+    """Parse LinkedIn Connections CSV and cross-reference against funnel companies.
+    Optimised for large files: loads all companies + contacts into memory first."""
     content = (await file.read()).decode("utf-8", errors="ignore")
     lines = content.splitlines()
 
-    # LinkedIn CSV starts with some notes before the actual header row
+    # LinkedIn CSV starts with notes before the actual header row
     csv_start = None
     for i, line in enumerate(lines):
         if line.startswith("First Name"):
@@ -90,10 +93,20 @@ async def import_linkedin_csv(
     if csv_start is None:
         raise HTTPException(status_code=400, detail="Could not find CSV header. Expected 'First Name' column.")
 
-    reader = csv.DictReader(lines[csv_start:])
+    # --- Load everything into memory upfront (fast, no per-row DB queries) ---
+    all_companies = session.exec(
+        select(Company).where(Company.is_archived == False)
+    ).all()
+    company_index = {(c.name or "").lower(): c.id for c in all_companies if c.name}
 
+    all_contacts = session.exec(select(Contact)).all()
+    url_index = {c.linkedin_url: c for c in all_contacts if c.linkedin_url}
+    name_index = {c.name.lower(): c for c in all_contacts if c.name}
+
+    reader = csv.DictReader(lines[csv_start:])
     imported = 0
     matched_company_ids = []
+    new_contacts = []
 
     for row in reader:
         first = (row.get("First Name") or "").strip()
@@ -108,28 +121,27 @@ async def import_linkedin_csv(
         email = (row.get("Email Address") or "").strip() or None
         connected_on = (row.get("Connected On") or "").strip() or None
 
-        company_id = _match_company(company_name, session)
+        company_id = _match_company_from_index(company_name, company_index)
 
-        # Upsert by linkedin_url (if present) or name
-        existing = None
-        if linkedin_url:
-            existing = session.exec(
-                select(Contact).where(Contact.linkedin_url == linkedin_url)
-            ).first()
-        if not existing and name:
-            existing = session.exec(
-                select(Contact).where(Contact.name == name)
-            ).first()
+        # Upsert using in-memory indexes
+        existing = url_index.get(linkedin_url) if linkedin_url else None
+        if not existing:
+            existing = name_index.get(name.lower())
 
         if existing:
+            changed = False
             if company_id and not existing.company_id:
                 existing.company_id = company_id
                 matched_company_ids.append(company_id)
+                changed = True
             if position and not existing.title:
                 existing.title = position
+                changed = True
             if email and not existing.email:
                 existing.email = email
-            session.add(existing)
+                changed = True
+            if changed:
+                session.add(existing)
         else:
             contact = Contact(
                 name=name,
@@ -141,11 +153,18 @@ async def import_linkedin_csv(
                 warmth="warm" if company_id else "cold",
                 connected_on=connected_on,
             )
-            session.add(contact)
+            new_contacts.append(contact)
+            # Update in-memory index so duplicates within the CSV are caught
+            if linkedin_url:
+                url_index[linkedin_url] = contact
+            name_index[name.lower()] = contact
             if company_id:
                 matched_company_ids.append(company_id)
 
         imported += 1
+
+    for c in new_contacts:
+        session.add(c)
 
     _refresh_advocacy_scores(matched_company_ids, session)
     session.commit()
@@ -165,7 +184,9 @@ async def import_linkedin_csv(
 
 @router.post("/quick-add")
 def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_session)):
-    company_id = _match_company(req.company_name or "", session)
+    all_companies = session.exec(select(Company).where(Company.is_archived == False)).all()
+    company_index = {(c.name or "").lower(): c.id for c in all_companies if c.name}
+    company_id = _match_company_from_index(req.company_name or "", company_index)
 
     contact = Contact(
         name=req.name,
