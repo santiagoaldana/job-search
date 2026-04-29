@@ -69,16 +69,20 @@ DISPLAY_TO_INTERNAL = {
 
 @router.get("/funnel")
 def funnel_view(session: Session = Depends(get_session)):
-    """Return active companies grouped by individual stage."""
+    """Return active companies grouped into 3 stages: target / in_play / closed."""
     companies = session.exec(
         select(Company)
         .where(Company.is_archived == False, Company.motivation >= 7)
         .order_by(Company.lamp_score.desc())
     ).all()
 
-    result = {s: [] for s in ["pool", "researched", "outreach", "response", "meeting", "applied", "interview", "offer", "closed"]}
+    result = {"target": [], "in_play": [], "closed": []}
     for c in companies:
-        bucket = c.stage if c.stage in result else "pool"
+        bucket = "target"
+        for group, stages in STAGE_GROUPS.items():
+            if c.stage in stages:
+                bucket = group
+                break
         result[bucket].append({
             "id": c.id,
             "name": c.name,

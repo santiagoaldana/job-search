@@ -6,7 +6,9 @@ import PageHeader from '../components/PageHeader'
 import Badge from '../components/Badge'
 import Spinner from '../components/Spinner'
 
-const STAGES = ['pool', 'researched', 'outreach', 'response', 'meeting', 'applied', 'interview', 'offer']
+const STAGES = ['target', 'in_play', 'closed']
+
+const STAGE_LABELS = { target: 'Target', in_play: 'In Play', closed: 'Closed' }
 
 const STAGE_COLORS = {
   pool: 'slate', researched: 'blue', outreach: 'yellow', response: 'orange',
@@ -145,7 +147,7 @@ function MotivationEdit({ company, onUpdated }) {
 export default function Funnel() {
   const [funnel, setFunnel] = useState({})
   const [loading, setLoading] = useState(true)
-  const [activeStage, setActiveStage] = useState('pool')
+  const [activeStage, setActiveStage] = useState('target')
   const [searchQ, setSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -253,7 +255,7 @@ export default function Funnel() {
                     : 'bg-card border-theme text-muted'
                 }`}
               >
-                {s.charAt(0).toUpperCase() + s.slice(1)}
+                {STAGE_LABELS[s] || s}
                 {count > 0 && <span className="ml-1 opacity-60">{count}</span>}
               </button>
             )
