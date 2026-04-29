@@ -70,7 +70,7 @@ def compute_daily_brief(session: Session) -> dict:
         })
 
     # Warm path alerts — new 1st-degree contacts at funnel companies (last 7 days)
-    seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+    seven_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
     recent_warm = session.exec(
         select(Contact).where(
             Contact.connection_degree == 1,
