@@ -33,10 +33,12 @@ def compute_daily_brief(session: Session) -> dict:
 
     for record in day3_records:
         company = session.get(Company, record.company_id) if record.company_id else None
+        contact = session.get(Contact, record.contact_id) if record.contact_id else None
         days_overdue = _days_diff(record.follow_up_3_due, today)
+        who = f"{contact.name} at {company.name}" if contact and company else (company.name if company else 'Unknown')
         outreach.append({
             "action_type": "follow_up_3",
-            "label": f"Day 3 follow-up — {company.name if company else 'Unknown'}",
+            "label": f"Day 3 follow-up — {who}",
             "detail": f"{days_overdue} day{'s' if days_overdue != 1 else ''} overdue",
             "cta": "Draft follow-up",
             "company_id": record.company_id,
@@ -57,10 +59,12 @@ def compute_daily_brief(session: Session) -> dict:
 
     for record in day7_records:
         company = session.get(Company, record.company_id) if record.company_id else None
+        contact = session.get(Contact, record.contact_id) if record.contact_id else None
         days_overdue = _days_diff(record.follow_up_7_due, today)
+        who = f"{contact.name} at {company.name}" if contact and company else (company.name if company else 'Unknown')
         outreach.append({
             "action_type": "follow_up_7",
-            "label": f"Day 7 close — {company.name if company else 'Unknown'}",
+            "label": f"Day 7 close — {who}",
             "detail": f"{days_overdue} day{'s' if days_overdue != 1 else ''} overdue · polite close",
             "cta": "Draft closing note",
             "company_id": record.company_id,
