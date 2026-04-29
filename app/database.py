@@ -40,6 +40,7 @@ def run_migrations():
         ("contact", "relationship_notes", "TEXT"),
         ("contact", "met_at_event_id", "INTEGER"),
         ("contact", "introduced_by_contact_id", "INTEGER"),
+        ("company", "is_archived", "BOOLEAN DEFAULT FALSE"),
     ]
 
     with engine.connect() as conn:
