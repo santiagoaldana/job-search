@@ -14,6 +14,22 @@ from app.models import Contact, Company
 router = APIRouter()
 
 
+@router.get("")
+def list_contacts(session: Session = Depends(get_session)):
+    """Return all contacts with their company name, ordered by name."""
+    contacts = session.exec(select(Contact).order_by(Contact.name)).all()
+    result = []
+    for c in contacts:
+        company = session.get(Company, c.company_id) if c.company_id else None
+        result.append({
+            "id": c.id,
+            "name": c.name,
+            "title": c.title,
+            "company_name": company.name if company else None,
+        })
+    return result
+
+
 class QuickAddRequest(BaseModel):
     name: str
     title: Optional[str] = None

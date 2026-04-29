@@ -318,10 +318,13 @@ function ContactModal({ company, contact, onClose, onSaved }) {
     introduced_by_contact_id: contact?.introduced_by_contact_id || '',
   })
   const [saving, setSaving] = useState(false)
+  const [allContacts, setAllContacts] = useState([])
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
 
-  const allContacts = company.contacts || []
+  useEffect(() => {
+    api.listAllContacts().then(setAllContacts).catch(() => setAllContacts(company.contacts || []))
+  }, [])
 
   const handleSave = async () => {
     if (!isEdit && !form.name.trim()) return
@@ -426,7 +429,9 @@ function ContactModal({ company, contact, onClose, onSaved }) {
               className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body">
               <option value="">— Direct connection / nobody —</option>
               {allContacts.filter(c => c.id !== contact?.id).map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.title ? ` (${c.title})` : ''}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.company_name ? ` @ ${c.company_name}` : ''}{c.title ? ` · ${c.title}` : ''}
+                </option>
               ))}
             </select>
           </div>
