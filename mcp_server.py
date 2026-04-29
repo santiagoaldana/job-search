@@ -267,7 +267,10 @@ def main():
         ])
         uvicorn.run(starlette_app, host="0.0.0.0", port=a.port)
     else:
-        asyncio.run(stdio_server(server))
+        async def _run_stdio():
+            async with stdio_server() as (read_stream, write_stream):
+                await server.run(read_stream, write_stream, server.create_initialization_options())
+        asyncio.run(_run_stdio())
 
 
 if __name__ == "__main__":
