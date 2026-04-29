@@ -35,11 +35,24 @@ SUMMARY: {summary}
 SOURCE: {source}
 SOURCE TYPE: {source_type}
 
+════════════════════════════════════════
+THE HOOK IS EVERYTHING. Write the first line LAST, after you have the insight.
+The hook must be a single sentence that makes a senior executive stop scrolling.
+
+HOOK PATTERNS (pick the sharpest one for this topic):
+  • Counterintuitive fact: "The fastest payment rails in the world are built on 1970s batch logic."
+  • Provocative claim: "Most fraud teams are optimising for the wrong metric."
+  • Reframe: "Embedded finance isn't a product strategy. It's a survival strategy."
+  • Uncomfortable truth: "We built KYC to stop criminals. We built it well enough to stop customers too."
+  • Number that surprises: "$1.1 trillion in remittances — and most of it still moves slower than a postcard."
+
+NEVER open with: "I", "In today's world", "As a...", "It's no secret", "Let me share", or any variation of those.
+════════════════════════════════════════
+
 WRITING RULES:
 - First Principles: Break the topic into fundamental truths. Not "improving payments" but "the atomic unit of trust in digital exchange."
 - Anti-Sales Mandate: No hashtags of any kind. The post must make Santiago appear deeply embedded in the future of industry.
 - Style: Clever, minimalist, authoritative. Short punchy sentences. No corporate jargon — use "friction" not "synergistic challenges."
-- Hook: Start with a Pattern Interrupt — a first line that challenges a common assumption or states a surprising fact. Never open with "I".
 - If SOURCE TYPE is "thought_leader": frame the post as peer-level commentary or a direct response to the author's idea. Cite them by name. Santiago is engaging as an intellectual equal, not summarizing their work.
 - If SOURCE TYPE is "publication" or "news": analyze the article through three lenses:
   1. Macro Trend: Why does this matter to the economy/industry right now?
@@ -67,11 +80,24 @@ AUTHOR PROFILE:
 TOPIC / CONTEXT FROM SANTIAGO:
 {context}
 
+════════════════════════════════════════
+THE HOOK IS EVERYTHING. Write the first line LAST, after you have the insight.
+The hook must be a single sentence that makes a senior executive stop scrolling.
+
+HOOK PATTERNS (pick the sharpest one for this topic):
+  • Counterintuitive fact: "The fastest payment rails in the world are built on 1970s batch logic."
+  • Provocative claim: "Most fraud teams are optimising for the wrong metric."
+  • Reframe: "Embedded finance isn't a product strategy. It's a survival strategy."
+  • Uncomfortable truth: "We built KYC to stop criminals. We built it well enough to stop customers too."
+  • Number that surprises: "$1.1 trillion in remittances — and most of it still moves slower than a postcard."
+
+NEVER open with: "I", "In today's world", "As a...", "It's no secret", "Let me share", or any variation of those.
+════════════════════════════════════════
+
 WRITING RULES:
 - First Principles: Break every topic into fundamental truths. Not "improving payments" but "the atomic unit of trust in digital exchange."
 - Anti-Sales Mandate: No hashtags (#Hiring, #OpenToWork, or any). The post must make Santiago appear deeply embedded in the future of industry.
 - Style: Clever, minimalist, authoritative. Short punchy sentences. No corporate jargon — use "friction" not "synergistic challenges."
-- Hook: Start with a Pattern Interrupt — a first line that challenges a common assumption or states a surprising fact. Never open with "I".
 - Analyze the topic through three lenses:
   1. Macro Trend: Why does this matter to the economy/industry right now?
   2. The "So What?": What is the non-obvious insight Santiago has, grounded in his specific experience?
@@ -102,7 +128,7 @@ Rewrite the post following the edit instructions exactly. Keep the same general 
 
 Rules:
 - 180–260 words. No emojis. No hashtags.
-- Strong opening hook — a Pattern Interrupt (never open with "I").
+- THE HOOK IS EVERYTHING: first line must make a senior executive stop scrolling. Use a counterintuitive fact, a provocative claim, an uncomfortable truth, or a reframe. NEVER open with "I", "In today's world", "As a...", "It's no secret", or "Let me share".
 - First-person executive voice, clever and minimalist.
 - Ends with a high-level question that invites peer conversation.
 
