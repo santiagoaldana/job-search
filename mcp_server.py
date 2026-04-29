@@ -247,6 +247,7 @@ def main():
     parser = argparse.ArgumentParser(description="Job Search MCP Server")
     parser.add_argument("--http", action="store_true", help="Run as HTTP/SSE server (for Claude.ai web/mobile)")
     parser.add_argument("--port", type=int, default=8080, help="Port for HTTP mode (default 8080)")
+    parser.add_argument("--messages-path", default="/messages/", help="Path prefix for POST messages endpoint")
     a = parser.parse_args()
 
     if a.http:
@@ -255,7 +256,8 @@ def main():
         from starlette.routing import Route, Mount
         import uvicorn
 
-        sse = SseServerTransport("/messages/")
+        messages_path = a.messages_path
+        sse = SseServerTransport(messages_path)
 
         async def handle_sse(request):
             async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
@@ -263,7 +265,7 @@ def main():
 
         starlette_app = Starlette(routes=[
             Route("/sse", endpoint=handle_sse),
-            Mount("/messages/", app=sse.handle_post_message),
+            Mount(messages_path, app=sse.handle_post_message),
         ])
         uvicorn.run(starlette_app, host="0.0.0.0", port=a.port)
     else:

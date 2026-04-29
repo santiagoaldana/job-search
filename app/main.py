@@ -188,7 +188,7 @@ app.add_middleware(
 
 # ── Auth middleware ───────────────────────────────────────────────────────────
 
-PUBLIC_PATHS = {"/api/health", "/auth/login", "/auth/callback", "/auth/logout", "/auth/me", "/linkedin/callback"}
+PUBLIC_PATHS = {"/api/health", "/auth/login", "/auth/callback", "/auth/logout", "/auth/me", "/linkedin/callback", "/mcp-sse"}
 
 @app.middleware("http")
 async def require_auth(request: Request, call_next):
@@ -206,6 +206,42 @@ async def require_auth(request: Request, call_next):
         if not get_session_email(request):
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     return await call_next(request)
+
+
+# ── MCP SSE proxy ─────────────────────────────────────────────────────────────
+# Forwards /mcp-sse and /mcp-messages/* to the local MCP HTTP server on port 8080.
+# This lets Claude.ai reach the MCP server through the existing cloudflared tunnel
+# (jobsearch.aidatasolutions.co) without needing a separate subdomain or SSL cert.
+
+from fastapi import Response
+from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
+
+MCP_LOCAL = "http://localhost:8080"
+
+@app.api_route("/mcp-sse", methods=["GET"], include_in_schema=False)
+async def mcp_sse_proxy(request: Request):
+    async with httpx.AsyncClient(timeout=None) as client:
+        req = client.build_request("GET", f"{MCP_LOCAL}/sse", headers=dict(request.headers))
+        resp = await client.send(req, stream=True)
+        return StreamingResponse(
+            resp.aiter_raw(),
+            status_code=resp.status_code,
+            headers=dict(resp.headers),
+            background=BackgroundTask(resp.aclose),
+        )
+
+@app.api_route("/mcp-messages/{path:path}", methods=["POST"], include_in_schema=False)
+async def mcp_messages_proxy(request: Request, path: str):
+    body = await request.body()
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"{MCP_LOCAL}/mcp-messages/{path}",
+            content=body,
+            headers=dict(request.headers),
+            params=dict(request.query_params),
+        )
+        return Response(content=resp.content, status_code=resp.status_code, headers=dict(resp.headers))
 
 
 # ── Routers ───────────────────────────────────────────────────────────────────
