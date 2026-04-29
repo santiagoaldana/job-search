@@ -24,7 +24,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.database import create_tables
+from app.database import create_tables, run_migrations
 
 # ── Scheduled jobs ────────────────────────────────────────────────────────────
 
@@ -76,6 +76,7 @@ async def job_startup_discovery():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_tables()
+    run_migrations()
     try:
         from app.migrate import seed_feeds
         from sqlmodel import Session

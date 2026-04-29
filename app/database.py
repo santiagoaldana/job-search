@@ -27,3 +27,42 @@ def get_session():
 
 def create_tables():
     SQLModel.metadata.create_all(engine)
+
+
+def run_migrations():
+    """Add new columns to existing tables if they don't exist yet."""
+    is_postgres = DATABASE_URL is not None
+
+    migrations = [
+        ("outreachrecord", "follow_up_3_sent", "BOOLEAN DEFAULT FALSE"),
+        ("outreachrecord", "follow_up_7_sent", "BOOLEAN DEFAULT FALSE"),
+        ("contact", "met_via", "TEXT"),
+        ("contact", "relationship_notes", "TEXT"),
+        ("contact", "met_at_event_id", "INTEGER"),
+    ]
+
+    with engine.connect() as conn:
+        for table, column, col_type in migrations:
+            try:
+                if is_postgres:
+                    conn.execute(
+                        __import__("sqlalchemy").text(
+                            f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"
+                        )
+                    )
+                else:
+                    # SQLite doesn't support IF NOT EXISTS on ALTER TABLE
+                    # so we check the column list first
+                    result = conn.execute(
+                        __import__("sqlalchemy").text(f"PRAGMA table_info({table})")
+                    )
+                    existing = [row[1] for row in result]
+                    if column not in existing:
+                        conn.execute(
+                            __import__("sqlalchemy").text(
+                                f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
+                            )
+                        )
+            except Exception:
+                pass  # column already exists or table doesn't exist yet
+        conn.commit()
