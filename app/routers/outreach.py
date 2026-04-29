@@ -287,15 +287,16 @@ def send_followup(
     to_part = f"mailto:{urllib.parse.quote(to_email, safe='@.')}" if to_email else "mailto:"
     mailto_url = f"{to_part}?subject={subject_enc}&body={body_enc}"
 
-    # Mark the appropriate follow-up sent
+    # Mark the appropriate follow-up sent and reset Day 7 from actual send date
+    today = date.today()
     if req.followup_day == 3:
         record.follow_up_3_sent = True
+        record.follow_up_7_due = (today + timedelta(days=4)).isoformat()
     else:
         record.follow_up_7_sent = True
     record.updated_at = datetime.utcnow().isoformat()
 
     # Log new outreach record for the follow-up itself
-    today = date.today()
     follow_up_record = OutreachRecord(
         company_id=record.company_id,
         contact_id=record.contact_id,
