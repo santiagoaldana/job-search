@@ -168,6 +168,11 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="get_outreach_pipeline",
+            description="Get all active outreach records with contact/company info, follow-up status, and days since sent. Use this to generate an outreach pipeline artifact showing who is in process.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        types.Tool(
             name="log_outreach_sent",
             description="Log that Santiago sent an outreach email to a company. Call this right after sending so the 3/7 day follow-up reminders are scheduled automatically.",
             inputSchema={
@@ -265,6 +270,48 @@ async def _dispatch(name: str, args: dict) -> dict:
             "description": args.get("description"),
             "category": args.get("category", "strategic"),
         })
+
+    elif name == "get_outreach_pipeline":
+        records = await _get("/api/outreach")
+        companies = await _get("/api/companies", {"active_only": False})
+        company_map = {c["id"]: c["name"] for c in companies}
+        from datetime import date
+        today = date.today()
+        pipeline = []
+        seen_company_contact = set()
+        for r in records:
+            key = (r["company_id"], r["contact_id"])
+            if key in seen_company_contact:
+                continue
+            seen_company_contact.add(key)
+            sent = r.get("sent_at", "")[:10]
+            days_since = (today - date.fromisoformat(sent)).days if sent else None
+            f3_due = r.get("follow_up_3_due", "")
+            f7_due = r.get("follow_up_7_due", "")
+            f3_sent = r.get("follow_up_3_sent", False)
+            f7_sent = r.get("follow_up_7_sent", False)
+            next_action = None
+            if not f3_sent and f3_due and f3_due <= str(today):
+                next_action = f"Day 3 bump due ({f3_due})"
+            elif not f7_sent and f7_due and f7_due <= str(today):
+                next_action = f"Day 7 close due ({f7_due})"
+            elif not f3_sent:
+                next_action = f"Day 3 bump on {f3_due}"
+            elif not f7_sent:
+                next_action = f"Day 7 close on {f7_due}"
+            else:
+                next_action = "All follow-ups sent"
+            pipeline.append({
+                "company": company_map.get(r["company_id"], f"Company #{r['company_id']}"),
+                "subject": r.get("subject", ""),
+                "sent_date": sent,
+                "days_since": days_since,
+                "status": r.get("response_status", "pending"),
+                "next_action": next_action,
+                "notes": r.get("notes", ""),
+                "record_id": r["id"],
+            })
+        return {"pipeline": pipeline, "total": len(pipeline), "today": str(today)}
 
     elif name == "log_outreach_sent":
         cid, contact_id, status = await _resolve(args["company_name"], args.get("contact_name"))
