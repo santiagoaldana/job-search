@@ -20,6 +20,10 @@ class CompanyUpdate(BaseModel):
     is_archived: Optional[bool] = None
     funding_stage: Optional[str] = None
     career_page_url: Optional[str] = None
+    greenhouse_slug: Optional[str] = None
+    lever_slug: Optional[str] = None
+    ashby_slug: Optional[str] = None
+    wttj_slug: Optional[str] = None
     org_notes: Optional[str] = None
 
 

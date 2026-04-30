@@ -2,7 +2,9 @@
 Career Site Scraper — zero cost job discovery for LAMP companies.
 Tier 1: Greenhouse API (no auth)
 Tier 2: Lever API (no auth)
-Tier 3: Direct career page scrape (httpx + BeautifulSoup)
+Tier 3: Ashby API (no auth)
+Tier 4: Welcome to the Jungle public API
+Tier 5: Direct career page scrape (httpx + BeautifulSoup)
 """
 
 import json
@@ -84,6 +86,57 @@ async def fetch_lever_jobs(slug: str) -> list:
             return []
 
 
+async def fetch_ashby_jobs(slug: str) -> list:
+    """Fetch jobs from Ashby public API (no auth required)."""
+    url = f"https://api.ashbyhq.com/posting-api/job-board/{slug}"
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            resp = await client.get(url, headers=HEADERS)
+            resp.raise_for_status()
+            data = resp.json()
+            jobs = data.get("jobs", [])
+            return [
+                {
+                    "title": j.get("title", ""),
+                    "url": j.get("jobUrl", ""),
+                    "location": (j.get("location") or {}).get("locationStr", "") if isinstance(j.get("location"), dict) else (j.get("location") or ""),
+                    "posted_date": j.get("publishedDate", "")[:10] if j.get("publishedDate") else None,
+                    "source": "ashby",
+                    "description": j.get("descriptionPlain", "")[:500],
+                }
+                for j in jobs
+            ]
+        except Exception:
+            return []
+
+
+async def fetch_wttj_jobs(slug: str) -> list:
+    """Fetch jobs from Welcome to the Jungle public API."""
+    url = f"https://api.welcometothejungle.com/api/v1/organizations/{slug}/jobs"
+    params = {"page": 1, "per_page": 50}
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            resp = await client.get(url, headers={**HEADERS, "Accept": "application/json"}, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            jobs = data.get("jobs", []) or data.get("data", [])
+            return [
+                {
+                    "title": j.get("name", "") or j.get("title", ""),
+                    "url": f"https://www.welcometothejungle.com/jobs/{j.get('slug', '')}",
+                    "location": (j.get("office") or {}).get("city", "") if isinstance(j.get("office"), dict) else "",
+                    "posted_date": (j.get("published_at") or "")[:10] or None,
+                    "source": "welcometothejungle",
+                    "description": BeautifulSoup(
+                        j.get("description", ""), "html.parser"
+                    ).get_text()[:500],
+                }
+                for j in jobs
+            ]
+        except Exception:
+            return []
+
+
 async def scrape_career_page(url: str) -> list:
     """Scrape a direct career page and extract job listings."""
     async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True) as client:
@@ -143,6 +196,10 @@ async def get_company_jobs(company) -> list:
         jobs = await fetch_greenhouse_jobs(company.greenhouse_slug)
     elif company.lever_slug:
         jobs = await fetch_lever_jobs(company.lever_slug)
+    elif company.ashby_slug:
+        jobs = await fetch_ashby_jobs(company.ashby_slug)
+    elif company.wttj_slug:
+        jobs = await fetch_wttj_jobs(company.wttj_slug)
     else:
         career_urls = _load_career_urls()
         url = company.career_page_url or career_urls.get(company.name)

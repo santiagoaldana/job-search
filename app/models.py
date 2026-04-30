@@ -35,6 +35,8 @@ class Company(SQLModel, table=True):
     career_page_url: Optional[str] = Field(default=None)
     greenhouse_slug: Optional[str] = Field(default=None)
     lever_slug: Optional[str] = Field(default=None)
+    ashby_slug: Optional[str] = Field(default=None)
+    wttj_slug: Optional[str] = Field(default=None)  # Welcome to the Jungle
 
     # Intelligence
     intel_summary: Optional[str] = Field(default=None)
