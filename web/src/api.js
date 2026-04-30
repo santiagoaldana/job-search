@@ -48,6 +48,7 @@ export const api = {
 
   // Outreach
   getDueToday: () => get('/outreach/due-today'),
+  listOutreach: (params = {}) => { const q = new URLSearchParams(params).toString(); return get('/outreach' + (q ? '?' + q : '')) },
   createOutreach: (data) => post('/outreach', data),
   generateOutreach: (data) => post('/outreach/generate', data),
   logOutreach: (data) => post('/outreach', data),

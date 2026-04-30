@@ -168,6 +168,11 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="get_ghosted_outreach",
+            description="List contacts that were ghosted (no response after both follow-ups). Shows who to re-engage or close out.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        types.Tool(
             name="get_outreach_pipeline",
             description="Get all active outreach records with contact/company info, follow-up status, and days since sent. Use this to generate an outreach pipeline artifact showing who is in process.",
             inputSchema={"type": "object", "properties": {}},
@@ -270,6 +275,41 @@ async def _dispatch(name: str, args: dict) -> dict:
             "description": args.get("description"),
             "category": args.get("category", "strategic"),
         })
+
+    elif name == "get_ghosted_outreach":
+        records = await _get("/api/outreach", {"response_status": "ghosted"})
+        companies = await _get("/api/companies", {"active_only": False})
+        company_map = {c["id"]: c["name"] for c in companies}
+        contact_ids = list({r["contact_id"] for r in records if r.get("contact_id")})
+        contact_map = {}
+        for cid in contact_ids:
+            try:
+                c = await _get(f"/api/contacts/{cid}")
+                contact_map[cid] = {"name": c.get("name", ""), "title": c.get("title", "")}
+            except Exception:
+                pass
+        from datetime import date
+        today = date.today()
+        result = []
+        seen = set()
+        for r in records:
+            key = (r["company_id"], r["contact_id"])
+            if key in seen:
+                continue
+            seen.add(key)
+            sent = r.get("sent_at", "")[:10]
+            days_since = (today - date.fromisoformat(sent)).days if sent else None
+            contact_info = contact_map.get(r.get("contact_id"), {})
+            result.append({
+                "contact_name": contact_info.get("name", "—"),
+                "contact_title": contact_info.get("title", ""),
+                "company": company_map.get(r["company_id"], f"Company #{r['company_id']}"),
+                "subject": r.get("subject", ""),
+                "sent_date": sent,
+                "days_since": days_since,
+                "record_id": r["id"],
+            })
+        return {"ghosted": result, "total": len(result), "today": str(today)}
 
     elif name == "get_outreach_pipeline":
         records = await _get("/api/outreach")

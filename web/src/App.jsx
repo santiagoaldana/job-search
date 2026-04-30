@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { Home, Kanban, Briefcase, Calendar, FileText, Settings, Cpu } from 'lucide-react'
+import { Home, Kanban, Briefcase, Calendar, FileText, Settings, Mail } from 'lucide-react'
 import DailyBrief from './pages/DailyBrief'
 import Funnel from './pages/Funnel'
 import CompanyCard from './pages/CompanyCard'
@@ -8,6 +8,7 @@ import Leads from './pages/Leads'
 import Events from './pages/Events'
 import Content from './pages/Content'
 import CVPage from './pages/CVPage'
+import OutreachPage from './pages/Outreach'
 import SettingsPage from './pages/Settings'
 import Login from './pages/Login'
 
@@ -15,9 +16,9 @@ const NAV = [
   { to: '/', icon: Home, label: 'Brief' },
   { to: '/funnel', icon: Kanban, label: 'Funnel' },
   { to: '/leads', icon: Briefcase, label: 'Leads' },
+  { to: '/outreach', icon: Mail, label: 'Outreach' },
   { to: '/events', icon: Calendar, label: 'Events' },
   { to: '/content', icon: FileText, label: 'Content' },
-  { to: '/cv', icon: Cpu, label: 'CV' },
   { to: '/settings', icon: Settings, label: 'More' },
 ]
 
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="/funnel" element={<Funnel />} />
           <Route path="/company/:id" element={<CompanyCard />} />
           <Route path="/leads" element={<Leads />} />
+          <Route path="/outreach" element={<OutreachPage />} />
           <Route path="/events" element={<Events />} />
           <Route path="/content" element={<Content />} />
           <Route path="/cv" element={<CVPage />} />
