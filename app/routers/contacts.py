@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from app.database import get_session
 from app.models import Contact, Company
+from app.services.email_finder import determine_next_step
 
 router = APIRouter()
 
@@ -49,6 +50,12 @@ class ContactUpdateRequest(BaseModel):
     outreach_status: Optional[str] = None
     title: Optional[str] = None
     introduced_by_contact_id: Optional[int] = None
+    email: Optional[str] = None
+    email_guessed: Optional[bool] = None
+    email_invalid: Optional[bool] = None
+    email_patterns_tried: Optional[str] = None
+    connection_request_variant: Optional[str] = None
+    connection_degree: Optional[int] = None
 
 
 def _match_company_from_index(company_name: str, company_index: dict) -> Optional[int]:
@@ -226,12 +233,17 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
     session.commit()
     session.refresh(contact)
 
-    matched_company = None
-    if company_id:
-        c = session.get(Company, company_id)
-        matched_company = c.name if c else None
+    matched_company_obj = session.get(Company, company_id) if company_id else None
+    matched_company = matched_company_obj.name if matched_company_obj else None
 
-    return {"ok": True, "contact_id": contact.id, "matched_company": matched_company}
+    next_step = determine_next_step(contact, matched_company_obj)
+
+    return {
+        "ok": True,
+        "contact_id": contact.id,
+        "matched_company": matched_company,
+        "next_step": next_step,
+    }
 
 
 @router.get("/{contact_id}")
@@ -260,3 +272,45 @@ def update_contact(
     session.commit()
     session.refresh(contact)
     return contact
+
+
+@router.post("/{contact_id}/bounce")
+def mark_email_bounce(contact_id: int, session: Session = Depends(get_session)):
+    """Mark contact email as bounced, advance to next pattern, return updated next_step."""
+    import json as _json
+    contact = session.get(Contact, contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    # Record the current email as tried
+    tried = _json.loads(contact.email_patterns_tried or "[]")
+    if contact.email and contact.email not in tried:
+        tried.append(contact.email)
+    contact.email_patterns_tried = _json.dumps(tried)
+    contact.email_invalid = True
+    contact.email = None
+    contact.email_guessed = False
+
+    session.add(contact)
+    session.commit()
+    session.refresh(contact)
+
+    company = session.get(Company, contact.company_id) if contact.company_id else None
+    next_step = determine_next_step(contact, company)
+    return {"ok": True, "next_step": next_step}
+
+
+@router.get("/{contact_id}/next-step")
+def get_contact_next_step(contact_id: int, session: Session = Depends(get_session)):
+    """Return the recommended next outreach action for a contact."""
+    contact = session.get(Contact, contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    company = session.get(Company, contact.company_id) if contact.company_id else None
+    next_step = determine_next_step(contact, company)
+    return {
+        "contact_id": contact_id,
+        "contact_name": contact.name,
+        "company_name": company.name if company else None,
+        "next_step": next_step,
+    }

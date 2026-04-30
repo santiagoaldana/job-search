@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy, Users, Network, Plus, X } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy, Users, Network, Plus, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../api'
 import Badge from '../components/Badge'
 import FitBar from '../components/FitBar'
@@ -306,6 +306,37 @@ export default function CompanyCard() {
   )
 }
 
+const NEXT_STEP_LABELS = {
+  draft_email: { label: 'Draft email', color: 'bg-blue-500', detail: 'Confirmed email on file' },
+  draft_email_guessed: { label: 'Draft email (unverified address)', color: 'bg-yellow-500', detail: '⚠ Guessed from company domain' },
+  prompt_manual_email: { label: 'Check LinkedIn for email', color: 'bg-orange-500', detail: 'Open their profile → Contact Info tab' },
+  draft_linkedin_dm: { label: 'Draft LinkedIn DM', color: 'bg-purple-500', detail: 'All email patterns tried' },
+  draft_connection_request: { label: 'Send connection request', color: 'bg-slate-500', detail: 'Not yet a 1st-degree connection' },
+}
+
+function NextStepChip({ nextStep, contactName, onDone }) {
+  if (!nextStep) return null
+  const info = NEXT_STEP_LABELS[nextStep.action] || { label: nextStep.action, color: 'bg-slate-500', detail: '' }
+
+  return (
+    <div className="mt-3 rounded-xl border border-theme bg-card2 p-3">
+      <div className="text-xs font-semibold text-body mb-0.5">Contact added — next step</div>
+      <div className="text-xs text-muted mb-2">{info.detail}{nextStep.guessed_email ? `: ${nextStep.guessed_email}` : ''}</div>
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={onDone}
+          className={`text-xs px-3 py-1.5 rounded-lg text-white font-medium ${info.color}`}
+        >
+          {info.label}
+        </button>
+        <button onClick={onDone} className="text-xs px-3 py-1.5 rounded-lg border border-theme text-muted">
+          Later
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ContactModal({ company, contact, onClose, onSaved }) {
   const isEdit = !!contact
   const [form, setForm] = useState({
@@ -318,6 +349,8 @@ function ContactModal({ company, contact, onClose, onSaved }) {
     introduced_by_contact_id: contact?.introduced_by_contact_id || '',
   })
   const [saving, setSaving] = useState(false)
+  const [nextStep, setNextStep] = useState(null)
+  const [savedContactName, setSavedContactName] = useState('')
   const [allContacts, setAllContacts] = useState([])
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
@@ -338,8 +371,9 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           relationship_notes: form.relationship_notes || undefined,
           introduced_by_contact_id: introducedById,
         })
+        onSaved()
       } else {
-        await api.quickAddContact({
+        const result = await api.quickAddContact({
           name: form.name.trim(),
           title: form.title || undefined,
           linkedin_url: form.linkedin_url || undefined,
@@ -349,12 +383,28 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           relationship_notes: form.relationship_notes || undefined,
           introduced_by_contact_id: introducedById,
         })
+        if (result.next_step) {
+          setSavedContactName(form.name.trim())
+          setNextStep(result.next_step)
+        } else {
+          onSaved()
+        }
       }
-      onSaved()
     } catch (e) {
       alert(e.message)
       setSaving(false)
     }
+  }
+
+  if (nextStep) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50">
+        <div className="bg-white dark:bg-slate-900 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl p-5">
+          <div className="text-sm font-semibold text-body mb-1">{savedContactName} added</div>
+          <NextStepChip nextStep={nextStep} contactName={savedContactName} onDone={onSaved} />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -524,6 +574,77 @@ function NetworkPath({ companyId }) {
   )
 }
 
+function OutreachHistoryCard({ o, onResponseUpdate, onUseAsContext }) {
+  const [expanded, setExpanded] = useState(false)
+  const hasBody = !!o.body
+
+  return (
+    <div className="bg-card border border-theme rounded-xl p-4">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-sm font-medium text-body">{o.subject || o.channel}</span>
+        <Badge color={
+          o.response_status === 'positive' ? 'green' :
+          o.response_status === 'negative' ? 'red' :
+          o.response_status === 'ghosted' ? 'slate' : 'yellow'
+        }>{o.response_status}</Badge>
+      </div>
+      <div className="text-xs text-muted mb-2">
+        {o.sent_at ? `Sent ${o.sent_at.slice(0, 10)}` : 'Draft'}
+        {o.follow_up_3_due && ` · Follow-up due ${o.follow_up_3_due}`}
+      </div>
+
+      {hasBody && (
+        <>
+          <div
+            className={`text-xs text-muted leading-relaxed whitespace-pre-wrap ${expanded ? '' : 'line-clamp-2'}`}
+          >
+            {o.body}
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <button
+              onClick={() => setExpanded(v => !v)}
+              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-400"
+            >
+              {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              {expanded ? 'Collapse' : 'Show full email'}
+            </button>
+            {expanded && (
+              <button
+                onClick={() => {
+                  const ctx = o.subject
+                    ? `Previous email (${o.sent_at?.slice(0, 10)}):\nSubject: ${o.subject}\n\n${o.body}`
+                    : `Previous email (${o.sent_at?.slice(0, 10)}):\n\n${o.body}`
+                  onUseAsContext(ctx)
+                  // Scroll to context field
+                  document.getElementById('outreach-context')?.scrollIntoView({ behavior: 'smooth' })
+                }}
+                className="text-xs text-amber-400 hover:text-amber-300"
+              >
+                Use as context ↑
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {!hasBody && (
+        <div className="text-xs text-faint italic">No email body stored</div>
+      )}
+
+      {o.response_status === 'pending' && (
+        <div className="flex gap-2 mt-3">
+          {['positive', 'negative', 'ghosted'].map(s => (
+            <button key={s} onClick={() => onResponseUpdate(o.id, s)}
+              className="flex-1 text-xs py-1.5 rounded-lg border border-theme bg-card2 text-muted hover:text-body capitalize transition-colors">
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function OutreachTab({ company, onReload, defaultContactId }) {
   const [emailType, setEmailType] = useState('cold')
   const [context, setContext] = useState('')
@@ -534,6 +655,7 @@ function OutreachTab({ company, onReload, defaultContactId }) {
   const [draft, setDraft] = useState(null)
   const [logging, setLogging] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [undoId, setUndoId] = useState(null)
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -555,18 +677,54 @@ function OutreachTab({ company, onReload, defaultContactId }) {
     }
   }
 
+  const _doLog = async () => {
+    const result = await api.logOutreach({
+      company_id: company.id,
+      contact_id: selectedContact || undefined,
+      channel: 'email',
+      subject: draft.subject,
+      body: draft.body,
+      sent_at: new Date().toISOString(),
+    })
+    return result.id
+  }
+
+  const handleOpenInMail = async () => {
+    if (!draft) return
+    setLogging(true)
+    try {
+      const savedDraft = draft
+      const id = await _doLog()
+      setDraft(null)
+      setContext('')
+      setHook('')
+      setAsk('')
+      setUndoId({ id, draft: savedDraft })
+      onReload()
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setLogging(false)
+    }
+  }
+
+  const handleUndo = async () => {
+    if (!undoId) return
+    try {
+      await api.deleteOutreach(undoId.id)
+      setDraft(undoId.draft)
+      setUndoId(null)
+      onReload()
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
   const handleLogSent = async () => {
     if (!draft) return
     setLogging(true)
     try {
-      await api.logOutreach({
-        company_id: company.id,
-        contact_id: selectedContact || undefined,
-        channel: 'email',
-        subject: draft.subject,
-        body: draft.body,
-        sent_at: new Date().toISOString(),
-      })
+      await _doLog()
       setDraft(null)
       setContext('')
       setHook('')
@@ -658,6 +816,7 @@ function OutreachTab({ company, onReload, defaultContactId }) {
       {/* Context fields */}
       <div className="space-y-2">
         <textarea
+          id="outreach-context"
           value={context}
           onChange={e => setContext(e.target.value)}
           placeholder={emailType === 'event_met'
@@ -712,16 +871,39 @@ function OutreachTab({ company, onReload, defaultContactId }) {
               <div className="text-xs text-muted italic pt-1 border-t border-theme">{draft.rationale}</div>
             )}
           </div>
-          <div className="flex gap-2 px-4 pb-4">
+          <div className="flex gap-2 px-4 pb-3 flex-wrap">
             <button onClick={handleGenerate} disabled={generating}
               className="flex-1 bg-card2 border border-theme text-body rounded-lg py-2 text-xs font-medium">
               Regenerate
             </button>
+            {(() => {
+              const contactEmail = company.contacts?.find(c => c.id === selectedContact)?.email
+              const to = encodeURIComponent(contactEmail || '')
+              const subject = encodeURIComponent(draft.subject || '')
+              const body = encodeURIComponent(draft.body || '')
+              const mailtoHref = `mailto:${to}?subject=${subject}&body=${body}`
+              return (
+                <a href={mailtoHref} onClick={handleOpenInMail}
+                  className="flex-1 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-2 text-xs font-medium">
+                  {logging ? 'Saving…' : 'Open in Mail →'}
+                </a>
+              )
+            })()}
             <button onClick={handleLogSent} disabled={logging}
               className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-medium">
-              {logging ? 'Saving…' : 'Mark as sent →'}
+              {logging ? 'Saving…' : 'Sent ✓'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Undo banner */}
+      {undoId && (
+        <div className="flex items-center justify-between bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5 mb-2">
+          <span className="text-xs text-green-700 dark:text-green-300">Logged as sent</span>
+          <button onClick={handleUndo} className="text-xs font-medium text-green-700 dark:text-green-300 underline">
+            Undo
+          </button>
         </div>
       )}
 
@@ -732,33 +914,12 @@ function OutreachTab({ company, onReload, defaultContactId }) {
         <div className="space-y-3 pt-2">
           <div className="text-xs text-muted font-medium uppercase tracking-wide">History</div>
           {company.outreach.map(o => (
-            <div key={o.id} className="bg-card border border-theme rounded-xl p-4">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium text-body">{o.subject || o.channel}</span>
-                <Badge color={
-                  o.response_status === 'positive' ? 'green' :
-                  o.response_status === 'negative' ? 'red' :
-                  o.response_status === 'ghosted' ? 'slate' : 'yellow'
-                }>{o.response_status}</Badge>
-              </div>
-              <div className="text-xs text-muted mb-2">
-                {o.sent_at ? `Sent ${o.sent_at.slice(0,10)}` : 'Draft'}
-                {o.follow_up_3_due && ` · Follow-up due ${o.follow_up_3_due}`}
-              </div>
-              {o.body && (
-                <div className="text-xs text-muted line-clamp-2 leading-relaxed">{o.body}</div>
-              )}
-              {o.response_status === 'pending' && (
-                <div className="flex gap-2 mt-3">
-                  {['positive', 'negative', 'ghosted'].map(s => (
-                    <button key={s} onClick={() => handleResponseUpdate(o.id, s)}
-                      className="flex-1 text-xs py-1.5 rounded-lg border border-theme bg-card2 text-muted hover:text-body capitalize transition-colors">
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <OutreachHistoryCard
+              key={o.id}
+              o={o}
+              onResponseUpdate={handleResponseUpdate}
+              onUseAsContext={(text) => setContext(text)}
+            />
           ))}
         </div>
       )}

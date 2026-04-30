@@ -42,6 +42,12 @@ async def _post(path: str, body: dict) -> dict:
         r.raise_for_status()
         return r.json()
 
+async def _patch(path: str, body: dict) -> dict:
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.patch(f"{API_BASE}{path}", headers=HEADERS, json=body)
+        r.raise_for_status()
+        return r.json()
+
 
 # ── Company + contact lookup ──────────────────────────────────────────────────
 
@@ -203,6 +209,64 @@ async def list_tools() -> list[types.Tool]:
                     "language": {"type": "string", "enum": ["en", "es"], "description": "Email language. Default: en"},
                 },
                 "required": ["company_name", "followup_day"],
+            },
+        ),
+        types.Tool(
+            name="get_contact_next_step",
+            description="Get the recommended next outreach action for a specific contact. Returns whether to draft an email, LinkedIn DM, or connection request.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contact_name": {"type": "string", "description": "Full or partial name of the contact"},
+                    "company_name": {"type": "string", "description": "Company name to narrow the search (optional)"},
+                },
+                "required": ["contact_name"],
+            },
+        ),
+        types.Tool(
+            name="draft_linkedin_message",
+            description="Draft a LinkedIn DM or connection request for a contact. Use message_type='linkedin_dm' for 1st-degree connections, 'connection_request' for others (randomly assigns A/B variant).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contact_name": {"type": "string"},
+                    "company_name": {"type": "string"},
+                    "message_type": {
+                        "type": "string",
+                        "enum": ["linkedin_dm", "connection_request"],
+                        "description": "linkedin_dm for 1st-degree, connection_request for 2nd/3rd degree",
+                    },
+                    "context": {"type": "string", "description": "Additional context (prior email sent, event met at, etc.)"},
+                },
+                "required": ["contact_name", "message_type"],
+            },
+        ),
+        types.Tool(
+            name="mark_linkedin_status",
+            description="Record a LinkedIn action taken for a contact: request_sent, accepted (connection accepted → now 1st-degree), or dm_sent.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contact_name": {"type": "string"},
+                    "company_name": {"type": "string"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["request_sent", "accepted", "dm_sent"],
+                    },
+                },
+                "required": ["contact_name", "status"],
+            },
+        ),
+        types.Tool(
+            name="mark_email_bounced",
+            description="Mark a contact's email as bounced. Advances to the next pattern guess and returns the new recommended action.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contact_name": {"type": "string"},
+                    "company_name": {"type": "string"},
+                },
+                "required": ["contact_name"],
             },
         ),
     ]
@@ -395,6 +459,110 @@ async def _dispatch(name: str, args: dict) -> dict:
             "followup_day": args["followup_day"],
             "language": args.get("language", "en"),
         })
+
+    elif name == "get_contact_next_step":
+        # Find contact by name
+        contacts = await _get("/api/contacts")
+        name_lower = args["contact_name"].lower()
+        company_filter = args.get("company_name", "").lower()
+        matches = [
+            c for c in contacts
+            if name_lower in (c.get("name") or "").lower()
+            and (not company_filter or company_filter in (c.get("company_name") or "").lower())
+        ]
+        if not matches:
+            return {"error": f"No contact found matching '{args['contact_name']}'"}
+        contact = matches[0]
+        return await _get(f"/api/contacts/{contact['id']}/next-step")
+
+    elif name == "draft_linkedin_message":
+        contacts = await _get("/api/contacts")
+        name_lower = args["contact_name"].lower()
+        company_filter = args.get("company_name", "").lower()
+        matches = [
+            c for c in contacts
+            if name_lower in (c.get("name") or "").lower()
+            and (not company_filter or company_filter in (c.get("company_name") or "").lower())
+        ]
+        if not matches:
+            return {"error": f"No contact found matching '{args['contact_name']}'"}
+        contact_row = matches[0]
+
+        # Resolve company
+        company_name = contact_row.get("company_name") or args.get("company_name", "")
+        cid, contact_id, status = await _resolve(company_name, args["contact_name"])
+        if cid is None:
+            return {"error": status}
+
+        # Choose A/B variant for connection requests
+        import random
+        msg_type = args["message_type"]
+        if msg_type == "connection_request":
+            email_type = random.choice(["connection_request_a", "connection_request_b"])
+        else:
+            email_type = "linkedin_dm"
+
+        result = await _post("/api/outreach/generate", {
+            "company_id": cid,
+            "contact_id": contact_id,
+            "context": args.get("context"),
+            "email_type": email_type,
+        })
+
+        # Store the variant on the contact if it was a connection request
+        if msg_type == "connection_request":
+            variant = "A" if email_type == "connection_request_a" else "B"
+            try:
+                await _patch(f"/api/contacts/{contact_row['id']}", {"connection_request_variant": variant})
+            except Exception:
+                pass
+            result["variant"] = variant
+            result["message_type"] = "connection_request"
+        else:
+            result["message_type"] = "linkedin_dm"
+
+        return result
+
+    elif name == "mark_linkedin_status":
+        contacts = await _get("/api/contacts")
+        name_lower = args["contact_name"].lower()
+        company_filter = args.get("company_name", "").lower()
+        matches = [
+            c for c in contacts
+            if name_lower in (c.get("name") or "").lower()
+            and (not company_filter or company_filter in (c.get("company_name") or "").lower())
+        ]
+        if not matches:
+            return {"error": f"No contact found matching '{args['contact_name']}'"}
+        contact_row = matches[0]
+        contact_id = contact_row["id"]
+
+        status = args["status"]
+        update = {}
+        if status == "request_sent":
+            update["outreach_status"] = "connection_requested"
+        elif status == "accepted":
+            update["connection_degree"] = 1
+            update["outreach_status"] = "none"  # reset so next-step logic runs fresh
+        elif status == "dm_sent":
+            update["outreach_status"] = "linkedin_dm"
+
+        result = await _patch(f"/api/contacts/{contact_id}", update)
+        return {"ok": True, "contact": contact_row["name"], "status_recorded": status, "contact_id": contact_id}
+
+    elif name == "mark_email_bounced":
+        contacts = await _get("/api/contacts")
+        name_lower = args["contact_name"].lower()
+        company_filter = args.get("company_name", "").lower()
+        matches = [
+            c for c in contacts
+            if name_lower in (c.get("name") or "").lower()
+            and (not company_filter or company_filter in (c.get("company_name") or "").lower())
+        ]
+        if not matches:
+            return {"error": f"No contact found matching '{args['contact_name']}'"}
+        contact_row = matches[0]
+        return await _post(f"/api/contacts/{contact_row['id']}/bounce", {})
 
     return {"error": f"Unknown tool: {name}"}
 

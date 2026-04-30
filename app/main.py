@@ -149,6 +149,19 @@ async def lifespan(app: FastAPI):
     )
 
     scheduler.start()
+
+    # Keep-alive: ping self every 4 min to prevent Render free-tier cold starts
+    import threading, urllib.request, time
+    _api_url = os.environ.get("API_BASE_URL", "https://job-search-do1r.onrender.com")
+    def _keep_alive():
+        while True:
+            time.sleep(240)
+            try:
+                urllib.request.urlopen(f"{_api_url}/api/health", timeout=10)
+            except Exception:
+                pass
+    threading.Thread(target=_keep_alive, daemon=True).start()
+
     print("✓ Job Search System v2 started")
     yield
     scheduler.shutdown()

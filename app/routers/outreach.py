@@ -124,6 +124,16 @@ async def generate_outreach(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete("/{record_id}")
+def delete_outreach(record_id: int, session: Session = Depends(get_session)):
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Not found")
+    session.delete(record)
+    session.commit()
+    return {"ok": True}
+
+
 @router.patch("/{record_id}/response")
 def update_response(
     record_id: int,

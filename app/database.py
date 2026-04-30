@@ -43,6 +43,10 @@ def run_migrations():
         ("company", "is_archived", "BOOLEAN DEFAULT FALSE"),
         ("company", "ashby_slug", "TEXT"),
         ("company", "wttj_slug", "TEXT"),
+        ("contact", "email_guessed", "BOOLEAN DEFAULT FALSE"),
+        ("contact", "email_invalid", "BOOLEAN DEFAULT FALSE"),
+        ("contact", "email_patterns_tried", "TEXT"),
+        ("contact", "connection_request_variant", "TEXT"),
     ]
 
     with engine.connect() as conn:

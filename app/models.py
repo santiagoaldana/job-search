@@ -67,12 +67,16 @@ class Contact(SQLModel, table=True):
     connection_degree: int = Field(default=1)  # 1=direct, 2=2nd, 3=3rd
     warmth: str = Field(default="cold")  # cold|warm|hot
     is_hiring_manager: bool = Field(default=False)
-    outreach_status: str = Field(default="none")  # none|drafted|sent|responded
+    outreach_status: str = Field(default="none")  # none|emailed|linkedin_dm|connection_requested|met
     connected_on: Optional[str] = Field(default=None)  # ISO date string
     met_via: Optional[str] = Field(default=None)
     relationship_notes: Optional[str] = Field(default=None)
     met_at_event_id: Optional[int] = Field(default=None)
     introduced_by_contact_id: Optional[int] = Field(default=None, foreign_key="contact.id")
+    email_guessed: bool = Field(default=False)              # pattern-guessed, not confirmed
+    email_invalid: bool = Field(default=False)              # bounce confirmed
+    email_patterns_tried: Optional[str] = Field(default=None)  # JSON list of tried patterns
+    connection_request_variant: Optional[str] = Field(default=None)  # "A" or "B"
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
     company: Optional[Company] = Relationship(back_populates="contacts")

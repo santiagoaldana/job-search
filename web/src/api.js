@@ -52,6 +52,7 @@ export const api = {
   createOutreach: (data) => post('/outreach', data),
   generateOutreach: (data) => post('/outreach/generate', data),
   logOutreach: (data) => post('/outreach', data),
+  deleteOutreach: (id) => request('DELETE', `/outreach/${id}`),
   updateOutreachResponse: (id, status) => patch(`/outreach/${id}/response`, { response_status: status }),
   updateResponse: (id, status, notes) => patch(`/outreach/${id}/response`, { response_status: status, notes }),
   draftFollowup: (id, followup_day, language = 'en') => post(`/outreach/${id}/draft-followup`, { followup_day, language }),
@@ -116,6 +117,8 @@ export const api = {
   getContact: (id) => get(`/contacts/${id}`),
   quickAddContact: (data) => post('/contacts/quick-add', data),
   updateContact: (id, data) => patch(`/contacts/${id}`, data),
+  markEmailBounced: (id) => post(`/contacts/${id}/bounce`),
+  getContactNextStep: (id) => get(`/contacts/${id}/next-step`),
   getNetworkPath: (companyId) => get(`/companies/${companyId}/network-path`),
 
   // AI Suggestions

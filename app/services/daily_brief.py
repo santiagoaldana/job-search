@@ -10,6 +10,9 @@ from app.models import (
     OutreachRecord, Lead, Event, Application,
     ContentDraft, AITargetSuggestion, Company, Interview, Contact
 )
+from app.services.email_finder import determine_next_step as _contact_next_step
+
+_CONTACTS_WITHOUT_EMAIL_THRESHOLD = 5
 
 
 def compute_daily_brief(session: Session) -> dict:
@@ -111,6 +114,86 @@ def compute_daily_brief(session: Session) -> dict:
             "company_id": contact.company_id,
             "payload_id": contact.id,
             "payload_type": "contact",
+        })
+
+    # Bounce retry — contacts with invalid email that still have untried patterns
+    bounced_contacts = session.exec(
+        select(Contact).where(
+            Contact.email_invalid == True,
+            Contact.company_id != None,
+        )
+    ).all()
+    for contact in bounced_contacts[:3]:
+        company = session.get(Company, contact.company_id) if contact.company_id else None
+        ns = _contact_next_step(contact, company)
+        if ns["action"] == "draft_email_guessed" and ns.get("guessed_email"):
+            outreach.append({
+                "action_type": "email_bounce_retry",
+                "label": f"Email bounced — try next pattern for {contact.name}",
+                "detail": f"Next guess: {ns['guessed_email']} (unverified)",
+                "cta": "Try new email",
+                "company_id": contact.company_id,
+                "payload_id": contact.id,
+                "payload_type": "contact",
+                "guessed_email": ns["guessed_email"],
+            })
+        elif ns["action"] in ("draft_linkedin_dm", "prompt_manual_email"):
+            outreach.append({
+                "action_type": "try_linkedin_dm",
+                "label": f"All email patterns tried — reach out via LinkedIn for {contact.name}",
+                "detail": f"at {company.name if company else 'Unknown'}",
+                "cta": "Draft LinkedIn DM",
+                "company_id": contact.company_id,
+                "payload_id": contact.id,
+                "payload_type": "contact",
+            })
+
+    # LinkedIn DM follow-up — Day 7 passed, still pending, no DM record yet
+    day7_passed_cutoff = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+    needs_dm = session.exec(
+        select(OutreachRecord).where(
+            OutreachRecord.response_status == "pending",
+            OutreachRecord.follow_up_7_sent == True,
+            OutreachRecord.channel == "email",
+            OutreachRecord.follow_up_7_due <= today,
+        )
+    ).all()
+    seen_dm_contacts = set()
+    for record in needs_dm[:3]:
+        if record.contact_id in seen_dm_contacts:
+            continue
+        seen_dm_contacts.add(record.contact_id)
+        contact = session.get(Contact, record.contact_id) if record.contact_id else None
+        company = session.get(Company, record.company_id) if record.company_id else None
+        # Only surface if contact is 1st-degree (can DM them)
+        if contact and contact.connection_degree == 1:
+            who = f"{contact.name} at {company.name}" if company else (contact.name if contact else 'Unknown')
+            outreach.append({
+                "action_type": "try_linkedin_dm",
+                "label": f"No email reply — try LinkedIn DM for {who}",
+                "detail": "Both email follow-ups sent · switch to LinkedIn",
+                "cta": "Draft LinkedIn DM",
+                "company_id": record.company_id,
+                "payload_id": record.id,
+                "payload_type": "outreach",
+            })
+
+    # LinkedIn CSV reimport reminder
+    contacts_no_email_since_import = session.exec(
+        select(Contact).where(
+            Contact.connection_degree == 1,
+            Contact.email == None,
+            Contact.email_guessed == False,
+        )
+    ).all()
+    if len(contacts_no_email_since_import) >= _CONTACTS_WITHOUT_EMAIL_THRESHOLD:
+        outreach.append({
+            "action_type": "linkedin_reimport",
+            "label": f"{len(contacts_no_email_since_import)} contacts without email — re-export LinkedIn",
+            "detail": "Export LinkedIn Connections CSV to pick up newly shared emails",
+            "cta": "Upload contacts",
+            "payload_id": None,
+            "payload_type": "settings",
         })
 
     # ══════════════════════════════════════════════════════════════════════════
