@@ -254,7 +254,10 @@ def main():
         from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette
         from starlette.routing import Route, Mount
+        from starlette.responses import JSONResponse
+        from starlette.background import BackgroundTask
         import uvicorn
+        import threading
 
         messages_path = a.messages_path
         sse = SseServerTransport(messages_path)
@@ -263,7 +266,27 @@ def main():
             async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
                 await server.run(streams[0], streams[1], server.create_initialization_options())
 
+        async def health(request):
+            return JSONResponse({"status": "ok"})
+
+        def _keep_alive():
+            """Ping self every 4 minutes to prevent Render free-tier cold start."""
+            import time
+            import urllib.request
+            port = a.port
+            url = f"http://localhost:{port}/health"
+            while True:
+                time.sleep(240)
+                try:
+                    urllib.request.urlopen(url, timeout=10)
+                except Exception:
+                    pass
+
+        t = threading.Thread(target=_keep_alive, daemon=True)
+        t.start()
+
         starlette_app = Starlette(routes=[
+            Route("/health", endpoint=health),
             Route("/sse", endpoint=handle_sse),
             Mount(messages_path, app=sse.handle_post_message),
         ])
