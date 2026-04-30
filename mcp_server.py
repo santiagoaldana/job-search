@@ -167,6 +167,34 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["name"],
             },
         ),
+        types.Tool(
+            name="log_outreach_sent",
+            description="Log that Santiago sent an outreach email to a company. Call this right after sending so the 3/7 day follow-up reminders are scheduled automatically.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "contact_name": {"type": "string", "description": "Name of person emailed (optional)"},
+                    "subject": {"type": "string"},
+                    "body": {"type": "string", "description": "Email body text (optional but recommended for follow-up context)"},
+                    "channel": {"type": "string", "enum": ["email", "linkedin"], "description": "Default: email"},
+                },
+                "required": ["company_name", "subject"],
+            },
+        ),
+        types.Tool(
+            name="draft_followup",
+            description="Draft a Day 3 bump or Day 7 close for a pending outreach. Returns the subject and body ready to copy-paste. Use when a follow-up is due.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "followup_day": {"type": "integer", "enum": [3, 7], "description": "3 for soft bump, 7 for polite close"},
+                    "language": {"type": "string", "enum": ["en", "es"], "description": "Email language. Default: en"},
+                },
+                "required": ["company_name", "followup_day"],
+            },
+        ),
     ]
 
 
@@ -236,6 +264,36 @@ async def _dispatch(name: str, args: dict) -> dict:
             "url": args.get("url"),
             "description": args.get("description"),
             "category": args.get("category", "strategic"),
+        })
+
+    elif name == "log_outreach_sent":
+        cid, contact_id, status = await _resolve(args["company_name"], args.get("contact_name"))
+        if cid is None:
+            return {"error": status}
+        return await _post("/api/outreach", {
+            "company_id": cid,
+            "contact_id": contact_id,
+            "channel": args.get("channel", "email"),
+            "subject": args["subject"],
+            "body": args.get("body"),
+        })
+
+    elif name == "draft_followup":
+        # Find the most recent pending outreach record for this company
+        cid, _, status = await _resolve(args["company_name"])
+        if cid is None:
+            return {"error": status}
+        records = await _get("/api/outreach", {"company_id": cid})
+        if not records:
+            return {"error": f"No outreach records found for {args['company_name']}"}
+        # Pick the most recent pending one
+        pending = [r for r in records if r.get("response_status") == "pending"]
+        if not pending:
+            return {"error": f"No pending outreach found for {args['company_name']}"}
+        record_id = pending[0]["id"]
+        return await _post(f"/api/outreach/{record_id}/draft-followup", {
+            "followup_day": args["followup_day"],
+            "language": args.get("language", "en"),
         })
 
     return {"error": f"Unknown tool: {name}"}
