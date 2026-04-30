@@ -113,6 +113,7 @@ export const api = {
     method: 'POST', credentials: 'include', body: formData,
   }).then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.detail) })),
   listAllContacts: () => get('/contacts'),
+  getContact: (id) => get(`/contacts/${id}`),
   quickAddContact: (data) => post('/contacts/quick-add', data),
   updateContact: (id, data) => patch(`/contacts/${id}`, data),
   getNetworkPath: (companyId) => get(`/companies/${companyId}/network-path`),
