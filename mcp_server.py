@@ -275,6 +275,17 @@ async def _dispatch(name: str, args: dict) -> dict:
         records = await _get("/api/outreach")
         companies = await _get("/api/companies", {"active_only": False})
         company_map = {c["id"]: c["name"] for c in companies}
+
+        # Fetch unique contact names in parallel
+        contact_ids = list({r["contact_id"] for r in records if r.get("contact_id")})
+        contact_map = {}
+        for cid in contact_ids:
+            try:
+                c = await _get(f"/api/contacts/{cid}")
+                contact_map[cid] = {"name": c.get("name", ""), "title": c.get("title", "")}
+            except Exception:
+                pass
+
         from datetime import date
         today = date.today()
         pipeline = []
@@ -290,7 +301,6 @@ async def _dispatch(name: str, args: dict) -> dict:
             f7_due = r.get("follow_up_7_due", "")
             f3_sent = r.get("follow_up_3_sent", False)
             f7_sent = r.get("follow_up_7_sent", False)
-            next_action = None
             if not f3_sent and f3_due and f3_due <= str(today):
                 next_action = f"Day 3 bump due ({f3_due})"
             elif not f7_sent and f7_due and f7_due <= str(today):
@@ -301,7 +311,10 @@ async def _dispatch(name: str, args: dict) -> dict:
                 next_action = f"Day 7 close on {f7_due}"
             else:
                 next_action = "All follow-ups sent"
+            contact_info = contact_map.get(r.get("contact_id"), {})
             pipeline.append({
+                "contact_name": contact_info.get("name", "—"),
+                "contact_title": contact_info.get("title", ""),
                 "company": company_map.get(r["company_id"], f"Company #{r['company_id']}"),
                 "subject": r.get("subject", ""),
                 "sent_date": sent,

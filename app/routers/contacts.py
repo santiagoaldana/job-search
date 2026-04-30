@@ -234,6 +234,14 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
     return {"ok": True, "contact_id": contact.id, "matched_company": matched_company}
 
 
+@router.get("/{contact_id}")
+def get_contact(contact_id: int, session: Session = Depends(get_session)):
+    contact = session.get(Contact, contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    return contact
+
+
 @router.patch("/{contact_id}")
 def update_contact(
     contact_id: int,
