@@ -38,6 +38,10 @@ class Company(SQLModel, table=True):
     ashby_slug: Optional[str] = Field(default=None)
     wttj_slug: Optional[str] = Field(default=None)  # Welcome to the Jungle
 
+    # Enrichment
+    crunchbase_url: Optional[str] = Field(default=None)
+    apollo_enriched_at: Optional[str] = Field(default=None)  # ISO datetime, rate-limit guard
+
     # Intelligence
     intel_summary: Optional[str] = Field(default=None)
     recent_news: Optional[str] = Field(default=None)  # JSON string

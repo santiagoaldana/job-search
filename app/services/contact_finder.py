@@ -1,15 +1,23 @@
-"""Zero-cost waterfall contact finder.
+"""Waterfall contact finder.
 
-Tries sources in order, stops at first success:
-  1. Google → LinkedIn profile scrape
-  2. GitHub org public members
-  3. Claude Haiku synthesis (generates likely exec names + emails)
+Tries sources in order, merges results:
+  1. Crunchbase API  → founder/exec names from funding round data
+  2. Apollo API      → verified email + LinkedIn for those names
+  3. Google → LinkedIn profile scrape
+  4. GitHub org public members
+  5. Claude Haiku synthesis (generates likely exec names + emails)
+
+Crunchbase and Apollo steps are skipped silently if API keys are absent.
 """
 
+import os
 import re
 import json
 import httpx
 from bs4 import BeautifulSoup
+
+APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY", "")
+CRUNCHBASE_API_KEY = os.environ.get("CRUNCHBASE_API_KEY", "")
 
 # Headers to avoid trivial bot blocks
 _HEADERS = {
@@ -20,16 +28,114 @@ _HEADERS = {
 
 async def find_contacts(company_name: str, company_id: int, domain: str = None) -> list[dict]:
     """Run waterfall, return list of contact dicts with keys: name, title, email, linkedin_url, source."""
+    # Step 1: Crunchbase → founder/exec names
+    crunchbase_contacts = await _try_crunchbase(company_name)
+
+    # Step 2: Apollo → enrich each Crunchbase contact with verified email
+    if crunchbase_contacts and APOLLO_API_KEY:
+        enriched = []
+        for c in crunchbase_contacts:
+            apollo = await _try_apollo(c["name"], domain or _slugify(company_name) + ".com")
+            if apollo:
+                c.update({k: v for k, v in apollo.items() if v and not c.get(k)})
+                c["source"] = "crunchbase+apollo"
+            enriched.append(c)
+        return enriched
+
+    if crunchbase_contacts:
+        return crunchbase_contacts
+
+    # Step 3: Google → LinkedIn
     results = await _try_google_linkedin(company_name)
     if results:
+        # Try Apollo enrichment on Google results too
+        if APOLLO_API_KEY and domain:
+            for c in results:
+                apollo = await _try_apollo(c["name"], domain)
+                if apollo:
+                    c.update({k: v for k, v in apollo.items() if v and not c.get(k)})
+                    c["source"] = "linkedin+apollo"
         return results
 
+    # Step 4: GitHub
     results = await _try_github(company_name)
     if results:
         return results
 
+    # Step 5: Claude synthesis
     results = await _try_claude_synthesis(company_name, domain)
     return results
+
+
+async def _try_crunchbase(company_name: str) -> list[dict]:
+    """Fetch founder/exec names from Crunchbase. Returns [] if key absent or not found."""
+    if not CRUNCHBASE_API_KEY:
+        return []
+
+    slug = _slugify(company_name)
+    url = (
+        f"https://api.crunchbase.com/api/v4/entities/organizations/{slug}"
+        f"?user_key={CRUNCHBASE_API_KEY}"
+        f"&field_ids=founder_identifiers,leadership_highlights,short_description"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url)
+        if resp.status_code != 200:
+            return []
+
+        data = resp.json().get("properties", {})
+        contacts = []
+
+        # Founders
+        for f in (data.get("founder_identifiers") or []):
+            name = f.get("value", "")
+            if name:
+                contacts.append({"name": name, "title": "Co-Founder", "email": None, "linkedin_url": None, "source": "crunchbase"})
+
+        # Leadership highlights (structured exec list)
+        for item in (data.get("leadership_highlights") or []):
+            name = item.get("person_identifier", {}).get("value", "")
+            title = item.get("title", "")
+            if name and not any(c["name"] == name for c in contacts):
+                contacts.append({"name": name, "title": title, "email": None, "linkedin_url": None, "source": "crunchbase"})
+
+        return contacts[:5]
+    except Exception:
+        return []
+
+
+async def _try_apollo(name: str, domain: str) -> dict | None:
+    """Look up a person by name + company domain on Apollo. Returns enriched fields or None."""
+    if not APOLLO_API_KEY:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                "https://api.apollo.io/v1/people/search",
+                json={
+                    "api_key": APOLLO_API_KEY,
+                    "q_organization_domains": domain,
+                    "q_keywords": name,
+                    "page": 1,
+                    "per_page": 1,
+                },
+            )
+        if resp.status_code != 200:
+            return None
+
+        people = resp.json().get("people", [])
+        if not people:
+            return None
+
+        p = people[0]
+        return {
+            "email": p.get("email"),
+            "linkedin_url": p.get("linkedin_url"),
+            "title": p.get("title"),
+        }
+    except Exception:
+        return None
 
 
 async def _try_google_linkedin(company_name: str) -> list[dict]:

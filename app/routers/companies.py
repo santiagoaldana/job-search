@@ -25,6 +25,7 @@ class CompanyUpdate(BaseModel):
     ashby_slug: Optional[str] = None
     wttj_slug: Optional[str] = None
     org_notes: Optional[str] = None
+    crunchbase_url: Optional[str] = None
 
 
 class CompanyCreate(BaseModel):

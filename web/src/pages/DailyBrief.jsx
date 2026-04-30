@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, Flame, Calendar, Mail, BookOpen, Send, Lightbulb, RefreshCw, Briefcase, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { AlertCircle, Flame, Calendar, Mail, BookOpen, Send, Lightbulb, RefreshCw, Briefcase, ChevronDown, ChevronUp, X, UserPlus } from 'lucide-react'
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
@@ -21,6 +21,10 @@ const ACTION_ICONS = {
   publish_content: Send,
   review_suggestions: Lightbulb,
   linkedin_import_reminder: Lightbulb,
+  contact_gap: UserPlus,
+  email_bounce_retry: AlertCircle,
+  try_linkedin_dm: Mail,
+  linkedin_reimport: Lightbulb,
   event: Calendar,
 }
 
@@ -32,6 +36,10 @@ const ACTION_COLORS = {
   start_outreach: 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/40',
   interview_prep: 'border-purple-300 bg-purple-50 dark:border-purple-700 dark:bg-purple-950/40',
   event: 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30',
+  contact_gap: 'border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40',
+  email_bounce_retry: 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/40',
+  try_linkedin_dm: 'border-purple-300 bg-purple-50 dark:border-purple-700 dark:bg-purple-950/40',
+  linkedin_reimport: 'border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/40',
 }
 
 const ACTION_ICON_COLORS = {
@@ -42,6 +50,10 @@ const ACTION_ICON_COLORS = {
   start_outreach: 'text-blue-500',
   interview_prep: 'text-purple-500',
   event: 'text-blue-400',
+  contact_gap: 'text-slate-500',
+  email_bounce_retry: 'text-orange-500',
+  try_linkedin_dm: 'text-purple-500',
+  linkedin_reimport: 'text-yellow-500',
 }
 
 function FollowUpModal({ action, onClose, onSent }) {
@@ -249,6 +261,99 @@ function Section({ title, icon: Icon, items, onAction, badge, badgeColor = 'blue
   )
 }
 
+function WeeklyHealth() {
+  const [open, setOpen] = useState(false)
+  const [report, setReport] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const load = async () => {
+    if (report) { setOpen(o => !o); return }
+    setOpen(true)
+    setLoading(true)
+    try {
+      setReport(await api.getProgressReport())
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const trend = (current, prior, higherIsBetter = true) => {
+    if (!prior) return null
+    const delta = current - prior
+    if (delta === 0) return null
+    const up = delta > 0
+    const good = higherIsBetter ? up : !up
+    return <span className={good ? 'text-green-500' : 'text-red-500'}>{up ? '↑' : '↓'}{Math.abs(delta)}</span>
+  }
+
+  return (
+    <div className="mx-4 mb-4">
+      <button
+        onClick={load}
+        className="w-full flex items-center justify-between bg-card border border-theme rounded-xl px-4 py-3"
+      >
+        <div className="text-sm font-medium text-body">Weekly Health</div>
+        {open ? <ChevronUp size={16} className="text-muted" /> : <ChevronDown size={16} className="text-muted" />}
+      </button>
+
+      {open && (
+        <div className="mt-2 bg-card border border-theme rounded-xl overflow-hidden divide-y divide-theme">
+          {loading ? (
+            <div className="flex justify-center py-8"><Spinner size={6} /></div>
+          ) : report ? (
+            <>
+              {/* Pipeline */}
+              <div className="px-4 py-3">
+                <div className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-2">Pipeline</div>
+                <div className="flex gap-3 flex-wrap text-xs text-muted mb-2">
+                  {['pool','researched','outreach','response','meeting'].map((s, i, arr) => (
+                    <span key={s}><strong className="text-body">{report.pipeline.stage_counts[s] || 0}</strong> {s}{i < arr.length-1 ? ' →' : ''}</span>
+                  ))}
+                </div>
+                <div className="flex gap-4 text-sm">
+                  <div><span className="font-semibold">{report.pipeline.moved_this_week}</span> <span className="text-xs text-muted">moved this week {trend(report.pipeline.moved_this_week, report.pipeline.moved_prior_week)}</span></div>
+                  <div><span className={`font-semibold ${report.pipeline.stalled_count > 0 ? 'text-red-500' : ''}`}>{report.pipeline.stalled_count}</span> <span className="text-xs text-muted">stalled</span></div>
+                </div>
+              </div>
+              {/* Outreach */}
+              <div className="px-4 py-3">
+                <div className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-2">Outreach</div>
+                <div className="flex gap-4 flex-wrap text-sm">
+                  <div><span className="font-semibold">{report.outreach.sent_this_week}</span> <span className="text-xs text-muted">this week {trend(report.outreach.sent_this_week, report.outreach.sent_prior_week)}</span></div>
+                  <div><span className={`font-semibold ${report.outreach.response_rate_pct >= 20 ? 'text-green-500' : report.outreach.response_rate_pct < 10 ? 'text-red-500' : ''}`}>{report.outreach.response_rate_pct}%</span> <span className="text-xs text-muted">response rate</span></div>
+                  <div><span className="font-semibold text-muted">{report.outreach.ghosted_count}</span> <span className="text-xs text-muted">ghosted</span></div>
+                  {report.outreach.avg_reply_days && <div><span className="font-semibold">{report.outreach.avg_reply_days}d</span> <span className="text-xs text-muted">avg reply</span></div>}
+                </div>
+              </div>
+              {/* Follow-ups */}
+              <div className="px-4 py-3">
+                <div className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-2">Follow-ups</div>
+                <div className="flex gap-4 flex-wrap text-sm">
+                  <div><span className={`font-semibold ${report.followups.total_overdue > 0 ? 'text-red-500' : 'text-green-500'}`}>{report.followups.total_overdue}</span> <span className="text-xs text-muted">overdue</span></div>
+                  <div><span className="font-semibold text-purple-500">{report.followups.needs_linkedin_dm}</span> <span className="text-xs text-muted">need LinkedIn DM</span></div>
+                </div>
+              </div>
+              {/* Gaps */}
+              <div className="px-4 py-3">
+                <div className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-2">Contact Gaps</div>
+                <div className="flex gap-4 flex-wrap text-sm">
+                  <div><span className={`font-semibold ${report.gaps.no_contact_count > 0 ? 'text-red-500' : 'text-green-500'}`}>{report.gaps.no_contact_count}</span> <span className="text-xs text-muted">no contact found</span></div>
+                  <div><span className="font-semibold text-muted">{report.gaps.contact_no_outreach_count}</span> <span className="text-xs text-muted">contact, not reached</span></div>
+                </div>
+                {report.gaps.no_contact.slice(0, 3).map(c => (
+                  <div key={c.id} className="text-xs text-muted mt-1">• {c.name}</div>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DailyBrief() {
   const [brief, setBrief] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -289,6 +394,10 @@ export default function DailyBrief() {
       } else {
         navigate('/events')
       }
+    } else if (action.action_type === 'contact_gap') {
+      navigate(`/company/${action.company_id}?tab=Contacts`)
+    } else if (action.action_type === 'email_bounce_retry' || action.action_type === 'try_linkedin_dm') {
+      if (action.company_id) navigate(`/company/${action.company_id}?tab=Contacts`)
     } else if (action.payload_type === 'company') {
       navigate(`/company/${action.company_id || action.payload_id}`)
     } else if (action.payload_type === 'content') {

@@ -121,6 +121,9 @@ export const api = {
   getContactNextStep: (id) => get(`/contacts/${id}/next-step`),
   getNetworkPath: (companyId) => get(`/companies/${companyId}/network-path`),
 
+  // Reports
+  getProgressReport: () => get('/reports/progress'),
+
   // AI Suggestions
   getSuggestions: () => get('/daily-brief/suggestions'),
   approveSuggestion: (id) => post(`/daily-brief/suggestions/${id}/approve`),

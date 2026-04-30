@@ -244,7 +244,7 @@ async def mcp_messages_proxy(request: Request, path: str):
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 
-from app.routers import companies, leads, outreach, cv, applications, events, content, daily_brief, contacts
+from app.routers import companies, leads, outreach, cv, applications, events, content, daily_brief, contacts, reports
 from app.routers.auth import router as auth_router
 
 
@@ -329,6 +329,7 @@ app.include_router(applications.router, prefix="/api/applications", tags=["appli
 app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(content.router, prefix="/api/content", tags=["content"])
 app.include_router(daily_brief.router, prefix="/api/daily-brief", tags=["daily-brief"])
+app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 
 
 @app.get("/api/health")

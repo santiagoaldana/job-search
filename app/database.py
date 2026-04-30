@@ -43,6 +43,8 @@ def run_migrations():
         ("company", "is_archived", "BOOLEAN DEFAULT FALSE"),
         ("company", "ashby_slug", "TEXT"),
         ("company", "wttj_slug", "TEXT"),
+        ("company", "crunchbase_url", "TEXT"),
+        ("company", "apollo_enriched_at", "TEXT"),
         ("contact", "email_guessed", "BOOLEAN DEFAULT FALSE"),
         ("contact", "email_invalid", "BOOLEAN DEFAULT FALSE"),
         ("contact", "email_patterns_tried", "TEXT"),

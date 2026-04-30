@@ -269,6 +269,22 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["contact_name"],
             },
         ),
+        types.Tool(
+            name="get_progress_report",
+            description="Get a visual job search health report showing pipeline velocity, outreach funnel, follow-up health, and contact gaps. Returns an HTML artifact.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        types.Tool(
+            name="find_contacts",
+            description="Find hiring manager contacts for a company using Crunchbase, Apollo, LinkedIn, and other sources. Saves new contacts to the funnel.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                },
+                "required": ["company_name"],
+            },
+        ),
     ]
 
 
@@ -563,6 +579,19 @@ async def _dispatch(name: str, args: dict) -> dict:
             return {"error": f"No contact found matching '{args['contact_name']}'"}
         contact_row = matches[0]
         return await _post(f"/api/contacts/{contact_row['id']}/bounce", {})
+
+    elif name == "get_progress_report":
+        data = await _get("/api/reports/progress")
+        from app.services.progress_report import render_progress_html
+        html = render_progress_html(data)
+        return {"type": "html", "html": html, "data": data}
+
+    elif name == "find_contacts":
+        cid, _, status = await _resolve(args["company_name"])
+        if cid is None:
+            return {"error": status}
+        result = await _post(f"/api/companies/{cid}/find-contacts", {})
+        return result
 
     return {"error": f"Unknown tool: {name}"}
 

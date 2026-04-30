@@ -196,6 +196,42 @@ def compute_daily_brief(session: Session) -> dict:
             "payload_type": "settings",
         })
 
+    # Contact gap — high-motivation companies with no contacts and no active outreach
+    active_company_ids_with_outreach = {
+        r.company_id for r in session.exec(
+            select(OutreachRecord).where(OutreachRecord.response_status == "pending")
+        ).all()
+    }
+    company_ids_with_contacts = {
+        c.company_id for c in session.exec(
+            select(Contact).where(Contact.company_id != None)
+        ).all()
+    }
+    gap_companies = session.exec(
+        select(Company).where(
+            Company.motivation >= 7,
+            Company.is_archived == False,
+        ).order_by(Company.lamp_score.desc())
+    ).all()
+    gap_count = 0
+    for company in gap_companies:
+        if gap_count >= 3:
+            break
+        if company.id in active_company_ids_with_outreach:
+            continue
+        if company.id in company_ids_with_contacts:
+            continue
+        outreach.append({
+            "action_type": "contact_gap",
+            "label": f"No contact at {company.name} — find someone to reach out to",
+            "detail": f"Motivation {company.motivation} · LAMP {company.lamp_score:.0f} · no active outreach",
+            "cta": "Find contacts",
+            "company_id": company.id,
+            "payload_id": company.id,
+            "payload_type": "company",
+        })
+        gap_count += 1
+
     # ══════════════════════════════════════════════════════════════════════════
     # POSITIONS SECTION
     # ══════════════════════════════════════════════════════════════════════════
