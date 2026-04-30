@@ -67,4 +67,15 @@ def run_migrations():
                         )
             except Exception:
                 pass  # column already exists or table doesn't exist yet
+
+        # Fix sequence drift — reset all primary key sequences to current max
+        if is_postgres:
+            for table in ("contact", "company", "outreachrecord", "event", "contentdraft"):
+                try:
+                    conn.execute(__import__("sqlalchemy").text(
+                        f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), COALESCE(MAX(id), 1)) FROM {table}"
+                    ))
+                except Exception:
+                    pass
+
         conn.commit()
