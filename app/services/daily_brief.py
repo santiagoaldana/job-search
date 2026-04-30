@@ -73,6 +73,23 @@ def compute_daily_brief(session: Session) -> dict:
             "followup_day": 7,
         })
 
+    # Auto-ghost: both follow-ups sent, still pending, 14+ days since Day 7 sent
+    ghost_cutoff = (datetime.utcnow() - timedelta(days=14)).strftime("%Y-%m-%d")
+    stale_records = session.exec(
+        select(OutreachRecord).where(
+            OutreachRecord.response_status == "pending",
+            OutreachRecord.follow_up_3_sent == True,
+            OutreachRecord.follow_up_7_sent == True,
+            OutreachRecord.follow_up_7_due <= ghost_cutoff,
+        )
+    ).all()
+    for record in stale_records:
+        record.response_status = "ghosted"
+        record.updated_at = datetime.utcnow().isoformat()
+        session.add(record)
+    if stale_records:
+        session.commit()
+
     # Warm path alerts — new 1st-degree contacts at funnel companies (last 7 days)
     seven_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
     recent_warm = session.exec(
