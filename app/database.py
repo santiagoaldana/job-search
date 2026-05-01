@@ -54,6 +54,7 @@ def run_migrations():
         ("lead", "salary_currency", "TEXT DEFAULT 'USD'"),
         ("lead", "salary_notes", "TEXT"),
         ("contentdraft", "content_type", "TEXT DEFAULT 'linkedin'"),
+        ("company", "network_path_json", "TEXT"),
     ]
 
     with engine.connect() as conn:
