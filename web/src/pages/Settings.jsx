@@ -182,11 +182,12 @@ function stageToGroup(stage) {
 function BulkReview() {
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const [saving, setSaving] = useState({})
   const [stageSaving, setStageSaving] = useState({})
   const [fetchingIntel, setFetchingIntel] = useState({})
   const [enriching, setEnriching] = useState(false)
+  const [enrichingDone, setEnrichingDone] = useState(false)
   const [filter, setFilter] = useState('all')
 
   const load = useCallback(() => {
@@ -197,7 +198,7 @@ function BulkReview() {
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { if (open) load() }, [open, load])
+  useEffect(() => { load() }, [load])
 
   async function setMotivation(company, val) {
     const m = Math.max(1, Math.min(10, val))
@@ -240,10 +241,10 @@ function BulkReview() {
     setEnriching(true)
     try {
       await api.enrichAllCompanies()
-      // Poll until enrichment finishes (background task ~5 min for 854 companies)
-      setTimeout(() => { load(); setEnriching(false) }, 3000)
+      setEnrichingDone(true)
     } catch (e) {
       console.error(e)
+    } finally {
       setEnriching(false)
     }
   }
@@ -292,6 +293,13 @@ function BulkReview() {
               {enriching ? 'Enriching…' : 'Enrich all'}
             </button>
           </div>
+
+          {enrichingDone && (
+            <div className="px-4 py-2 bg-blue-500/10 border-b border-theme flex items-center justify-between">
+              <span className="text-xs text-blue-400">Enrichment running in background (~4 min). Tap Reload when done.</span>
+              <button onClick={() => { load(); setEnrichingDone(false) }} className="text-xs text-blue-500 font-medium ml-3">Reload</button>
+            </div>
+          )}
 
           {loading ? (
             <div className="flex justify-center py-8"><Spinner size={6} /></div>
