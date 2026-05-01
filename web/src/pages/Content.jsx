@@ -415,6 +415,140 @@ function PublishedCard({ draft }) {
   )
 }
 
+// ── Substack Tab ──────────────────────────────────────────────────────────────
+
+function SubstackDraftCard({ draft, onApprove, onDiscard }) {
+  const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const wordCount = draft.body ? draft.body.split(/\s+/).length : 0
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(draft.body || '').then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="bg-card border border-theme rounded-xl p-4">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm text-body truncate">{draft.source_title || 'Untitled'}</div>
+          <div className="text-xs text-muted mt-0.5">{wordCount} words · {draft.created_at?.slice(0, 10)}</div>
+        </div>
+        <Badge color={draft.status === 'approved' ? 'green' : 'yellow'}>{draft.status}</Badge>
+      </div>
+
+      <div className={`text-sm text-body leading-relaxed whitespace-pre-wrap ${expanded ? '' : 'line-clamp-4'}`}>
+        {draft.body}
+      </div>
+      <button onClick={() => setExpanded(v => !v)} className="text-xs text-blue-500 mt-1 flex items-center gap-1">
+        {expanded ? <><ChevronUp size={11} /> Show less</> : <><ChevronDown size={11} /> Show more</>}
+      </button>
+
+      <div className="flex gap-2 mt-3 flex-wrap">
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-theme rounded-lg text-body"
+        >
+          {copied ? <><Check size={11} className="text-green-500" /> Copied!</> : 'Copy to clipboard'}
+        </button>
+        {draft.status !== 'approved' && (
+          <button onClick={() => onApprove(draft.id)}
+            className="text-xs px-3 py-1.5 border border-green-300 rounded-lg text-green-600">
+            Approve
+          </button>
+        )}
+        <button onClick={() => onDiscard(draft.id)}
+          className="text-xs px-3 py-1.5 border border-theme rounded-lg text-muted">
+          Discard
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function SubstackTab() {
+  const [drafts, setDrafts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [topic, setTopic] = useState('')
+  const [showTopicInput, setShowTopicInput] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    try { setDrafts(await api.getSubstackDrafts()) } catch (e) { console.error(e) } finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const handleGenerate = async () => {
+    if (!topic.trim()) return
+    setGenerating(true)
+    try {
+      await api.generateSubstackDraft(topic.trim())
+      setTopic('')
+      setShowTopicInput(false)
+      await load()
+    } catch (e) { alert(e.message) } finally { setGenerating(false) }
+  }
+
+  const handleApprove = async (id) => {
+    await api.approveDraft(id)
+    setDrafts(ds => ds.map(d => d.id === id ? { ...d, status: 'approved' } : d))
+  }
+
+  const handleDiscard = async (id) => {
+    await api.discardDraft(id)
+    setDrafts(ds => ds.filter(d => d.id !== id))
+  }
+
+  return (
+    <div className="px-4 pb-4 space-y-3">
+      <div className="flex items-center justify-between pt-3">
+        <div className="text-xs text-muted">{drafts.length} draft{drafts.length !== 1 ? 's' : ''} · paste to Substack manually</div>
+        <button
+          onClick={() => setShowTopicInput(v => !v)}
+          className="flex items-center gap-1.5 text-sm text-blue-500"
+        >
+          <PenLine size={14} /> Generate
+        </button>
+      </div>
+
+      {showTopicInput && (
+        <div className="bg-card border border-theme rounded-xl p-4 space-y-3">
+          <div className="text-sm font-medium text-body">Newsletter topic</div>
+          <textarea
+            value={topic}
+            onChange={e => setTopic(e.target.value)}
+            placeholder="e.g. How AI is reshaping executive hiring in FinTech"
+            className="w-full h-20 text-sm bg-app border border-theme rounded-lg p-3 resize-none text-body placeholder:text-muted"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleGenerate}
+              disabled={generating || !topic.trim()}
+              className="bg-blue-500 text-white text-sm px-4 py-2 rounded-lg disabled:opacity-50"
+            >{generating ? 'Generating…' : 'Generate'}</button>
+            <button onClick={() => setShowTopicInput(false)} className="text-sm text-muted px-4 py-2">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Spinner size={6} /></div>
+      ) : drafts.length === 0 ? (
+        <div className="py-12 text-center text-muted text-sm">No Substack drafts yet — tap Generate to create one</div>
+      ) : (
+        drafts.map(d => (
+          <SubstackDraftCard key={d.id} draft={d} onApprove={handleApprove} onDiscard={handleDiscard} />
+        ))
+      )}
+    </div>
+  )
+}
+
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Content() {
@@ -424,6 +558,7 @@ export default function Content() {
   const [generating, setGenerating] = useState(false)
   const [showCompose, setShowCompose] = useState(false)
   const [showPublished, setShowPublished] = useState(false)
+  const [contentTab, setContentTab] = useState('linkedin')
 
   const load = async () => {
     setLoading(true)
@@ -491,9 +626,11 @@ export default function Content() {
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="LinkedIn Queue"
-        subtitle={`${pending.length} pending · ${approved.length} approved · ${scheduled.length} scheduled`}
-        action={
+        title="Content"
+        subtitle={contentTab === 'linkedin'
+          ? `${pending.length} pending · ${approved.length} approved · ${scheduled.length} scheduled`
+          : 'Substack drafts'}
+        action={contentTab === 'linkedin' ? (
           <div className="flex items-center gap-3">
             <button onClick={() => setShowCompose(true)}
               className="flex items-center gap-1.5 text-sm text-blue-500">
@@ -506,14 +643,32 @@ export default function Content() {
               Generate
             </button>
           </div>
-        }
+        ) : null}
       />
 
-      <LinkedInStatusBar />
+      {/* Tab bar */}
+      <div className="flex border-b border-theme px-4">
+        {[
+          { key: 'linkedin', label: 'LinkedIn' },
+          { key: 'substack', label: 'Substack' },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setContentTab(key)}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              contentTab === key ? 'border-blue-500 text-blue-500' : 'border-transparent text-muted'
+            }`}
+          >{label}</button>
+        ))}
+      </div>
 
-      {loading ? (
+      {contentTab === 'substack' ? <SubstackTab /> : null}
+
+      {contentTab === 'linkedin' && <LinkedInStatusBar />}
+
+      {contentTab === 'linkedin' && loading ? (
         <div className="flex justify-center py-16"><Spinner size={8} /></div>
-      ) : (
+      ) : contentTab === 'linkedin' ? (
         <div className="px-4 space-y-3 pb-4">
           {drafts.length === 0 && scheduled.length === 0 && (
             <div className="py-12 text-center">

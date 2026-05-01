@@ -63,6 +63,10 @@ export default function Leads() {
     }
   }
 
+  const handleSalaryParsed = (updated) => {
+    setLeads(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l))
+  }
+
   const toggleExpanded = (id) => setExpanded(e => ({ ...e, [id]: !e[id] }))
 
   const sorted = [...leads].sort((a, b) => {
@@ -139,6 +143,7 @@ export default function Leads() {
               expanded={expanded[lead.id]}
               onToggle={() => toggleExpanded(lead.id)}
               onMarkApplied={handleMarkApplied}
+              onSalaryParsed={handleSalaryParsed}
               navigate={navigate}
             />
           ))}
@@ -155,6 +160,7 @@ export default function Leads() {
                   expanded={expanded[lead.id]}
                   onToggle={() => toggleExpanded(lead.id)}
                   onMarkApplied={handleMarkApplied}
+                  onSalaryParsed={handleSalaryParsed}
                   navigate={navigate}
                 />
               ))}
@@ -166,7 +172,18 @@ export default function Leads() {
   )
 }
 
-function LeadCard({ lead, expanded, onToggle, onMarkApplied, navigate }) {
+function fmtSalary(lead) {
+  if (!lead.salary_min && !lead.salary_max) return null
+  const cur = lead.salary_currency || 'USD'
+  const fmt = (n) => n?.toLocaleString()
+  if (lead.salary_min && lead.salary_max)
+    return `${cur} ${fmt(lead.salary_min)} – ${fmt(lead.salary_max)}`
+  if (lead.salary_min) return `${cur} ${fmt(lead.salary_min)}+`
+  return `Up to ${cur} ${fmt(lead.salary_max)}`
+}
+
+function LeadCard({ lead, expanded, onToggle, onMarkApplied, onSalaryParsed, navigate }) {
+  const [parsingSalary, setParsingSalary] = useState(false)
   const isHot = lead.fit_score >= 65 && lead.location_compatible && lead.status !== 'applied'
   const isApplied = lead.status === 'applied'
 
@@ -175,6 +192,16 @@ function LeadCard({ lead, expanded, onToggle, onMarkApplied, navigate }) {
   try { strengths = JSON.parse(lead.fit_strengths || '[]') } catch {}
   try { gaps = JSON.parse(lead.fit_gaps || '[]') } catch {}
   const hasDetails = strengths.length > 0 || gaps.length > 0
+
+  const handleParseSalary = async () => {
+    setParsingSalary(true)
+    try {
+      const updated = await api.parseSalary(lead.id)
+      onSalaryParsed(updated)
+    } catch (e) { console.error(e) } finally { setParsingSalary(false) }
+  }
+
+  const salaryStr = fmtSalary(lead)
 
   return (
     <div className={`bg-card border rounded-xl p-4 ${
@@ -227,6 +254,23 @@ function LeadCard({ lead, expanded, onToggle, onMarkApplied, navigate }) {
           )}
         </div>
       )}
+
+      {/* Salary */}
+      {salaryStr ? (
+        <div className="mt-2 text-xs">
+          <span className="font-medium text-body">{salaryStr}</span>
+          {lead.salary_notes && <span className="ml-1 text-muted">· {lead.salary_notes}</span>}
+        </div>
+      ) : lead.description && !lead.salary_min ? (
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-xs text-muted">Salary not listed</span>
+          <button
+            onClick={handleParseSalary}
+            disabled={parsingSalary}
+            className="text-xs text-blue-500 underline disabled:opacity-50"
+          >{parsingSalary ? 'Parsing…' : 'Parse salary'}</button>
+        </div>
+      ) : null}
 
       {/* Row 4: Actions */}
       <div className="flex gap-2 mt-3 items-center">

@@ -49,6 +49,87 @@ def list_outreach(
     return records
 
 
+@router.get("/stats")
+def get_outreach_stats(session: Session = Depends(get_session)):
+    """Compute outreach effectiveness metrics in one pass."""
+    records = session.exec(select(OutreachRecord)).all()
+    companies = {c.id: c for c in session.exec(select(Company)).all()}
+
+    from datetime import timezone
+    now = datetime.utcnow()
+    thirty_days_ago = (now - timedelta(days=30)).isoformat()
+
+    total_sent = len(records)
+    sent_last_30d = sum(1 for r in records if r.sent_at and r.sent_at >= thirty_days_ago)
+
+    positive = [r for r in records if r.response_status == "positive"]
+    ghosted = [r for r in records if r.response_status == "ghosted"]
+
+    overall_response_rate = round(len(positive) / total_sent, 3) if total_sent else 0.0
+    overall_ghosted_pct = round(len(ghosted) / total_sent, 3) if total_sent else 0.0
+
+    # Avg days to positive reply
+    days_to_reply = []
+    for r in positive:
+        if r.sent_at and r.updated_at:
+            try:
+                sent = datetime.fromisoformat(r.sent_at[:19])
+                updated = datetime.fromisoformat(r.updated_at[:19])
+                delta = (updated - sent).days
+                if delta >= 0:
+                    days_to_reply.append(delta)
+            except Exception:
+                pass
+    avg_days_to_positive = round(sum(days_to_reply) / len(days_to_reply), 1) if days_to_reply else None
+
+    # By channel
+    channels = ["email", "linkedin", "referral"]
+    by_channel = {}
+    for ch in channels:
+        ch_records = [r for r in records if r.channel == ch]
+        ch_positive = sum(1 for r in ch_records if r.response_status == "positive")
+        ch_ghosted = sum(1 for r in ch_records if r.response_status == "ghosted")
+        n = len(ch_records)
+        by_channel[ch] = {
+            "sent": n,
+            "response_rate": round(ch_positive / n, 3) if n else 0.0,
+            "ghosted_pct": round(ch_ghosted / n, 3) if n else 0.0,
+        }
+
+    # Best channel (≥3 records, highest response rate)
+    best_channel = None
+    best_rate = -1.0
+    for ch, stats in by_channel.items():
+        if stats["sent"] >= 3 and stats["response_rate"] > best_rate:
+            best_rate = stats["response_rate"]
+            best_channel = ch
+
+    # By funding stage
+    by_funding_stage = {}
+    for r in records:
+        company = companies.get(r.company_id)
+        stage = (company.funding_stage if company else None) or "unknown"
+        if stage not in by_funding_stage:
+            by_funding_stage[stage] = {"sent": 0, "positive": 0}
+        by_funding_stage[stage]["sent"] += 1
+        if r.response_status == "positive":
+            by_funding_stage[stage]["positive"] += 1
+    for stage, data in by_funding_stage.items():
+        n = data["sent"]
+        data["response_rate"] = round(data["positive"] / n, 3) if n else 0.0
+
+    return {
+        "total_sent": total_sent,
+        "sent_last_30d": sent_last_30d,
+        "overall_response_rate": overall_response_rate,
+        "overall_ghosted_pct": overall_ghosted_pct,
+        "avg_days_to_positive": avg_days_to_positive,
+        "best_channel": best_channel,
+        "by_channel": by_channel,
+        "by_funding_stage": by_funding_stage,
+    }
+
+
 @router.get("/due-today")
 def due_today(session: Session = Depends(get_session)):
     """Return outreach records with follow-up due today or overdue."""

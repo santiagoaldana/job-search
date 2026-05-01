@@ -45,9 +45,11 @@ export const api = {
   scoreLead: (id) => post(`/leads/${id}/score`),
   fetchLeadJD: (id) => post(`/leads/${id}/fetch-jd`),
   updateLeadStatus: (id, status) => request('PATCH', `/leads/${id}/status?status=${status}`),
+  parseSalary: (id) => post(`/leads/${id}/parse-salary`),
 
   // Outreach
   getDueToday: () => get('/outreach/due-today'),
+  getOutreachStats: () => get('/outreach/stats'),
   listOutreach: (params = {}) => { const q = new URLSearchParams(params).toString(); return get('/outreach' + (q ? '?' + q : '')) },
   createOutreach: (data) => post('/outreach', data),
   generateOutreach: (data) => post('/outreach/generate', data),
@@ -89,6 +91,8 @@ export const api = {
 
   // Content (router prefix = /api/content)
   getDrafts: () => get('/content'),
+  getSubstackDrafts: () => get('/content/substack'),
+  generateSubstackDraft: (topic, count = 1) => post('/content/substack/generate', { topic, count }),
   getPublished: () => get('/content/published'),
   generateDrafts: (days, count) => post('/content/generate', { days, count }),
   approveDraft: (id) => patch(`/content/${id}`, { status: 'approved' }),
@@ -120,6 +124,13 @@ export const api = {
   markEmailBounced: (id) => post(`/contacts/${id}/bounce`),
   getContactNextStep: (id) => get(`/contacts/${id}/next-step`),
   getNetworkPath: (companyId) => get(`/companies/${companyId}/network-path`),
+
+  // References
+  listReferences: (params = {}) => { const q = new URLSearchParams(params).toString(); return get('/references' + (q ? '?' + q : '')) },
+  addReference: (data) => post('/references', data),
+  updateReference: (id, data) => patch(`/references/${id}`, data),
+  deleteReference: (id) => request('DELETE', `/references/${id}`),
+  getReferencesForCompany: (companyId) => get(`/references/for-company/${companyId}`),
 
   // Reports
   getProgressReport: () => get('/reports/progress'),

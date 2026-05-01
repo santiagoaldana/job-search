@@ -24,7 +24,7 @@ def list_drafts(
     status: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
-    q = select(ContentDraft)
+    q = select(ContentDraft).where(ContentDraft.content_type == "linkedin")
     if status:
         q = q.where(ContentDraft.status == status)
     else:
@@ -270,6 +270,40 @@ def delete_feed(feed_id: int, session: Session = Depends(get_session)):
     session.delete(feed)
     session.commit()
     return {"deleted": feed_id}
+
+
+# ── Substack ───────────────────────────────────────────────────────────────────
+
+class SubstackGenerateRequest(BaseModel):
+    topic: str
+    count: int = 1
+
+
+@router.post("/substack/generate")
+async def generate_substack(req: SubstackGenerateRequest):
+    """Generate Substack newsletter draft(s) via Claude Opus."""
+    results = []
+    for _ in range(req.count):
+        try:
+            from app.services.content_generator import generate_substack_draft
+            draft = await generate_substack_draft(req.topic)
+            results.append(draft)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"generated": len(results), "drafts": results}
+
+
+@router.get("/substack")
+def list_substack_drafts(
+    status: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
+    q = select(ContentDraft).where(ContentDraft.content_type == "substack")
+    if status:
+        q = q.where(ContentDraft.status == status)
+    else:
+        q = q.where(ContentDraft.status.in_(["pending", "approved"]))
+    return session.exec(q.order_by(ContentDraft.created_at.desc())).all()
 
 
 @router.patch("/{draft_id}")

@@ -112,6 +112,11 @@ class Lead(SQLModel, table=True):
     posted_date: Optional[str] = Field(default=None)   # ISO date string
     fetched_date: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
+    salary_min: Optional[int] = Field(default=None)
+    salary_max: Optional[int] = Field(default=None)
+    salary_currency: str = Field(default="USD")
+    salary_notes: Optional[str] = Field(default=None)
+
     company: Optional[Company] = Relationship(back_populates="leads")
     applications: List["Application"] = Relationship(back_populates="lead")
 
@@ -236,6 +241,7 @@ class ContentDraft(SQLModel, table=True):
     scheduled_at: Optional[str] = Field(default=None)   # ISO datetime string
     published_at: Optional[str] = Field(default=None)   # ISO datetime string
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    content_type: str = Field(default="linkedin")       # linkedin|substack
 
 
 # ── ContentFeed (thought leader / publication RSS feeds) ──────────────────────
@@ -250,6 +256,19 @@ class ContentFeed(SQLModel, table=True):
 
 
 # ── AITargetSuggestion (weekly startup discovery) ─────────────────────────────
+
+class Reference(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    contact_id: Optional[int] = Field(default=None, foreign_key="contact.id")
+    company_id: Optional[int] = Field(default=None, foreign_key="company.id")
+    contact_name: str
+    contact_title: Optional[str] = Field(default=None)
+    relationship: Optional[str] = Field(default=None)  # "worked together at Uff Móvil"
+    strength: str = Field(default="medium")             # strong|medium|weak
+    role_types: Optional[str] = Field(default=None)     # comma-separated: "payments,fintech"
+    notes: Optional[str] = Field(default=None)
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
 
 class AITargetSuggestion(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

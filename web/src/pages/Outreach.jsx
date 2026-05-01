@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mail, Ghost, RefreshCw } from 'lucide-react'
+import { Mail, Ghost, RefreshCw, BarChart2, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
@@ -25,6 +25,107 @@ function nextAction(r) {
   if (!r.follow_up_3_sent) return { label: `Day 3 on ${r.follow_up_3_due}`, urgent: false }
   if (!r.follow_up_7_sent) return { label: `Day 7 on ${r.follow_up_7_due}`, urgent: false }
   return { label: 'All follow-ups sent', urgent: false }
+}
+
+function pct(v) { return v != null ? `${Math.round(v * 100)}%` : '—' }
+
+function StatsCard() {
+  const [open, setOpen] = useState(false)
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const load = async () => {
+    if (stats) return
+    setLoading(true)
+    try { setStats(await api.getOutreachStats()) } catch (e) { console.error(e) } finally { setLoading(false) }
+  }
+
+  const toggle = () => {
+    if (!open) load()
+    setOpen(o => !o)
+  }
+
+  const channels = ['email', 'linkedin', 'referral']
+
+  return (
+    <div className="mx-4 mb-3 bg-card border border-theme rounded-xl overflow-hidden">
+      <button onClick={toggle} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-body">
+        <span className="flex items-center gap-2"><BarChart2 size={14} /> Effectiveness Stats</span>
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 border-t border-theme">
+          {loading ? (
+            <div className="py-4 flex justify-center"><Spinner size={5} /></div>
+          ) : stats ? (
+            <div className="mt-3 space-y-4">
+              {/* Summary row */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: 'Total sent', value: stats.total_sent },
+                  { label: 'Last 30 days', value: stats.sent_last_30d },
+                  { label: 'Response rate', value: pct(stats.overall_response_rate) },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
+                    <div className="text-lg font-semibold text-body">{value}</div>
+                    <div className="text-xs text-muted">{label}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
+                  <div className="text-lg font-semibold text-body">{pct(stats.overall_ghosted_pct)}</div>
+                  <div className="text-xs text-muted">Ghosted</div>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
+                  <div className="text-lg font-semibold text-body">{stats.avg_days_to_positive != null ? `${stats.avg_days_to_positive}d` : '—'}</div>
+                  <div className="text-xs text-muted">Avg days to reply</div>
+                </div>
+              </div>
+
+              {/* Best channel */}
+              {stats.best_channel && (
+                <div className="text-xs text-muted">
+                  Best channel: <span className="font-medium text-body capitalize">{stats.best_channel}</span>
+                  {' '}({pct(stats.by_channel[stats.best_channel]?.response_rate)} response rate)
+                </div>
+              )}
+
+              {/* By channel table */}
+              <div>
+                <div className="text-xs font-medium text-muted mb-1">By channel</div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-muted">
+                      <th className="text-left py-1">Channel</th>
+                      <th className="text-right py-1">Sent</th>
+                      <th className="text-right py-1">Response</th>
+                      <th className="text-right py-1">Ghosted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {channels.map(ch => {
+                      const d = stats.by_channel[ch] || { sent: 0, response_rate: 0, ghosted_pct: 0 }
+                      return (
+                        <tr key={ch} className="border-t border-theme">
+                          <td className="py-1 capitalize text-body">{ch}</td>
+                          <td className="py-1 text-right text-muted">{d.sent}</td>
+                          <td className="py-1 text-right text-green-600">{pct(d.response_rate)}</td>
+                          <td className="py-1 text-right text-slate-400">{pct(d.ghosted_pct)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="py-4 text-xs text-muted text-center">No data yet</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function OutreachCard({ record, companyMap, contactMap, onStatusChange }) {
@@ -210,6 +311,8 @@ export default function OutreachPage() {
           <RefreshCw size={15} />
         </button>
       </div>
+
+      <StatsCard />
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {loading ? (

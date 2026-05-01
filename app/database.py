@@ -49,6 +49,11 @@ def run_migrations():
         ("contact", "email_invalid", "BOOLEAN DEFAULT FALSE"),
         ("contact", "email_patterns_tried", "TEXT"),
         ("contact", "connection_request_variant", "TEXT"),
+        ("lead", "salary_min", "INTEGER"),
+        ("lead", "salary_max", "INTEGER"),
+        ("lead", "salary_currency", "TEXT DEFAULT 'USD'"),
+        ("lead", "salary_notes", "TEXT"),
+        ("contentdraft", "content_type", "TEXT DEFAULT 'linkedin'"),
     ]
 
     with engine.connect() as conn:

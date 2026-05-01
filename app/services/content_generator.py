@@ -291,3 +291,60 @@ async def regenerate_linkedin_draft(
 
     body, net_score, _, _ = _parse_response(response.content[0].text)
     return body, net_score
+
+
+SUBSTACK_PROMPT = """\
+You are writing a Substack newsletter article for Santiago Aldana — a FinTech executive with 20+ years in payments, embedded banking, agentic AI, and LATAM markets (MIT Sloan MBA, founded SoyYo digital identity, led digital banking at Avianca and Uff Móvil, delivered $1.3B in payment volume at SMCU).
+
+AUTHOR PROFILE:
+{profile}
+
+TOPIC:
+{topic}
+
+FORMAT RULES:
+- Length: 600–1000 words
+- Structure: Hook paragraph → 2–3 section headers (use ## Markdown) → closing question or CTA
+- Hook: First paragraph must open with a counterintuitive claim or a specific scene. NEVER start with "I", "In today's world", "As a...", or "In the rapidly evolving..."
+- Sections: Each section header frames a distinct angle of the core idea
+- Closing: End with a question inviting reply or a concrete next-step CTA
+- Voice: First-principles, minimalist, opinionated. Not academic. Not corporate. Not motivational-poster.
+- Personal: Include at least one specific anecdote or reference from Santiago's career (SoyYo, Avianca, Uff Móvil, MIT Sloan, Latin America fintech, payments)
+- No hashtags. No emojis. No jargon like "leverage", "synergy", "holistic", "robust".
+
+Return JSON only (no markdown wrapper):
+{{"body": "<full article in Markdown>", "controversy_score": <int 1-10>, "risk_score": <int 1-10>}}"""
+
+
+async def generate_substack_draft(topic: str) -> dict:
+    """Generate a Substack newsletter draft. Returns saved ContentDraft as dict."""
+    from datetime import datetime
+    from app.database import engine
+    from app.models import ContentDraft
+    from sqlmodel import Session
+
+    profile = _get_profile()
+    prompt = SUBSTACK_PROMPT.format(profile=profile, topic=topic)
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=2500,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    body, net_score, controversy, risk = _parse_response(response.content[0].text)
+
+    with Session(engine) as session:
+        draft = ContentDraft(
+            source_title=topic[:120],
+            body=body,
+            net_score=net_score,
+            controversy_score=controversy,
+            risk_score=risk,
+            status="pending",
+            content_type="substack",
+        )
+        session.add(draft)
+        session.commit()
+        session.refresh(draft)
+        return dict(draft)

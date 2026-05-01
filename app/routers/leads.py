@@ -128,11 +128,40 @@ async def fetch_full_jd(lead_id: int, session: Session = Depends(get_session)):
             tag.decompose()
         text = " ".join(soup.get_text(" ", strip=True).split())[:8000]
         lead.description = text
+        try:
+            from app.services.salary_parser import extract_salary
+            salary = await extract_salary(text, lead.title)
+            lead.salary_min = salary.get("min")
+            lead.salary_max = salary.get("max")
+            lead.salary_currency = salary.get("currency", "USD")
+            lead.salary_notes = salary.get("notes")
+        except Exception:
+            pass
         session.add(lead)
         session.commit()
-        return {"ok": True, "length": len(text)}
+        return {"ok": True, "length": len(text), "salary_min": lead.salary_min, "salary_max": lead.salary_max}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{lead_id}/parse-salary")
+async def parse_salary(lead_id: int, session: Session = Depends(get_session)):
+    """Re-run salary extraction on existing description."""
+    lead = session.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if not lead.description:
+        raise HTTPException(status_code=400, detail="No description to parse — fetch JD first")
+    from app.services.salary_parser import extract_salary
+    salary = await extract_salary(lead.description, lead.title)
+    lead.salary_min = salary.get("min")
+    lead.salary_max = salary.get("max")
+    lead.salary_currency = salary.get("currency", "USD")
+    lead.salary_notes = salary.get("notes")
+    session.add(lead)
+    session.commit()
+    session.refresh(lead)
+    return lead
 
 
 @router.patch("/{lead_id}/status")

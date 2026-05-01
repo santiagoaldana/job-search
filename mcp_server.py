@@ -275,6 +275,43 @@ async def list_tools() -> list[types.Tool]:
             inputSchema={"type": "object", "properties": {}},
         ),
         types.Tool(
+            name="get_outreach_stats",
+            description="Get outreach effectiveness stats: response rates by channel (email/linkedin/referral), ghosted %, avg days to reply, and best performing channel. Returns an HTML artifact.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        types.Tool(
+            name="schedule_linkedin_post",
+            description="Schedule a LinkedIn post for the next optimal slot (Wed/Thu 3-5 PM ET). Provide the draft_id from the Content page.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "draft_id": {"type": "integer", "description": "ID of the ContentDraft to schedule"},
+                },
+                "required": ["draft_id"],
+            },
+        ),
+        types.Tool(
+            name="get_references",
+            description="List people who can vouch for Santiago at a target company. Useful before an interview to know who to call on. Optionally filter by company name.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string", "description": "Filter by target company name (optional)"},
+                },
+            },
+        ),
+        types.Tool(
+            name="generate_substack_draft",
+            description="Generate a Substack newsletter article (600-1000 words) in Santiago's executive voice. Returns the full draft for review in the Content > Substack tab.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string", "description": "Newsletter topic, e.g. 'How AI is reshaping executive hiring in FinTech'"},
+                },
+                "required": ["topic"],
+            },
+        ),
+        types.Tool(
             name="find_contacts",
             description="Find hiring manager contacts for a company using Crunchbase, Apollo, LinkedIn, and other sources. Saves new contacts to the funnel.",
             inputSchema={
@@ -286,6 +323,78 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
     ]
+
+
+# ── HTML renderers ────────────────────────────────────────────────────────────
+
+def _render_outreach_stats_html(data: dict) -> str:
+    def pct(v):
+        if v is None: return "—"
+        return f"{round(v * 100)}%"
+
+    channels = ["email", "linkedin", "referral"]
+    channel_rows = ""
+    for ch in channels:
+        d = data.get("by_channel", {}).get(ch, {"sent": 0, "response_rate": 0, "ghosted_pct": 0})
+        channel_rows += f"""
+        <tr style="border-top:1px solid #e8e0d8">
+          <td style="padding:6px 0;text-transform:capitalize;color:#1c1917">{ch}</td>
+          <td style="padding:6px 0;text-align:right;color:#6b7280">{d['sent']}</td>
+          <td style="padding:6px 0;text-align:right;color:#16a34a">{pct(d.get('response_rate'))}</td>
+          <td style="padding:6px 0;text-align:right;color:#6b7280">{pct(d.get('ghosted_pct'))}</td>
+        </tr>"""
+
+    best = data.get("best_channel")
+    best_html = ""
+    if best:
+        best_rate = pct(data.get("by_channel", {}).get(best, {}).get("response_rate"))
+        best_html = f'<p style="margin:8px 0 0;font-size:13px;color:#6b7280">Best channel: <strong style="color:#c96442;text-transform:capitalize">{best}</strong> ({best_rate} response rate)</p>'
+
+    avg = data.get("avg_days_to_positive")
+    avg_str = f"{avg}d" if avg is not None else "—"
+
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body{{margin:0;padding:16px;background:#f5f0eb;font-family:system-ui,sans-serif;color:#1c1917}}
+  .card{{background:#fff;border:1px solid #e8e0d8;border-radius:12px;padding:16px;margin-bottom:12px}}
+  .title{{font-size:13px;font-weight:600;color:#c96442;margin:0 0 12px}}
+  .grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}}
+  .grid2{{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:10px}}
+  .stat{{background:#faf7f4;border-radius:8px;padding:10px;text-align:center}}
+  .stat-val{{font-size:20px;font-weight:700;color:#1c1917}}
+  .stat-label{{font-size:11px;color:#78716c;margin-top:2px}}
+  table{{width:100%;border-collapse:collapse;font-size:13px}}
+  th{{text-align:left;color:#78716c;font-weight:500;padding:4px 0;font-size:12px}}
+  th:not(:first-child){{text-align:right}}
+</style></head><body>
+<h2 style="margin:0 0 12px;font-size:17px;color:#1c1917">Outreach Effectiveness</h2>
+<p style="margin:0 0 16px;font-size:12px;color:#78716c">All-time stats · {data.get('total_sent',0)} outreach records</p>
+
+<div class="card">
+  <p class="title">Summary</p>
+  <div class="grid">
+    <div class="stat"><div class="stat-val">{data.get('total_sent',0)}</div><div class="stat-label">Total sent</div></div>
+    <div class="stat"><div class="stat-val">{data.get('sent_last_30d',0)}</div><div class="stat-label">Last 30 days</div></div>
+    <div class="stat"><div class="stat-val" style="color:#16a34a">{pct(data.get('overall_response_rate'))}</div><div class="stat-label">Response rate</div></div>
+  </div>
+  <div class="grid2">
+    <div class="stat"><div class="stat-val" style="color:#6b7280">{pct(data.get('overall_ghosted_pct'))}</div><div class="stat-label">Ghosted</div></div>
+    <div class="stat"><div class="stat-val">{avg_str}</div><div class="stat-label">Avg days to reply</div></div>
+  </div>
+  {best_html}
+</div>
+
+<div class="card">
+  <p class="title">By Channel</p>
+  <table>
+    <thead><tr>
+      <th>Channel</th><th style="text-align:right">Sent</th>
+      <th style="text-align:right">Response</th><th style="text-align:right">Ghosted</th>
+    </tr></thead>
+    <tbody>{channel_rows}</tbody>
+  </table>
+</div>
+</body></html>"""
 
 
 # ── Tool dispatch ─────────────────────────────────────────────────────────────
@@ -585,6 +694,58 @@ async def _dispatch(name: str, args: dict) -> dict:
         from app.services.progress_report import render_progress_html
         html = render_progress_html(data)
         return {"type": "html", "html": html, "data": data}
+
+    elif name == "get_outreach_stats":
+        data = await _get("/api/outreach/stats")
+        html = _render_outreach_stats_html(data)
+        return {"type": "html", "html": html, "data": data}
+
+    elif name == "schedule_linkedin_post":
+        slot = await _get("/api/content/linkedin/next-slot")
+        scheduled_at = slot.get("slot_iso") or slot.get("next_slot") or slot.get("scheduled_at")
+        if not scheduled_at:
+            return {"error": "Could not determine next slot", "slot_response": slot}
+        result = await _patch(f"/api/content/{args['draft_id']}", {"status": "scheduled", "scheduled_at": scheduled_at})
+        slot_label = slot.get("label") or slot.get("slot_label") or scheduled_at[:16]
+        return {"draft_id": args["draft_id"], "scheduled_at": scheduled_at, "message": f"Scheduled for {slot_label}"}
+
+    elif name == "get_references":
+        company_name = args.get("company_name")
+        if company_name:
+            cid, _, status = await _resolve(company_name)
+            if cid is None:
+                return {"error": status}
+            refs = await _get(f"/api/references/for-company/{cid}")
+        else:
+            refs = await _get("/api/references")
+        if not refs:
+            return {"references": [], "message": "No references found"}
+        lines = []
+        for r in refs:
+            strength = r.get("strength", "medium")
+            name = r.get("contact_name", "Unknown")
+            title = r.get("contact_title", "")
+            rel = r.get("relationship", "")
+            roles = r.get("role_types", "")
+            lines.append(f"• [{strength.upper()}] {name}" + (f" — {title}" if title else "") +
+                         (f"\n  Relationship: {rel}" if rel else "") +
+                         (f"\n  Good for: {roles}" if roles else ""))
+        return {"references": refs, "summary": "\n".join(lines)}
+
+    elif name == "generate_substack_draft":
+        result = await _post("/api/content/substack/generate", {"topic": args["topic"], "count": 1})
+        drafts = result.get("drafts", [])
+        if not drafts:
+            return {"error": "No draft generated"}
+        draft = drafts[0]
+        word_count = len(draft.get("body", "").split())
+        return {
+            "id": draft.get("id"),
+            "word_count": word_count,
+            "net_score": draft.get("net_score"),
+            "body": draft.get("body", ""),
+            "status": "pending — review in Content → Substack tab",
+        }
 
     elif name == "find_contacts":
         cid, _, status = await _resolve(args["company_name"])

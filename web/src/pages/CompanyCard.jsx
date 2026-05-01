@@ -6,7 +6,7 @@ import Badge from '../components/Badge'
 import FitBar from '../components/FitBar'
 import Spinner from '../components/Spinner'
 
-const TABS = ['Intel', 'Contacts', 'Leads', 'Outreach']
+const TABS = ['Intel', 'Contacts', 'Leads', 'Outreach', 'References']
 const STAGES = [
   { value: 'pool', label: 'Target' },
   { value: 'outreach', label: 'In Play' },
@@ -292,6 +292,10 @@ export default function CompanyCard() {
         {tab === 'Outreach' && (
           <OutreachTab company={company} onReload={load} defaultContactId={Number(searchParams.get('contact_id')) || null} />
         )}
+
+        {tab === 'References' && (
+          <ReferencesTab companyId={company.id} />
+        )}
       </div>
 
       {contactModal && (
@@ -301,6 +305,122 @@ export default function CompanyCard() {
           onClose={() => setContactModal(null)}
           onSaved={() => { setContactModal(null); load() }}
         />
+      )}
+    </div>
+  )
+}
+
+const STRENGTH_COLOR = { strong: 'green', medium: 'yellow', weak: 'slate' }
+
+function ReferencesTab({ companyId }) {
+  const [refs, setRefs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showAdd, setShowAdd] = useState(false)
+  const [form, setForm] = useState({ contact_name: '', contact_title: '', relationship: '', strength: 'medium', role_types: '', notes: '' })
+  const [saving, setSaving] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    try { setRefs(await api.getReferencesForCompany(companyId)) } catch (e) { console.error(e) } finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [companyId])
+
+  const set = (f) => (e) => setForm(prev => ({ ...prev, [f]: e.target.value }))
+
+  const handleAdd = async () => {
+    if (!form.contact_name.trim()) return
+    setSaving(true)
+    try {
+      await api.addReference({ ...form, company_id: companyId, role_types: form.role_types || undefined, notes: form.notes || undefined })
+      setForm({ contact_name: '', contact_title: '', relationship: '', strength: 'medium', role_types: '', notes: '' })
+      setShowAdd(false)
+      await load()
+    } catch (e) { alert(e.message) } finally { setSaving(false) }
+  }
+
+  const handleDelete = async (id) => {
+    await api.deleteReference(id)
+    setRefs(r => r.filter(x => x.id !== id))
+  }
+
+  return (
+    <div className="p-4 space-y-3">
+      <button
+        onClick={() => setShowAdd(v => !v)}
+        className="flex items-center gap-1.5 text-sm text-blue-500"
+      >
+        <Plus size={14} /> Add Reference
+      </button>
+
+      {showAdd && (
+        <div className="bg-card border border-theme rounded-xl p-4 space-y-3">
+          <div className="text-sm font-medium text-body">Add Reference</div>
+          {[
+            { field: 'contact_name', label: 'Name *', placeholder: 'John Smith' },
+            { field: 'contact_title', label: 'Title', placeholder: 'VP Payments at Sardine' },
+            { field: 'relationship', label: 'Relationship', placeholder: 'Worked together at Uff Móvil 2019-2021' },
+            { field: 'role_types', label: 'Good for roles', placeholder: 'payments, fintech, agentic-ai' },
+            { field: 'notes', label: 'Notes', placeholder: 'Strong reference for executive roles' },
+          ].map(({ field, label, placeholder }) => (
+            <div key={field}>
+              <div className="text-xs text-muted mb-1">{label}</div>
+              <input
+                value={form[field]}
+                onChange={set(field)}
+                placeholder={placeholder}
+                className="w-full text-sm bg-app border border-theme rounded-lg px-3 py-2 text-body placeholder:text-muted"
+              />
+            </div>
+          ))}
+          <div>
+            <div className="text-xs text-muted mb-1">Strength</div>
+            <div className="flex gap-2">
+              {['strong', 'medium', 'weak'].map(s => (
+                <button
+                  key={s}
+                  onClick={() => setForm(f => ({ ...f, strength: s }))}
+                  className={`text-xs px-3 py-1.5 rounded-lg border capitalize transition-colors ${
+                    form.strength === s ? 'border-blue-400 text-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-theme text-muted'
+                  }`}
+                >{s}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleAdd} disabled={saving || !form.contact_name.trim()}
+              className="bg-blue-500 text-white text-sm px-4 py-2 rounded-lg disabled:opacity-50">
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={() => setShowAdd(false)} className="text-sm text-muted px-4 py-2">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-8"><Spinner size={5} /></div>
+      ) : refs.length === 0 ? (
+        <div className="text-sm text-muted text-center py-8">No references yet — add someone who can vouch for you here</div>
+      ) : (
+        refs.map(ref => (
+          <div key={ref.id} className="bg-card border border-theme rounded-xl p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="font-medium text-sm text-body">{ref.contact_name}</div>
+                {ref.contact_title && <div className="text-xs text-muted">{ref.contact_title}</div>}
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge color={STRENGTH_COLOR[ref.strength] || 'slate'}>{ref.strength}</Badge>
+                <button onClick={() => handleDelete(ref.id)} className="text-muted hover:text-red-500 transition-colors">
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+            {ref.relationship && <div className="text-xs text-muted mt-2 italic">{ref.relationship}</div>}
+            {ref.role_types && <div className="text-xs text-muted mt-1">Good for: {ref.role_types}</div>}
+            {ref.notes && <div className="text-xs text-muted mt-1">{ref.notes}</div>}
+          </div>
+        ))
       )}
     </div>
   )
