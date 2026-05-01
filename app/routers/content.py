@@ -152,7 +152,7 @@ def linkedin_connect():
     params = {
         "response_type": "code",
         "client_id": client_id,
-        "redirect_uri": "http://localhost:8000/linkedin/callback",
+        "redirect_uri": "https://job-search-do1r.onrender.com/linkedin/callback",
         "state": state,
         "scope": "w_member_social r_liteprofile openid profile",
     }

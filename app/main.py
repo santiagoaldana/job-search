@@ -279,7 +279,7 @@ async def linkedin_oauth_callback(code: str = None, state: str = None, error: st
             data={
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": "http://localhost:8000/linkedin/callback",
+                "redirect_uri": "https://job-search-do1r.onrender.com/linkedin/callback",
                 "client_id": client_id,
                 "client_secret": client_secret,
             },
