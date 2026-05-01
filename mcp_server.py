@@ -242,6 +242,21 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="log_linkedin_interaction",
+            description="Log a LinkedIn conversation or message exchange with an existing contact. Use this when Santiago shares a LinkedIn screenshot or describes a message thread. Updates relationship notes and records the interaction. Do NOT use quick_add_contact for existing contacts.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contact_name": {"type": "string"},
+                    "company_name": {"type": "string", "description": "Optional, helps disambiguate"},
+                    "note": {"type": "string", "description": "Dated summary, e.g. 'Apr 14: Andrew replied offering AI training workshops via The AI Collective. Santiago asked to meet.'"},
+                    "had_reply": {"type": "boolean", "description": "True if the contact replied (default True)"},
+                    "channel": {"type": "string", "enum": ["linkedin", "email"], "description": "Default: linkedin"},
+                },
+                "required": ["contact_name", "note"],
+            },
+        ),
+        types.Tool(
             name="mark_linkedin_status",
             description="Record a LinkedIn action taken for a contact: request_sent, accepted (connection accepted → now 1st-degree), or dm_sent.",
             inputSchema={
@@ -433,6 +448,15 @@ async def _dispatch(name: str, args: dict) -> dict:
             "hook": args.get("hook"),
             "ask": args.get("ask"),
             "email_type": args.get("email_type", "cold"),
+        })
+
+    elif name == "log_linkedin_interaction":
+        return await _post("/api/contacts/log-interaction", {
+            "contact_name": args["contact_name"],
+            "company_name": args.get("company_name"),
+            "note": args["note"],
+            "had_reply": args.get("had_reply", True),
+            "channel": args.get("channel", "linkedin"),
         })
 
     elif name == "compose_linkedin_post":

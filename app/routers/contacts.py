@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 
 from app.database import get_session
-from app.models import Contact, Company
+from app.models import Contact, Company, OutreachRecord
 from app.services.email_finder import determine_next_step
 
 router = APIRouter()
@@ -243,6 +243,63 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
         "contact_id": contact.id,
         "matched_company": matched_company,
         "next_step": next_step,
+    }
+
+
+class LogInteractionRequest(BaseModel):
+    contact_name: str
+    company_name: Optional[str] = None
+    note: str
+    had_reply: bool = True
+    channel: str = "linkedin"
+
+
+@router.post("/log-interaction")
+def log_interaction(req: LogInteractionRequest, session: Session = Depends(get_session)):
+    """Log a LinkedIn or email interaction with an existing contact."""
+    name_lower = req.contact_name.lower()
+    candidates = session.exec(select(Contact)).all()
+    contact = next((c for c in candidates if name_lower in (c.name or "").lower()), None)
+
+    if contact is None:
+        raise HTTPException(status_code=404, detail=f"Contact '{req.contact_name}' not found")
+
+    if req.company_name and contact.company_id:
+        company_name_lower = req.company_name.lower()
+        for c in candidates:
+            if name_lower in (c.name or "").lower() and c.company_id:
+                company = session.get(Company, c.company_id)
+                if company and company_name_lower in (company.name or "").lower():
+                    contact = c
+                    break
+
+    existing = contact.relationship_notes or ""
+    separator = "\n" if existing else ""
+    contact.relationship_notes = existing + separator + req.note
+
+    if contact.outreach_status in ("none", "drafted"):
+        contact.outreach_status = req.channel if req.channel in ("linkedin_dm", "emailed") else "linkedin_dm"
+
+    contact.updated_at = datetime.utcnow().isoformat()
+    session.add(contact)
+
+    record = OutreachRecord(
+        company_id=contact.company_id,
+        contact_id=contact.id,
+        channel=req.channel,
+        sent_at=datetime.utcnow().isoformat(),
+        body=req.note,
+        response_status="positive" if req.had_reply else "pending",
+    )
+    session.add(record)
+    session.commit()
+
+    company = session.get(Company, contact.company_id) if contact.company_id else None
+    return {
+        "ok": True,
+        "contact_id": contact.id,
+        "contact_name": contact.name,
+        "company_name": company.name if company else None,
     }
 
 
