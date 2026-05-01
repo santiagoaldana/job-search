@@ -11,7 +11,7 @@ export default function Leads() {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [strongFitOnly, setStrongFitOnly] = useState(false)
+  const [minFit, setMinFit] = useState(65)
   const [locationOnly, setLocationOnly] = useState(false)
   const [expanded, setExpanded] = useState({})
   const [searchParams] = useSearchParams()
@@ -23,7 +23,7 @@ export default function Leads() {
     setLoading(true)
     try {
       const params = { status: 'active' }
-      if (strongFitOnly) params.min_fit = 65
+      if (minFit > 0) params.min_fit = minFit
       if (locationOnly) params.location_compatible = true
       if (companyFilter) params.company_id = companyFilter
 
@@ -40,7 +40,7 @@ export default function Leads() {
     }
   }
 
-  useEffect(() => { load() }, [strongFitOnly, locationOnly, companyFilter])
+  useEffect(() => { load() }, [minFit, locationOnly, companyFilter])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -80,7 +80,7 @@ export default function Leads() {
 
   const subtitle = companyFilter
     ? `Filtered by company · ${active.length} active`
-    : `${active.length} active${applied.length > 0 ? ` · ${applied.length} applied` : ''}`
+    : `${active.length} active${minFit > 0 ? ` · fit ≥ ${minFit}%` : ''}${applied.length > 0 ? ` · ${applied.length} applied` : ''}`
 
   return (
     <div className="flex flex-col">
@@ -97,18 +97,31 @@ export default function Leads() {
       />
 
       {/* Filter bar */}
-      <div className="flex gap-2 px-4 pb-3">
-        <button
-          onClick={() => setStrongFitOnly(v => !v)}
-          className={`flex-1 px-3 py-2 rounded-lg text-xs border transition-colors font-medium ${
-            strongFitOnly ? 'bg-blue-500 border-blue-400 text-white' : 'bg-card border-theme text-muted'
-          }`}
-        >
-          Strong fits (65%+)
-        </button>
+      <div className="px-4 pb-3 space-y-2">
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs text-muted">
+            <span>Min fit score</span>
+            <span className={minFit >= 65 ? 'text-orange-500 font-medium' : 'text-muted'}>
+              {minFit > 0 ? `${minFit}%` : 'All'}
+            </span>
+          </div>
+          <div className="relative">
+            <input
+              type="range" min={0} max={100} step={5}
+              value={minFit}
+              onChange={e => setMinFit(Number(e.target.value))}
+              className="w-full accent-blue-500"
+            />
+            <div className="absolute top-0 flex flex-col items-center pointer-events-none"
+              style={{ left: '65%', transform: 'translateX(-50%)' }}>
+              <div className="w-px h-2 bg-orange-400 mt-1" />
+              <span className="text-[10px] text-orange-400 mt-0.5">65%</span>
+            </div>
+          </div>
+        </div>
         <button
           onClick={() => setLocationOnly(v => !v)}
-          className={`flex-1 px-3 py-2 rounded-lg text-xs border transition-colors font-medium ${
+          className={`w-full px-3 py-2 rounded-lg text-xs border transition-colors font-medium ${
             locationOnly ? 'bg-blue-500 border-blue-400 text-white' : 'bg-card border-theme text-muted'
           }`}
         >
