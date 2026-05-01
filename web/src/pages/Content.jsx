@@ -393,7 +393,7 @@ function DraftCard({ draft, onScheduled, onApprovedOnly, onDiscard, onRegenerate
         )}
 
         {/* Action buttons */}
-        {draft.status === 'pending' && !editing && (
+        {draft.status === 'pending' && !editMode && (
           <div className="flex gap-2 mt-3">
             <button onClick={() => setShowSchedule(true)}
               className="flex items-center gap-1.5 flex-1 justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-2 text-xs font-medium">
@@ -406,7 +406,7 @@ function DraftCard({ draft, onScheduled, onApprovedOnly, onDiscard, onRegenerate
           </div>
         )}
 
-        {(isApproved || isScheduled) && !editing && (
+        {(isApproved || isScheduled) && !editMode && (
           <div className="flex gap-2 mt-3">
             <button
               onClick={handlePublishNow}
