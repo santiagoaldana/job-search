@@ -666,9 +666,9 @@ export default function Content() {
 
       {contentTab === 'linkedin' && <LinkedInStatusBar />}
 
-      {contentTab === 'linkedin' && loading ? (
+      {contentTab === 'linkedin' && (loading ? (
         <div className="flex justify-center py-16"><Spinner size={8} /></div>
-      ) : contentTab === 'linkedin' ? (
+      ) : (
         <div className="px-4 space-y-3 pb-4">
           {drafts.length === 0 && scheduled.length === 0 && (
             <div className="py-12 text-center">
@@ -720,7 +720,7 @@ export default function Content() {
             </>
           )}
         </div>
-      )}
+      ))}
 
       {showCompose && (
         <ComposeModal
