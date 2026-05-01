@@ -124,9 +124,9 @@ function ScheduleModal({ draft, onClose, onScheduled, onApprovedOnly }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center pb-16" onClick={onClose}>
       <div
-        className="bg-card w-full max-w-lg rounded-t-2xl p-5 pb-8 space-y-4 overflow-y-auto max-h-[75vh]"
+        className="bg-card w-full max-w-lg rounded-t-2xl p-5 pb-6 space-y-4 overflow-y-auto max-h-[70vh]"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
