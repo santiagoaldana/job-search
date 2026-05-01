@@ -193,8 +193,8 @@ function BulkReview() {
   const load = useCallback(() => {
     setLoading(true)
     api.getCompanies({ active_only: false })
-      .then(data => setCompanies(data.sort((a, b) => (b.lamp_score || 0) - (a.lamp_score || 0))))
-      .catch(console.error)
+      .then(data => { console.log('[BulkReview] loaded', data?.length); setCompanies(data.sort((a, b) => (b.lamp_score || 0) - (a.lamp_score || 0))) })
+      .catch(e => { console.error('[BulkReview] load error', e); alert('Failed to load companies: ' + e.message) })
       .finally(() => setLoading(false))
   }, [])
 
