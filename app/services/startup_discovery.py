@@ -11,7 +11,7 @@ from datetime import datetime
 
 EXECUTIVE_PROFILE = None
 
-DOMAINS = ["payments", "digital identity", "embedded banking", "agentic AI", "fraud prevention"]
+DOMAINS = ["payments", "digital identity", "embedded banking", "agentic AI", "fraud prevention", "stablecoins", "crypto infrastructure"]
 
 
 def _get_profile() -> str:
