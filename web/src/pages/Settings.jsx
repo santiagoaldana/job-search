@@ -173,12 +173,20 @@ function IntelSummary({ company: c, onRefresh, refreshing }) {
   )
 }
 
+function stageToGroup(stage) {
+  if (['outreach', 'response', 'meeting', 'applied', 'interview'].includes(stage)) return 'in_play'
+  if (stage === 'closed' || stage === 'offer') return 'closed'
+  return 'target'
+}
+
 function BulkReview() {
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState({})
+  const [stageSaving, setStageSaving] = useState({})
   const [fetchingIntel, setFetchingIntel] = useState({})
+  const [enriching, setEnriching] = useState(false)
   const [filter, setFilter] = useState('all')
 
   const load = useCallback(() => {
@@ -204,6 +212,18 @@ function BulkReview() {
     }
   }
 
+  async function setStage(company, stageGroup) {
+    setStageSaving(s => ({ ...s, [company.id]: true }))
+    try {
+      await api.setCompanyStage(company.id, stageGroup)
+      setCompanies(cs => cs.map(c => c.id === company.id ? { ...c, stage: stageGroup } : c))
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setStageSaving(s => ({ ...s, [company.id]: false }))
+    }
+  }
+
   async function getIntel(company) {
     setFetchingIntel(s => ({ ...s, [company.id]: true }))
     try {
@@ -213,6 +233,18 @@ function BulkReview() {
       console.error(e)
     } finally {
       setFetchingIntel(s => ({ ...s, [company.id]: false }))
+    }
+  }
+
+  async function handleEnrichAll() {
+    setEnriching(true)
+    try {
+      await api.enrichAllCompanies()
+      // Poll until enrichment finishes (background task ~5 min for 854 companies)
+      setTimeout(() => { load(); setEnriching(false) }, 3000)
+    } catch (e) {
+      console.error(e)
+      setEnriching(false)
     }
   }
 
@@ -230,26 +262,35 @@ function BulkReview() {
       >
         <div>
           <div className="text-sm font-medium text-body text-left">Bulk Review — Set Motivations</div>
-          <div className="text-xs text-muted text-left">Review all {companies.length || '847'} companies, set priority 1–10</div>
+          <div className="text-xs text-muted text-left">Review all {companies.length || '853'} companies, set priority 1–10</div>
         </div>
         {open ? <ChevronUp size={16} className="text-muted" /> : <ChevronDown size={16} className="text-muted" />}
       </button>
 
       {open && (
         <div className="mt-2 bg-card border border-theme rounded-xl overflow-hidden">
-          {/* Filter tabs */}
-          <div className="flex border-b border-theme">
-            {[['all', 'All'], ['active', 'Active (≥7)'], ['inactive', 'Inactive (<7)']].map(([val, label]) => (
-              <button
-                key={val}
-                onClick={() => setFilter(val)}
-                className={`flex-1 py-2 text-xs font-medium transition-colors ${
-                  filter === val ? 'text-blue-500 border-b-2 border-blue-500' : 'text-muted'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+          {/* Filter tabs + Enrich All */}
+          <div className="flex items-center border-b border-theme">
+            <div className="flex flex-1">
+              {[['all', 'All'], ['active', 'Active (≥7)'], ['inactive', 'Inactive (<7)']].map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setFilter(val)}
+                  className={`flex-1 py-2 text-xs font-medium transition-colors ${
+                    filter === val ? 'text-blue-500 border-b-2 border-blue-500' : 'text-muted'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleEnrichAll}
+              disabled={enriching}
+              className="px-3 py-2 text-xs text-blue-500 disabled:opacity-50 flex-shrink-0"
+            >
+              {enriching ? 'Enriching…' : 'Enrich all'}
+            </button>
           </div>
 
           {loading ? (
@@ -260,7 +301,35 @@ function BulkReview() {
                 <div key={c.id} className="flex items-start gap-3 px-4 py-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-body truncate">{c.name}</div>
-                    <div className="text-xs text-muted">LAMP {c.lamp_score?.toFixed(0) || '—'} · {c.stage}</div>
+                    {/* LAMP + inline stage selector */}
+                    <div className="text-xs text-muted flex items-center gap-1 flex-wrap">
+                      <span>LAMP {c.lamp_score?.toFixed(0) || '—'} ·</span>
+                      <select
+                        value={stageToGroup(c.stage)}
+                        onChange={e => setStage(c, e.target.value)}
+                        onClick={e => e.stopPropagation()}
+                        disabled={stageSaving[c.id]}
+                        className="text-xs text-muted bg-transparent border-none outline-none cursor-pointer disabled:opacity-50"
+                      >
+                        <option value="target">Target</option>
+                        <option value="in_play">In Play</option>
+                        <option value="closed">Closed</option>
+                      </select>
+                    </div>
+                    {/* Funding + headcount from Apollo */}
+                    {(c.funding_stage && c.funding_stage !== 'unknown' || c.headcount_range && c.headcount_range !== 'unknown') && (
+                      <div className="text-xs text-muted mt-0.5">
+                        {[
+                          c.funding_stage && c.funding_stage !== 'unknown' && c.funding_stage.replace(/_/g, ' '),
+                          c.headcount_range && c.headcount_range !== 'unknown' && `${c.headcount_range} employees`,
+                        ].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                    {/* Short description from Apollo */}
+                    {c.org_notes && (
+                      <div className="text-xs text-muted leading-relaxed mt-0.5 line-clamp-2">{c.org_notes}</div>
+                    )}
+                    {/* Intel summary or Get Intel button */}
                     {c.intel_summary
                       ? <IntelSummary company={c} onRefresh={() => getIntel(c)} refreshing={fetchingIntel[c.id]} />
                       : <button

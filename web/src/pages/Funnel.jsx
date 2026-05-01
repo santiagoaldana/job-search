@@ -153,6 +153,7 @@ export default function Funnel() {
   const [searching, setSearching] = useState(false)
   const [outreachTarget, setOutreachTarget] = useState(null)
   const [fetchingIntel, setFetchingIntel] = useState({})
+  const [savingMotivation, setSavingMotivation] = useState({})
   const debounceRef = useRef(null)
   const navigate = useNavigate()
 
@@ -176,6 +177,21 @@ export default function Funnel() {
     } finally {
       setFetchingIntel(s => ({ ...s, [company.id]: false }))
     }
+  }
+
+  async function updateMotivation(company, val) {
+    const m = Math.max(1, Math.min(10, val))
+    setFunnel(f => {
+      const updated = { ...f }
+      for (const stage of Object.keys(updated)) {
+        updated[stage] = updated[stage].map(c => c.id === company.id ? { ...c, motivation: m } : c)
+      }
+      return updated
+    })
+    setSavingMotivation(s => ({ ...s, [company.id]: true }))
+    try { await api.updateCompany(company.id, { motivation: m }) }
+    catch (e) { console.error(e) }
+    finally { setSavingMotivation(s => ({ ...s, [company.id]: false })) }
   }
 
   useEffect(() => {
@@ -315,11 +331,28 @@ export default function Funnel() {
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <Badge color={funding.color}>{funding.label}</Badge>
                         <span className="text-xs text-muted">LAMP {c.lamp_score?.toFixed(0) || '—'}</span>
-                        <span className="text-xs text-muted">Motivation {c.motivation}/10</span>
+                        {/* Inline motivation stepper */}
+                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={e => { e.stopPropagation(); updateMotivation(c, c.motivation - 1) }}
+                            className="w-5 h-5 rounded bg-bg border border-theme text-muted text-xs flex items-center justify-center leading-none"
+                          >−</button>
+                          <span className={`text-xs font-semibold w-5 text-center ${c.motivation >= 7 ? 'text-blue-500' : 'text-muted'}`}>
+                            {savingMotivation[c.id] ? '…' : c.motivation}
+                          </span>
+                          <button
+                            onClick={e => { e.stopPropagation(); updateMotivation(c, c.motivation + 1) }}
+                            className="w-5 h-5 rounded bg-bg border border-theme text-muted text-xs flex items-center justify-center leading-none"
+                          >+</button>
+                        </div>
                       </div>
+                      {/* Short description from Apollo */}
+                      {c.org_notes && !c.intel_summary && (
+                        <div className="text-xs text-muted mt-1.5 line-clamp-2 leading-relaxed">{c.org_notes}</div>
+                      )}
                       {c.intel_summary
                         ? <div className="text-xs text-muted mt-1.5 line-clamp-2 leading-relaxed">{c.intel_summary}</div>
-                        : <button
+                        : !c.org_notes && <button
                             onClick={(e) => getIntel(c, e)}
                             disabled={fetchingIntel[c.id]}
                             className="text-xs text-blue-500 mt-1.5 disabled:opacity-50"

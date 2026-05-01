@@ -30,9 +30,12 @@ export const api = {
   bulkArchive: (names) => post('/companies/bulk-archive', { names }),
   updateCompany: (id, data) => patch(`/companies/${id}`, data),
   advanceStage: (id, stage) => post(`/companies/${id}/stage`, { stage }),
+  setCompanyStage: (id, stage) => post(`/companies/${id}/stage`, { stage }),
   archiveCompany: (id) => post(`/companies/${id}/archive`),
   refreshIntel: (id) => post(`/companies/${id}/intel/refresh`),
   findContacts: (id) => post(`/companies/${id}/find-contacts`),
+  enrichCompany: (id) => post(`/companies/${id}/enrich`),
+  enrichAllCompanies: () => post('/companies/enrich-all'),
 
   // Leads
   getLeads: (params = {}) => {

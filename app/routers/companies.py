@@ -1,8 +1,9 @@
 """Companies router — LAMP list CRUD, stage transitions, intel refresh."""
 
+import asyncio
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from pydantic import BaseModel
 
@@ -94,8 +95,10 @@ def funnel_view(session: Session = Depends(get_session)):
             "lamp_score": c.lamp_score,
             "motivation": c.motivation,
             "funding_stage": c.funding_stage,
+            "headcount_range": c.headcount_range,
             "stage": c.stage,
             "intel_summary": c.intel_summary,
+            "org_notes": c.org_notes,
         })
     return result
 
@@ -171,14 +174,18 @@ def update_company(
     return company
 
 
+class StageRequest(BaseModel):
+    stage: str
+
+
 @router.post("/{company_id}/stage")
 def set_stage(
     company_id: int,
-    stage: str,
+    req: StageRequest,
     session: Session = Depends(get_session),
 ):
     # Accept display names (target/in_play/closed) and map to internal stages
-    stage = DISPLAY_TO_INTERNAL.get(stage, stage)
+    stage = DISPLAY_TO_INTERNAL.get(req.stage, req.stage)
     valid = {"pool", "researched", "outreach", "response", "meeting",
              "applied", "interview", "offer", "closed"}
     if stage not in valid:
@@ -225,6 +232,35 @@ def bulk_archive(req: BulkArchiveRequest, session: Session = Depends(get_session
             archived += 1
     session.commit()
     return {"archived": archived, "requested": len(req.names)}
+
+
+@router.post("/enrich-all")
+async def enrich_all(background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+    """Batch-enrich all unenriched companies via Apollo. Runs in background."""
+    companies = session.exec(
+        select(Company).where(Company.apollo_enriched_at == None, Company.is_archived == False)
+    ).all()
+
+    async def _run():
+        for c in companies:
+            try:
+                from app.services.apollo_enricher import enrich_company as _enrich
+                data = await _enrich(c.name)
+                if data.get("funding_stage"):
+                    c.funding_stage = data["funding_stage"]
+                if data.get("headcount_range"):
+                    c.headcount_range = data["headcount_range"]
+                if data.get("description"):
+                    c.org_notes = data["description"]
+                c.apollo_enriched_at = datetime.utcnow().isoformat()
+                session.add(c)
+                session.commit()
+                await asyncio.sleep(0.3)
+            except Exception as e:
+                print(f"[enrich] {c.name}: {e}")
+
+    background_tasks.add_task(_run)
+    return {"started": True, "companies": len(companies)}
 
 
 @router.post("")
@@ -365,6 +401,27 @@ Return ONLY a JSON array:
         "likely_connectors": likely_connectors,
         "has_warm_path": len(direct) > 0,
     }
+
+
+@router.post("/{company_id}/enrich")
+async def enrich_single(company_id: int, session: Session = Depends(get_session)):
+    """Enrich a single company via Apollo (funding, headcount, description)."""
+    company = session.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    from app.services.apollo_enricher import enrich_company as _enrich
+    data = await _enrich(company.name)
+    if data.get("funding_stage"):
+        company.funding_stage = data["funding_stage"]
+    if data.get("headcount_range"):
+        company.headcount_range = data["headcount_range"]
+    if data.get("description"):
+        company.org_notes = data["description"]
+    company.apollo_enriched_at = datetime.utcnow().isoformat()
+    session.add(company)
+    session.commit()
+    session.refresh(company)
+    return company
 
 
 @router.post("/{company_id}/intel/refresh")
