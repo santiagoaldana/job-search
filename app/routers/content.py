@@ -17,6 +17,7 @@ router = APIRouter()
 class DraftAction(BaseModel):
     status: str  # approved | discarded | scheduled | published | pending
     scheduled_at: Optional[str] = None  # ISO datetime, used when status=scheduled
+    body: Optional[str] = None  # direct body edit
 
 
 @router.get("")
@@ -323,6 +324,8 @@ def update_draft(
     draft.status = action.status
     if action.status == "scheduled" and action.scheduled_at:
         draft.scheduled_at = action.scheduled_at
+    if action.body is not None:
+        draft.body = action.body
     session.add(draft)
     session.commit()
     return draft

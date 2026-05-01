@@ -232,11 +232,13 @@ function ComposeModal({ onClose, onSaved }) {
 
 // ── Draft Card ────────────────────────────────────────────────────────────────
 
-function DraftCard({ draft, onScheduled, onApprovedOnly, onDiscard, onRegenerate, onPublishNow }) {
+function DraftCard({ draft, onScheduled, onApprovedOnly, onDiscard, onRegenerate, onPublishNow, onBodySaved }) {
   const [expanded, setExpanded] = useState(false)
-  const [editing, setEditing] = useState(false)
+  const [editMode, setEditMode] = useState(null) // null | 'manual' | 'ai'
+  const [manualBody, setManualBody] = useState(draft.body)
   const [instructions, setInstructions] = useState('')
   const [regenerating, setRegenerating] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
 
@@ -245,10 +247,24 @@ function DraftCard({ draft, onScheduled, onApprovedOnly, onDiscard, onRegenerate
     setRegenerating(true)
     try {
       await onRegenerate(draft.id, instructions)
-      setEditing(false)
+      setEditMode(null)
       setInstructions('')
     } finally {
       setRegenerating(false)
+    }
+  }
+
+  const handleSaveManual = async () => {
+    if (!manualBody.trim()) return
+    setSaving(true)
+    try {
+      await api.saveDraftBody(draft.id, manualBody)
+      onBodySaved(draft.id, manualBody)
+      setEditMode(null)
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -307,7 +323,32 @@ function DraftCard({ draft, onScheduled, onApprovedOnly, onDiscard, onRegenerate
 
         {/* Edit / regenerate */}
         {!isScheduled && (
-          editing ? (
+          editMode === 'manual' ? (
+            <div className="mt-3 space-y-2">
+              <textarea
+                autoFocus
+                rows={8}
+                value={manualBody}
+                onChange={e => setManualBody(e.target.value)}
+                className="w-full text-sm bg-input border border-theme rounded-lg px-3 py-2 text-body resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 leading-relaxed"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveManual}
+                  disabled={saving || !manualBody.trim()}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-medium"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={() => { setEditMode(null); setManualBody(draft.body) }}
+                  className="px-4 border border-theme rounded-lg text-xs text-muted"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : editMode === 'ai' ? (
             <div className="mt-3 space-y-2">
               <textarea
                 autoFocus
@@ -326,7 +367,7 @@ function DraftCard({ draft, onScheduled, onApprovedOnly, onDiscard, onRegenerate
                   {regenerating ? 'Regenerating…' : 'Regenerate'}
                 </button>
                 <button
-                  onClick={() => { setEditing(false); setInstructions('') }}
+                  onClick={() => { setEditMode(null); setInstructions('') }}
                   className="px-4 border border-theme rounded-lg text-xs text-muted"
                 >
                   Cancel
@@ -334,12 +375,20 @@ function DraftCard({ draft, onScheduled, onApprovedOnly, onDiscard, onRegenerate
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setEditing(true)}
-              className="flex items-center gap-1 text-xs text-muted mt-2 hover:text-body"
-            >
-              <Pencil size={11} /> Edit with instructions
-            </button>
+            <div className="flex gap-3 mt-2">
+              <button
+                onClick={() => { setManualBody(draft.body); setEditMode('manual') }}
+                className="flex items-center gap-1 text-xs text-muted hover:text-body"
+              >
+                <PenLine size={11} /> Edit directly
+              </button>
+              <button
+                onClick={() => setEditMode('ai')}
+                className="flex items-center gap-1 text-xs text-muted hover:text-body"
+              >
+                <Pencil size={11} /> Edit with instructions
+              </button>
+            </div>
           )
         )}
 
@@ -621,6 +670,7 @@ export default function Content() {
     onDiscard: handleDiscard,
     onRegenerate: handleRegenerate,
     onPublishNow: handlePublishNow,
+    onBodySaved: (id, body) => setDrafts(prev => prev.map(d => d.id === id ? { ...d, body } : d)),
   }
 
   return (

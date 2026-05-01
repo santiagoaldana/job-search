@@ -103,6 +103,7 @@ export const api = {
   schedulePost: (id, scheduled_at) => patch(`/content/${id}`, { status: 'scheduled', scheduled_at }),
   discardDraft: (id) => patch(`/content/${id}`, { status: 'discarded' }),
   regenerateDraft: (id, instructions) => post(`/content/${id}/regenerate`, { instructions }),
+  saveDraftBody: (id, body) => patch(`/content/${id}`, { status: 'pending', body }),
   composePost: (context) => post('/content/compose', { context }),
   publishNow: (id) => post(`/content/${id}/publish-now`),
   runPublishCycle: () => post('/content/linkedin/run-cycle'),
