@@ -24,7 +24,9 @@ def list_drafts(
     status: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
-    q = select(ContentDraft).where(ContentDraft.content_type == "linkedin")
+    q = select(ContentDraft).where(
+        (ContentDraft.content_type == "linkedin") | (ContentDraft.content_type == None)
+    )
     if status:
         q = q.where(ContentDraft.status == status)
     else:

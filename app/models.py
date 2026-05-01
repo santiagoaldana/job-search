@@ -114,7 +114,7 @@ class Lead(SQLModel, table=True):
 
     salary_min: Optional[int] = Field(default=None)
     salary_max: Optional[int] = Field(default=None)
-    salary_currency: str = Field(default="USD")
+    salary_currency: Optional[str] = Field(default="USD")
     salary_notes: Optional[str] = Field(default=None)
 
     company: Optional[Company] = Relationship(back_populates="leads")
@@ -241,7 +241,7 @@ class ContentDraft(SQLModel, table=True):
     scheduled_at: Optional[str] = Field(default=None)   # ISO datetime string
     published_at: Optional[str] = Field(default=None)   # ISO datetime string
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-    content_type: str = Field(default="linkedin")       # linkedin|substack
+    content_type: Optional[str] = Field(default="linkedin")  # linkedin|substack
 
 
 # ── ContentFeed (thought leader / publication RSS feeds) ──────────────────────
