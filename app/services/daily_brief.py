@@ -93,16 +93,21 @@ def compute_daily_brief(session: Session) -> dict:
     if stale_records:
         session.commit()
 
-    # Warm path alerts — new 1st-degree contacts at funnel companies (last 7 days)
-    seven_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
+    # Warm path alerts — new 1st-degree contacts at funnel companies (last 14 days, motivation >= 5)
+    fourteen_days_ago = (datetime.utcnow() - timedelta(days=14)).isoformat()
     recent_warm = session.exec(
         select(Contact).where(
             Contact.connection_degree == 1,
             Contact.company_id != None,
-            Contact.created_at >= seven_days_ago,
+            Contact.created_at >= fourteen_days_ago,
             Contact.outreach_status == "none",
         )
     ).all()
+
+    high_motivation_ids = {
+        c.id for c in session.exec(select(Company).where(Company.motivation >= 5, Company.is_archived == False)).all()
+    }
+    recent_warm = [c for c in recent_warm if c.company_id in high_motivation_ids]
 
     for contact in recent_warm[:3]:
         company = session.get(Company, contact.company_id) if contact.company_id else None
