@@ -263,7 +263,7 @@ function BulkReview() {
       >
         <div>
           <div className="text-sm font-medium text-body text-left">Bulk Review — Set Motivations</div>
-          <div className="text-xs text-muted text-left">Review all {companies.length || '853'} companies, set priority 1–10</div>
+          <div className="text-xs text-muted text-left">Review all {loading ? '…' : companies.length} companies, set priority 1–10</div>
         </div>
         {open ? <ChevronUp size={16} className="text-muted" /> : <ChevronDown size={16} className="text-muted" />}
       </button>
