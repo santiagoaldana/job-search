@@ -20,7 +20,7 @@ def list_leads(
 ):
     q = select(Lead).where(Lead.status == status)
     if min_fit is not None:
-        q = q.where(Lead.fit_score >= min_fit)
+        q = q.where((Lead.fit_score >= min_fit) | (Lead.fit_score == None))
     if location_compatible is not None:
         q = q.where(Lead.location_compatible == location_compatible)
     if company_id is not None:
