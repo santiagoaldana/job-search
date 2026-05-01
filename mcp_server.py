@@ -84,6 +84,11 @@ async def list_tools() -> list[types.Tool]:
                     "met_via": {"type": "string", "description": "e.g. 'MIT FinTech Summit panel'"},
                     "linkedin_url": {"type": "string"},
                     "relationship_notes": {"type": "string"},
+                    "outreach_status": {
+                        "type": "string",
+                        "enum": ["none", "connection_requested", "linkedin_dm", "emailed", "drafted"],
+                        "description": "Current outreach state. Use 'connection_requested' if Santiago just clicked Connect on LinkedIn.",
+                    },
                 },
                 "required": ["name"],
             },
@@ -435,6 +440,7 @@ async def _dispatch(name: str, args: dict) -> dict:
             "met_via": args.get("met_via"),
             "linkedin_url": args.get("linkedin_url"),
             "relationship_notes": args.get("relationship_notes"),
+            "outreach_status": args.get("outreach_status"),
         })
 
     elif name == "generate_outreach":

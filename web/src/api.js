@@ -125,6 +125,12 @@ export const api = {
   listAllContacts: () => get('/contacts'),
   getContact: (id) => get(`/contacts/${id}`),
   quickAddContact: (data) => post('/contacts/quick-add', data),
+  parseContactScreenshot: (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return fetch(BASE + '/contacts/parse-screenshot', { method: 'POST', credentials: 'include', body: fd })
+      .then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.detail) }))
+  },
   updateContact: (id, data) => patch(`/contacts/${id}`, data),
   markEmailBounced: (id) => post(`/contacts/${id}/bounce`),
   getContactNextStep: (id) => get(`/contacts/${id}/next-step`),

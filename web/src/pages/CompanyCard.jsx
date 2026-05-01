@@ -469,6 +469,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
     introduced_by_contact_id: contact?.introduced_by_contact_id || '',
   })
   const [saving, setSaving] = useState(false)
+  const [parsing, setParsing] = useState(false)
   const [nextStep, setNextStep] = useState(null)
   const [savedContactName, setSavedContactName] = useState('')
   const [allContacts, setAllContacts] = useState([])
@@ -478,6 +479,35 @@ function ContactModal({ company, contact, onClose, onSaved }) {
   useEffect(() => {
     api.listAllContacts().then(setAllContacts).catch(() => setAllContacts(company.contacts || []))
   }, [])
+
+  const handleScreenshotPaste = async (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    setParsing(true)
+    try {
+      const extracted = await api.parseContactScreenshot(file)
+      setForm(f => ({
+        ...f,
+        name: extracted.name || f.name,
+        title: extracted.title || f.title,
+        linkedin_url: extracted.linkedin_url || f.linkedin_url,
+      }))
+    } catch (e) {
+      // silently ignore parse failures — form stays blank for manual entry
+    } finally {
+      setParsing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isEdit) return
+    const onPaste = (e) => {
+      const file = Array.from(e.clipboardData?.items || [])
+        .find(i => i.type.startsWith('image/'))?.getAsFile()
+      if (file) handleScreenshotPaste(file)
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [isEdit])
 
   const handleSave = async () => {
     if (!isEdit && !form.name.trim()) return
@@ -544,6 +574,17 @@ function ContactModal({ company, contact, onClose, onSaved }) {
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {!isEdit && (
             <>
+              <div
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleScreenshotPaste(f) }}
+                className="border-2 border-dashed border-theme rounded-lg px-3 py-3 text-center text-xs text-muted cursor-default select-none"
+              >
+                {parsing ? (
+                  <span className="animate-pulse">Parsing screenshot...</span>
+                ) : (
+                  <span>Paste or drop a LinkedIn screenshot to auto-fill</span>
+                )}
+              </div>
               <div>
                 <label className="text-xs text-muted block mb-1">Name *</label>
                 <input value={form.name} onChange={set('name')}

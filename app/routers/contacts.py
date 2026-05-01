@@ -1,9 +1,12 @@
 """Contacts router — LinkedIn CSV import, quick-add, update."""
 
+import base64
 import csv
 import io
+import json
 from datetime import datetime
 from typing import Optional
+import anthropic
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlmodel import Session, select
 from pydantic import BaseModel
@@ -40,6 +43,7 @@ class QuickAddRequest(BaseModel):
     met_via: Optional[str] = None
     relationship_notes: Optional[str] = None
     introduced_by_contact_id: Optional[int] = None
+    outreach_status: Optional[str] = None  # none|connection_requested|linkedin_dm|emailed|drafted
 
 
 class ContactUpdateRequest(BaseModel):
@@ -226,6 +230,8 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
     contact.met_via = req.met_via
     contact.relationship_notes = req.relationship_notes
     contact.introduced_by_contact_id = req.introduced_by_contact_id
+    if req.outreach_status:
+        contact.outreach_status = req.outreach_status
 
     session.add(contact)
     if company_id:
@@ -244,6 +250,42 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
         "matched_company": matched_company,
         "next_step": next_step,
     }
+
+
+@router.post("/parse-screenshot")
+async def parse_contact_screenshot(file: UploadFile = File(...)):
+    """Extract contact fields from a LinkedIn profile screenshot using Claude vision."""
+    image_bytes = await file.read()
+    image_b64 = base64.b64encode(image_bytes).decode()
+    media_type = file.content_type or "image/png"
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=300,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": media_type, "data": image_b64},
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        "Extract contact info from this LinkedIn profile screenshot. "
+                        "Return JSON only — no markdown, no explanation — with these fields: "
+                        "name, title, company_name, linkedin_url (from the URL bar or profile link if visible), location. "
+                        "Use null for any missing fields."
+                    ),
+                },
+            ],
+        }],
+    )
+    try:
+        return json.loads(response.content[0].text.strip())
+    except Exception:
+        return {"name": None, "title": None, "company_name": None, "linkedin_url": None, "location": None}
 
 
 class LogInteractionRequest(BaseModel):
