@@ -47,6 +47,7 @@ class Company(SQLModel, table=True):
     recent_news: Optional[str] = Field(default=None)  # JSON string
     org_notes: Optional[str] = Field(default=None)
     last_intel_refresh: Optional[str] = Field(default=None)  # ISO datetime string
+    network_path_json: Optional[str] = Field(default=None)  # JSON cache of last network path analysis
 
     # Timestamps
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())

@@ -626,10 +626,10 @@ function NetworkPath({ companyId }) {
   const [path, setPath] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const load = async () => {
+  const load = async (refresh = false) => {
     setLoading(true)
     try {
-      const result = await api.getNetworkPath(companyId)
+      const result = await api.getNetworkPath(companyId, refresh)
       setPath(result)
     } catch (e) {
       console.error(e)
@@ -638,6 +638,8 @@ function NetworkPath({ companyId }) {
     }
   }
 
+  useEffect(() => { load(false) }, [companyId])
+
   return (
     <div className="bg-card border border-theme rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
@@ -645,7 +647,7 @@ function NetworkPath({ companyId }) {
           <Network size={13} className="text-muted" />
           <span className="text-xs font-semibold uppercase tracking-wide text-muted">Network Path</span>
         </div>
-        <button onClick={load} disabled={loading} className="text-xs text-blue-500 disabled:opacity-50">
+        <button onClick={() => load(true)} disabled={loading} className="text-xs text-blue-500 disabled:opacity-50">
           {loading ? 'Analyzing…' : path ? 'Re-analyze' : 'Analyze'}
         </button>
       </div>

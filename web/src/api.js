@@ -128,7 +128,7 @@ export const api = {
   updateContact: (id, data) => patch(`/contacts/${id}`, data),
   markEmailBounced: (id) => post(`/contacts/${id}/bounce`),
   getContactNextStep: (id) => get(`/contacts/${id}/next-step`),
-  getNetworkPath: (companyId) => get(`/companies/${companyId}/network-path`),
+  getNetworkPath: (companyId, refresh = false) => get(`/companies/${companyId}/network-path${refresh ? '?refresh=true' : ''}`),
 
   // References
   listReferences: (params = {}) => { const q = new URLSearchParams(params).toString(); return get('/references' + (q ? '?' + q : '')) },

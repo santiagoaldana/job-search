@@ -351,8 +351,9 @@ async def find_contacts(company_id: int, session: Session = Depends(get_session)
 
 
 @router.get("/{company_id}/network-path")
-async def get_network_path(company_id: int, session: Session = Depends(get_session)):
-    """Return direct connections + Claude-inferred likely intro connectors."""
+async def get_network_path(company_id: int, refresh: bool = False, session: Session = Depends(get_session)):
+    """Return direct connections + Claude-inferred likely intro connectors. Caches result in DB."""
+    import json as _json
     company = session.get(Company, company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -363,6 +364,29 @@ async def get_network_path(company_id: int, session: Session = Depends(get_sessi
             Contact.connection_degree == 1,
         )
     ).all()
+
+    direct_payload = [
+        {
+            "id": c.id,
+            "name": c.name,
+            "title": c.title,
+            "linkedin_url": c.linkedin_url,
+            "warmth": c.warmth,
+            "outreach_status": c.outreach_status,
+            "met_via": getattr(c, 'met_via', None),
+            "relationship_notes": getattr(c, 'relationship_notes', None),
+        }
+        for c in direct
+    ]
+
+    # Return cached likely_connectors unless refresh requested
+    if not refresh and company.network_path_json:
+        cached = _json.loads(company.network_path_json)
+        return {
+            "direct_connections": direct_payload,
+            "likely_connectors": cached.get("likely_connectors", []),
+            "has_warm_path": len(direct) > 0,
+        }
 
     all_1st = session.exec(
         select(Contact).where(
@@ -391,7 +415,6 @@ Return ONLY a JSON array:
 
         try:
             import anthropic
-            import json
             client = anthropic.Anthropic()
             response = client.messages.create(
                 model="claude-haiku-4-5-20251001",
@@ -403,24 +426,17 @@ Return ONLY a JSON array:
                 raw = raw.split("```")[1]
                 if raw.startswith("json"):
                     raw = raw[4:]
-            likely_connectors = json.loads(raw)
+            likely_connectors = _json.loads(raw)
         except Exception:
             likely_connectors = []
 
+    # Cache result
+    company.network_path_json = _json.dumps({"likely_connectors": likely_connectors})
+    session.add(company)
+    session.commit()
+
     return {
-        "direct_connections": [
-            {
-                "id": c.id,
-                "name": c.name,
-                "title": c.title,
-                "linkedin_url": c.linkedin_url,
-                "warmth": c.warmth,
-                "outreach_status": c.outreach_status,
-                "met_via": getattr(c, 'met_via', None),
-                "relationship_notes": getattr(c, 'relationship_notes', None),
-            }
-            for c in direct
-        ],
+        "direct_connections": direct_payload,
         "likely_connectors": likely_connectors,
         "has_warm_path": len(direct) > 0,
     }
