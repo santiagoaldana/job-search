@@ -342,6 +342,19 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["company_name"],
             },
         ),
+        types.Tool(
+            name="update_company_intel",
+            description="Update or append intel notes for a company in the funnel. Use when Santiago pastes news, context, or strategic notes about a target company.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "intel": {"type": "string", "description": "Intel content to set or append to the company's intel_summary field."},
+                    "mode": {"type": "string", "enum": ["replace", "append"], "description": "Whether to replace or append to existing intel. Default: append."},
+                },
+                "required": ["company_name", "intel"],
+            },
+        ),
     ]
 
 
@@ -484,6 +497,22 @@ async def _dispatch(name: str, args: dict) -> dict:
             "motivation": args.get("motivation", 7),
             "career_page_url": args.get("career_page_url"),
         })
+
+    elif name == "update_company_intel":
+        company_name = args["company_name"]
+        intel = args["intel"]
+        mode = args.get("mode", "append")
+        results = await _get("/api/companies", {"q": company_name})
+        if not results:
+            return {"error": f"'{company_name}' not in funnel — use add_company first."}
+        company = results[0]
+        company_id = company["id"]
+        existing = company.get("intel_summary") or ""
+        if mode == "append" and existing:
+            new_intel = existing + "\n\n---\n\n" + intel
+        else:
+            new_intel = intel
+        return await _patch(f"/api/companies/{company_id}", {"intel_summary": new_intel})
 
     elif name == "add_event":
         return await _post("/api/events", {

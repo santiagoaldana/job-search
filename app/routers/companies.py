@@ -27,6 +27,7 @@ class CompanyUpdate(BaseModel):
     wttj_slug: Optional[str] = None
     org_notes: Optional[str] = None
     crunchbase_url: Optional[str] = None
+    intel_summary: Optional[str] = None
 
 
 class CompanyCreate(BaseModel):
