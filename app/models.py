@@ -72,7 +72,7 @@ class Contact(SQLModel, table=True):
     connection_degree: int = Field(default=1)  # 1=direct, 2=2nd, 3=3rd
     warmth: str = Field(default="cold")  # cold|warm|hot
     is_hiring_manager: bool = Field(default=False)
-    outreach_status: str = Field(default="none")  # none|emailed|linkedin_dm|connection_requested|met
+    outreach_status: str = Field(default="none")  # none|drafted|emailed|linkedin_dm|connection_requested|met
     connected_on: Optional[str] = Field(default=None)  # ISO date string
     met_via: Optional[str] = Field(default=None)
     relationship_notes: Optional[str] = Field(default=None)

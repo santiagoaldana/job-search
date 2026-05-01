@@ -200,6 +200,11 @@ async def generate_outreach(
             ask=req.ask,
             email_type=req.email_type,
         )
+        if contact and contact.outreach_status == "none":
+            contact.outreach_status = "drafted"
+            contact.updated_at = datetime.utcnow().isoformat()
+            session.add(contact)
+            session.commit()
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
