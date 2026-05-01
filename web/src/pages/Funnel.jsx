@@ -346,19 +346,22 @@ export default function Funnel() {
                           >+</button>
                         </div>
                       </div>
-                      {/* Short description from Apollo */}
-                      {c.org_notes && !c.intel_summary && (
-                        <div className="text-xs text-muted mt-1.5 line-clamp-2 leading-relaxed">{c.org_notes}</div>
+                      {/* Apollo enrichment: headcount */}
+                      {c.headcount_range && c.headcount_range !== 'unknown' && (
+                        <div className="text-xs text-muted mt-1">{c.headcount_range} employees</div>
                       )}
+                      {/* Description: intel_summary > org_notes > Get Intel button */}
                       {c.intel_summary
-                        ? <div className="text-xs text-muted mt-1.5 line-clamp-2 leading-relaxed">{c.intel_summary}</div>
-                        : !c.org_notes && <button
-                            onClick={(e) => getIntel(c, e)}
-                            disabled={fetchingIntel[c.id]}
-                            className="text-xs text-blue-500 mt-1.5 disabled:opacity-50"
-                          >
-                            {fetchingIntel[c.id] ? 'Getting intel…' : 'Get Intel'}
-                          </button>
+                        ? <div className="text-xs text-muted mt-1 line-clamp-2 leading-relaxed">{c.intel_summary}</div>
+                        : c.org_notes
+                          ? <div className="text-xs text-muted mt-1 line-clamp-2 leading-relaxed">{c.org_notes}</div>
+                          : <button
+                              onClick={(e) => getIntel(c, e)}
+                              disabled={fetchingIntel[c.id]}
+                              className="text-xs text-blue-500 mt-1.5 disabled:opacity-50"
+                            >
+                              {fetchingIntel[c.id] ? 'Getting intel…' : 'Get Intel'}
+                            </button>
                       }
                     </div>
                     <ChevronRight size={16} className="text-faint mt-1 flex-shrink-0" />
