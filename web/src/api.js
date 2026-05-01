@@ -137,7 +137,7 @@ export const api = {
 
   // AI Suggestions
   getSuggestions: () => get('/daily-brief/suggestions'),
-  approveSuggestion: (id) => post(`/daily-brief/suggestions/${id}/approve`),
+  approveSuggestion: (id, motivation) => post(`/daily-brief/suggestions/${id}/approve`, { motivation }),
   skipSuggestion: (id) => post(`/daily-brief/suggestions/${id}/skip`),
   runDiscovery: () => post('/daily-brief/run-discovery'),
 }

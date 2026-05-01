@@ -419,6 +419,8 @@ export default function SettingsPage() {
   const [suggestions, setSuggestions] = useState([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(true)
   const [runningDiscovery, setRunningDiscovery] = useState(false)
+  const [approvingId, setApprovingId] = useState(null)
+  const [pendingMotivation, setPendingMotivation] = useState({})
 
   const loadSuggestions = () => {
     setLoadingSuggestions(true)
@@ -431,8 +433,14 @@ export default function SettingsPage() {
   useEffect(() => { loadSuggestions() }, [])
 
   const handleApprove = async (id) => {
-    try { await api.approveSuggestion(id); setSuggestions(s => s.filter(x => x.id !== id)) }
+    const motivation = pendingMotivation[id] ?? 7
+    setApprovingId(id)
+    try {
+      await api.approveSuggestion(id, motivation)
+      setSuggestions(s => s.filter(x => x.id !== id))
+    }
     catch (e) { alert(e.message) }
+    finally { setApprovingId(null) }
   }
 
   const handleSkip = async (id) => {
@@ -495,15 +503,29 @@ export default function SettingsPage() {
                 </div>
                 {s.location_notes && <div className="text-xs text-muted mb-2">{s.location_notes}</div>}
                 {s.reason && <div className="text-xs text-muted leading-relaxed">{s.reason}</div>}
-                <div className="flex gap-2 mt-3">
-                  <button onClick={() => handleApprove(s.id)}
-                    className="flex items-center gap-1.5 flex-1 justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-2 text-xs font-medium">
-                    <Check size={12} /> Add to funnel
-                  </button>
-                  <button onClick={() => handleSkip(s.id)}
-                    className="flex items-center gap-1.5 flex-1 justify-center bg-card2 border border-theme text-body rounded-lg py-2 text-xs font-medium">
-                    <X size={12} /> Skip
-                  </button>
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted flex-shrink-0">Motivation</span>
+                    <input
+                      type="range" min={1} max={10} step={1}
+                      value={pendingMotivation[s.id] ?? 7}
+                      onChange={e => setPendingMotivation(m => ({ ...m, [s.id]: Number(e.target.value) }))}
+                      className="flex-1 accent-blue-500"
+                    />
+                    <span className="text-xs font-medium text-body w-4 text-right">
+                      {pendingMotivation[s.id] ?? 7}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => handleApprove(s.id)} disabled={approvingId === s.id}
+                      className="flex items-center gap-1.5 flex-1 justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-2 text-xs font-medium disabled:opacity-50">
+                      <Check size={12} /> Add to funnel
+                    </button>
+                    <button onClick={() => handleSkip(s.id)}
+                      className="flex items-center gap-1.5 flex-1 justify-center bg-card2 border border-theme text-body rounded-lg py-2 text-xs font-medium">
+                      <X size={12} /> Skip
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

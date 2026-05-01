@@ -1,6 +1,7 @@
 """Daily brief router — priority-ordered action list for today."""
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlmodel import Session
 
 from app.database import get_session
@@ -15,26 +16,29 @@ def get_daily_brief(session: Session = Depends(get_session)):
     return compute_daily_brief(session)
 
 
+class ApproveRequest(BaseModel):
+    motivation: int = 7
+
+
 @router.post("/suggestions/{suggestion_id}/approve")
-def approve_suggestion(suggestion_id: int, session: Session = Depends(get_session)):
-    """Approve an AI-suggested company — enters active funnel at motivation 7."""
+def approve_suggestion(suggestion_id: int, req: ApproveRequest = ApproveRequest(), session: Session = Depends(get_session)):
+    """Approve an AI-suggested company — enters active funnel with chosen motivation."""
     from app.models import AITargetSuggestion, Company
-    from datetime import datetime
 
     suggestion = session.get(AITargetSuggestion, suggestion_id)
     if not suggestion:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Suggestion not found")
 
-    # Create company if not already exists
+    motivation = max(1, min(10, req.motivation))
     company = Company(
         name=suggestion.name,
-        motivation=7,
+        motivation=motivation,
         funding_stage=suggestion.funding_stage or "unknown",
         is_archived=False,
         suggested_by_ai=True,
         stage="pool",
-        lamp_score=round(7 * 0.5 + 1.0 * 0.3 + 1.0 * 0.2, 2),
+        lamp_score=round(motivation * 0.5 + 1.0 * 0.3 + 1.0 * 0.2, 2),
     )
     session.add(company)
     session.flush()
