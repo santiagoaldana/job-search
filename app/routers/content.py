@@ -154,7 +154,7 @@ def linkedin_connect():
         "client_id": client_id,
         "redirect_uri": "https://job-search-do1r.onrender.com/linkedin/callback",
         "state": state,
-        "scope": "w_member_social r_liteprofile openid profile",
+        "scope": "openid profile email w_member_social",
     }
     auth_url = f"https://www.linkedin.com/oauth/v2/authorization?{urlencode(params)}"
     return {"auth_url": auth_url}
