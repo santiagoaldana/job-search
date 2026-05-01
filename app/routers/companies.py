@@ -264,7 +264,7 @@ async def enrich_all(background_tasks: BackgroundTasks, session: Session = Depen
 
 
 @router.post("")
-def create_company(data: CompanyCreate, session: Session = Depends(get_session)):
+def create_company(data: CompanyCreate, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     company = Company(
         name=data.name,
         motivation=data.motivation,
@@ -278,6 +278,29 @@ def create_company(data: CompanyCreate, session: Session = Depends(get_session))
     session.add(company)
     session.commit()
     session.refresh(company)
+
+    async def _enrich_new(company_id: int):
+        from app.services.apollo_enricher import enrich_company as _enrich
+        from app.database import engine as _engine
+        with Session(_engine) as s:
+            c = s.get(Company, company_id)
+            if not c:
+                return
+            try:
+                d = await _enrich(c.name)
+                if d.get("funding_stage"):
+                    c.funding_stage = d["funding_stage"]
+                if d.get("headcount_range"):
+                    c.headcount_range = d["headcount_range"]
+                if d.get("description"):
+                    c.org_notes = d["description"]
+                c.apollo_enriched_at = datetime.utcnow().isoformat()
+                s.add(c)
+                s.commit()
+            except Exception as e:
+                print(f"[enrich] {c.name}: {e}")
+
+    background_tasks.add_task(_enrich_new, company.id)
     return company
 
 
