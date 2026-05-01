@@ -36,7 +36,8 @@ export const api = {
 
   // Leads
   getLeads: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
+    const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null))
+    const q = new URLSearchParams(clean).toString()
     return get('/leads' + (q ? '?' + q : ''))
   },
   getHotLeads: () => get('/leads/hot'),
