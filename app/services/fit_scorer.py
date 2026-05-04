@@ -43,6 +43,51 @@ EXCLUDED_TITLE_EXEMPTIONS = [
 ]
 
 
+TITLE_POSITIVE_KEYWORDS = [
+    "chief", "cxo", "coo", "cto", "cpo", "ceo", "president",
+    "vp", "svp", "evp", "head of", "director", "managing director",
+    "general manager", "payments", "fintech", "embedded", "identity",
+    "agentic", "fraud", "banking", "digital", "growth",
+]
+
+DESCRIPTION_POSITIVE_KEYWORDS = [
+    "payments", "fintech", "fin-tech", "embedded banking", "digital identity",
+    "fraud", "agentic", "latam", "latin america", "banking", "financial services",
+    "series b", "series c", "growth stage", "scale", "expansion",
+    "c-suite", "executive", "leadership", "strategy", "p&l",
+]
+
+
+def rule_score_lead(lead) -> dict:
+    """
+    Free rule-based fit scorer — no API call. Replaces Claude Haiku for auto-scoring.
+    Returns same dict shape as score_lead() but with empty strengths/gaps lists.
+    """
+    title = (lead.title or "").lower()
+    location = (lead.location or "").lower()
+    description = (lead.description or "").lower()
+
+    # Base score from title seniority/relevance
+    title_hits = sum(1 for kw in TITLE_POSITIVE_KEYWORDS if kw in title)
+    base_score = min(40 + title_hits * 8, 75)
+
+    # Boost from description keyword density
+    desc_hits = sum(1 for kw in DESCRIPTION_POSITIVE_KEYWORDS if kw in description)
+    desc_boost = min(desc_hits * 3, 20)
+
+    fit_score = float(base_score + desc_boost)
+    fit_score = _apply_role_type_penalty(lead.title or "", fit_score)
+    location_compatible = _is_location_compatible(location, lead.title or "", fit_score)
+
+    return {
+        "fit_score": round(fit_score, 1),
+        "fit_strengths": [],
+        "fit_gaps": [],
+        "location_compatible": location_compatible,
+        "reasoning": "rule-based score — click 'Deep Score' for AI analysis",
+    }
+
+
 def _apply_role_type_penalty(title: str, fit_score: float) -> float:
     title_lower = title.lower()
     if any(exempt in title_lower for exempt in EXCLUDED_TITLE_EXEMPTIONS):

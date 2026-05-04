@@ -54,15 +54,6 @@ async def job_daily_morning():
 
 
 
-async def job_startup_discovery():
-    """Weekly: surface new Series B/C targets via Claude."""
-    try:
-        from app.services.startup_discovery import run_discovery
-        await run_discovery()
-    except Exception as e:
-        print(f"[scheduler] startup_discovery error: {e}")
-
-
 async def job_linkedin_publish():
     """Every 30 min: publish scheduled LinkedIn posts whose time has arrived."""
     try:
@@ -131,13 +122,6 @@ async def lifespan(app: FastAPI):
         job_daily_morning,
         CronTrigger(hour=7, minute=0),
         id="daily_morning",
-        replace_existing=True,
-    )
-    # Sunday 7am: startup discovery
-    scheduler.add_job(
-        job_startup_discovery,
-        CronTrigger(day_of_week="sun", hour=7),
-        id="startup_discovery",
         replace_existing=True,
     )
     # 7:45am and 12:45pm daily: publish scheduled LinkedIn posts (was every 30 min)

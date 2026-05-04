@@ -6,6 +6,7 @@ import PageHeader from '../components/PageHeader'
 import Badge from '../components/Badge'
 import FitBar from '../components/FitBar'
 import Spinner from '../components/Spinner'
+import AICostBadge from '../components/AICostBadge'
 
 export default function Leads() {
   const [leads, setLeads] = useState([])
@@ -280,8 +281,11 @@ function LeadCard({ lead, expanded, onToggle, onMarkApplied, onSalaryParsed, nav
           <button
             onClick={handleParseSalary}
             disabled={parsingSalary}
-            className="text-xs text-blue-500 underline disabled:opacity-50"
-          >{parsingSalary ? 'Parsing…' : 'Parse salary'}</button>
+            className="inline-flex items-center gap-1.5 text-xs text-blue-500 underline disabled:opacity-50"
+          >
+            {parsingSalary ? 'Parsing…' : 'Parse salary'}
+            {!parsingSalary && <AICostBadge model="haiku" cost="$0.001" />}
+          </button>
         </div>
       ) : null}
 
@@ -308,9 +312,10 @@ function LeadCard({ lead, expanded, onToggle, onMarkApplied, onSalaryParsed, nav
         )}
         <button
           onClick={() => navigate(`/cv?lead_id=${lead.id}`)}
-          className="bg-blue-500 text-white text-xs font-medium px-3 py-2.5 rounded-lg flex-shrink-0"
+          className="bg-blue-500 text-white text-xs font-medium px-3 py-2.5 rounded-lg flex-shrink-0 flex items-center gap-1.5"
         >
           Tailor CV
+          <AICostBadge model="opus" cost="$0.07" />
         </button>
       </div>
     </div>

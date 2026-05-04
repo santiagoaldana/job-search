@@ -222,13 +222,13 @@ async def get_company_jobs(company) -> list:
 
 async def refresh_company(company) -> int:
     """
-    Scrape a company's career page, fit-score new leads, save to DB.
-    Returns count of new leads added.
+    Scrape a company's career page, rule-score new leads, save to DB.
+    Returns count of new leads added. No Claude API calls — scoring is rule-based.
     """
     from app.database import engine
     from sqlmodel import Session, select
     from app.models import Lead
-    from app.services.fit_scorer import score_lead
+    from app.services.fit_scorer import rule_score_lead
 
     jobs = await get_company_jobs(company)
     if not jobs:
@@ -258,15 +258,12 @@ async def refresh_company(company) -> int:
                 fetched_date=datetime.utcnow().isoformat(),
             )
 
-            # Fit-score immediately
-            try:
-                score = await score_lead(lead)
-                lead.fit_score = score["fit_score"]
-                lead.fit_strengths = json.dumps(score["fit_strengths"])
-                lead.fit_gaps = json.dumps(score["fit_gaps"])
-                lead.location_compatible = score["location_compatible"]
-            except Exception:
-                lead.location_compatible = True
+            # Rule-based scoring — free, no API call
+            score = rule_score_lead(lead)
+            lead.fit_score = score["fit_score"]
+            lead.fit_strengths = json.dumps(score["fit_strengths"])
+            lead.fit_gaps = json.dumps(score["fit_gaps"])
+            lead.location_compatible = score["location_compatible"]
 
             session.add(lead)
             new_count += 1

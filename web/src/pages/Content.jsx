@@ -4,6 +4,7 @@ import { api } from '../api'
 import PageHeader from '../components/PageHeader'
 import Badge from '../components/Badge'
 import Spinner from '../components/Spinner'
+import AICostBadge from '../components/AICostBadge'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -221,9 +222,10 @@ function ComposeModal({ onClose, onSaved }) {
         <button
           onClick={handleCompose}
           disabled={composing || !context.trim()}
-          className="w-full bg-blue-500 text-white rounded-xl py-3 text-sm font-medium disabled:opacity-50"
+          className="w-full bg-blue-500 text-white rounded-xl py-3 text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {composing ? 'Generating…' : 'Generate Post'}
+          {!composing && <AICostBadge model="opus" cost="$0.04" />}
         </button>
       </div>
     </div>
@@ -362,9 +364,10 @@ function DraftCard({ draft, onScheduled, onApprovedOnly, onDiscard, onRegenerate
                 <button
                   onClick={handleRegenerate}
                   disabled={regenerating || !instructions.trim()}
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-medium"
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-medium flex items-center justify-center gap-1.5"
                 >
                   {regenerating ? 'Regenerating…' : 'Regenerate'}
+                  {!regenerating && <AICostBadge model="opus" cost="$0.03" />}
                 </button>
                 <button
                   onClick={() => { setEditMode(null); setInstructions('') }}
@@ -577,8 +580,11 @@ function SubstackTab() {
             <button
               onClick={handleGenerate}
               disabled={generating || !topic.trim()}
-              className="bg-blue-500 text-white text-sm px-4 py-2 rounded-lg disabled:opacity-50"
-            >{generating ? 'Generating…' : 'Generate'}</button>
+              className="bg-blue-500 text-white text-sm px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {generating ? 'Generating…' : 'Generate'}
+              {!generating && <AICostBadge model="opus" cost="$0.08" />}
+            </button>
             <button onClick={() => setShowTopicInput(false)} className="text-sm text-muted px-4 py-2">Cancel</button>
           </div>
         </div>
@@ -691,6 +697,7 @@ export default function Content() {
               className="flex items-center gap-1.5 text-sm text-muted disabled:opacity-50">
               <RefreshCw size={14} className={generating ? 'animate-spin' : ''} />
               Generate
+              {!generating && <AICostBadge model="opus" cost="$0.12" />}
             </button>
           </div>
         ) : null}
@@ -724,8 +731,9 @@ export default function Content() {
             <div className="py-12 text-center">
               <div className="text-muted text-sm mb-4">No drafts yet</div>
               <button onClick={handleGenerate} disabled={generating}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50">
+                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2">
                 {generating ? 'Generating…' : 'Generate from latest FinTech news'}
+                {!generating && <AICostBadge model="opus" cost="$0.12" />}
               </button>
             </div>
           )}

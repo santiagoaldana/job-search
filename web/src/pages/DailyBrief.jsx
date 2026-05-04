@@ -4,6 +4,7 @@ import { AlertCircle, Flame, Calendar, Mail, BookOpen, Send, Lightbulb, RefreshC
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
+import AICostBadge from '../components/AICostBadge'
 
 const SECTION_ICONS = {
   positions: Briefcase,
@@ -244,10 +245,11 @@ function Section({ title, icon: Icon, items, onAction, badge, badgeColor = 'blue
                       {action.detail && (
                         <div className="text-xs text-muted mt-0.5 leading-relaxed">{action.detail}</div>
                       )}
-                      <div className="mt-2">
+                      <div className="mt-2 flex items-center gap-2">
                         <span className={`text-xs font-semibold ${isFollowUp ? 'text-red-500' : 'text-blue-500'}`}>
                           {action.cta} →
                         </span>
+                        {isFollowUp && <AICostBadge model="haiku" cost="$0.003" />}
                       </div>
                     </div>
                   </div>

@@ -4,6 +4,7 @@ import { Send, Check, X, Download, ChevronDown, ChevronUp, FileText, Copy } from
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
+import AICostBadge from '../components/AICostBadge'
 
 export default function CVPage() {
   const [instruction, setInstruction] = useState('')
@@ -182,6 +183,7 @@ export default function CVPage() {
             >
               {loading ? <Spinner size={4} /> : <Send size={14} />}
               {loading ? 'Editing…' : 'Edit'}
+              {!loading && <AICostBadge model="opus" cost="$0.06" />}
             </button>
           </div>
         </div>
@@ -247,6 +249,7 @@ export default function CVPage() {
             className="w-full mt-2 flex items-center justify-center gap-2 bg-card2 hover:bg-card border border-theme text-body rounded-lg py-2.5 text-sm font-medium disabled:opacity-50">
             {scoring ? <Spinner size={4} /> : null}
             {scoring ? 'Scoring…' : 'Check ATS Score'}
+            {!scoring && <AICostBadge model="haiku" cost="$0.003" />}
           </button>
 
           {atsScore && (
@@ -361,6 +364,7 @@ export default function CVPage() {
               >
                 {coverLoading ? <Spinner size={4} /> : <FileText size={14} />}
                 {coverLoading ? 'Generating… (~15s)' : 'Generate Cover Letter'}
+                {!coverLoading && <AICostBadge model="opus" cost="$0.09" />}
               </button>
 
               {coverResult && (
