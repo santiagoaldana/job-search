@@ -343,6 +343,7 @@ def get_conversation_history(outreach_id: int) -> List[dict]:
     """
     Retrieve full conversation history for an outreach record.
     Returns list of messages sorted by date, with last 10 messages or ~3KB context max.
+    Falls back to synthesizing from OutreachRecord if no ConversationMessage entries exist.
 
     Args:
         outreach_id: ID of OutreachRecord
@@ -356,7 +357,20 @@ def get_conversation_history(outreach_id: int) -> List[dict]:
                 ConversationMessage.outreach_record_id == outreach_id
             ).order_by(ConversationMessage.message_date.asc()).all()
 
+            # If no stored messages, reconstruct from OutreachRecord
             if not messages:
+                record = session.query(DBOutreachRecord).filter(
+                    DBOutreachRecord.id == outreach_id
+                ).first()
+                if record and record.subject and record.body:
+                    return [{
+                        "date": record.sent_at or record.created_at,
+                        "from_email": "santiago@aidatasolutions.co",
+                        "from_name": "Santiago Aldana",
+                        "subject": record.subject,
+                        "body_preview": record.body[:200] if record.body else "",
+                        "message_type": "outreach",
+                    }]
                 return []
 
             # Limit to last 10 messages and ~3KB of context
