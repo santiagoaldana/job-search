@@ -301,9 +301,19 @@ async def draft_followup(
     if "error" in draft:
         raise HTTPException(status_code=400, detail=draft["error"])
 
-    # Check if conversation history exists (for UI indication)
+    # Fetch conversation history (zero API cost — just database read)
     from skills.outreach_tracker import get_conversation_history
     history = get_conversation_history(record_id) if record_id else []
+
+    # Format conversation for display
+    conversation_text = ""
+    if history:
+        for msg in reversed(history[-5:]):  # Last 5 messages, reversed for chronological order
+            conversation_text += f"\n{'='*60}\n"
+            conversation_text += f"From: {msg.get('from_name', msg.get('from_email', 'Unknown'))}\n"
+            conversation_text += f"Date: {msg.get('date', 'Unknown')}\n"
+            conversation_text += f"Subject: {msg.get('subject', '(no subject)')}\n"
+            conversation_text += f"---\n{msg.get('body_preview', '')}\n"
 
     return {
         "subject": draft.get("subject"),
@@ -311,6 +321,8 @@ async def draft_followup(
         "stage": draft.get("stage"),
         "template_used": draft.get("template_used", True),
         "has_conversation_context": len(history) > 0,
+        "conversation_history": history,  # Full structured history for UI to display
+        "conversation_text": conversation_text,  # Plain text version for easy reading
         "followup_day": req.followup_day,
         "company_name": company.name if company else "Unknown",
         "contact_name": contact.name if contact else "Unknown",
