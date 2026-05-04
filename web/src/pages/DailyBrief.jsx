@@ -152,7 +152,7 @@ function FollowUpModal({ action, onClose, onSent }) {
             <>
               {conversation && (
                 <div className="mb-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                  <label className="text-xs font-semibold text-muted mb-2 block">Previous Conversation</label>
+                  <label className="text-xs font-semibold text-muted mb-2 block">📧 Previous Conversation</label>
                   <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-32 overflow-y-auto font-mono leading-relaxed">
                     {conversation}
                   </pre>
