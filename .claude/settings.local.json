@@ -228,7 +228,9 @@
       "Bash(cat)",
       "Bash(python3 /tmp/check_leads.py)",
       "Bash(python3 /tmp/check_jegen.py)",
-      "Bash(python3 /tmp/cleanup.py)"
+      "Bash(python3 /tmp/cleanup.py)",
+      "Bash(python3 /tmp/check_jegen_reply.py)",
+      "Bash(python3 /tmp/cleanup_outreach.py)"
     ],
     "additionalDirectories": [
       "/Users/santiagoaldana/.cloudflared",

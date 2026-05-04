@@ -392,22 +392,7 @@ def send_followup(
         record.follow_up_7_sent = True
     record.updated_at = datetime.utcnow().isoformat()
 
-    # Log new outreach record for the follow-up itself
-    follow_up_record = OutreachRecord(
-        company_id=record.company_id,
-        contact_id=record.contact_id,
-        lead_id=record.lead_id,
-        channel="email",
-        subject=req.subject,
-        body=req.body,
-        sent_at=datetime.utcnow().isoformat(),
-        response_status="pending",
-        follow_up_3_due=(today + timedelta(days=3)).isoformat(),
-        follow_up_7_due=(today + timedelta(days=7)).isoformat(),
-    )
-
     session.add(record)
-    session.add(follow_up_record)
     session.commit()
 
     return {"ok": True, "mailto_url": mailto_url, "to_email": to_email or None}

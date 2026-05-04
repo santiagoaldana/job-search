@@ -269,16 +269,6 @@ export default function OutreachPage() {
     }
   }
 
-  const dedup = (list) => {
-    const seen = new Set()
-    return list.filter(r => {
-      const key = `${r.company_id}-${r.contact_id}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-  }
-
   const sort = (list, isGhosted) => {
     if (isGhosted) {
       return [...list].sort((a, b) => daysSince(b.sent_at) - daysSince(a.sent_at))
@@ -294,8 +284,8 @@ export default function OutreachPage() {
   }
 
   const shown = tab === 'active'
-    ? sort(dedup(records.active), false)
-    : sort(dedup(records.ghosted), true)
+    ? sort(records.active, false)
+    : sort(records.ghosted, true)
 
   return (
     <div className="flex flex-col min-h-screen bg-app">
@@ -316,7 +306,7 @@ export default function OutreachPage() {
             <Icon size={14} />
             {label}
             <span className="ml-1 text-xs bg-slate-100 dark:bg-slate-800 rounded-full px-1.5 py-0.5">
-              {dedup(records[key] || []).length}
+              {(records[key] || []).length}
             </span>
           </button>
         ))}
