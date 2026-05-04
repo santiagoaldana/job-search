@@ -476,6 +476,9 @@ function ContactModal({ company, contact, onClose, onSaved }) {
   const [nextStep, setNextStep] = useState(null)
   const [savedContactName, setSavedContactName] = useState('')
   const [allContacts, setAllContacts] = useState([])
+  const [outreachDone, setOutreachDone] = useState(false)
+  const [outreachChannel, setOutreachChannel] = useState('linkedin')
+  const [outreachDate, setOutreachDate] = useState(new Date().toISOString().slice(0, 10))
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
 
@@ -536,7 +539,17 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           relationship_notes: form.relationship_notes || undefined,
           introduced_by_contact_id: introducedById,
         })
-        if (result.next_step) {
+        if (outreachDone && result.contact_id) {
+          await api.createOutreach({
+            company_id: company.id,
+            contact_id: result.contact_id,
+            channel: outreachChannel,
+            sent_at: outreachDate + 'T00:00:00',
+            subject: `${outreachChannel === 'linkedin' ? 'LinkedIn connection request' : 'Email outreach'} — ${form.name.trim()}`,
+            body: `${outreachChannel === 'linkedin' ? 'Sent LinkedIn connection request' : 'Sent email outreach'} to ${form.name.trim()} at ${company.name}.`,
+          })
+        }
+        if (result.next_step && !outreachDone) {
           setSavedContactName(form.name.trim())
           setNextStep(result.next_step)
         } else {
@@ -649,6 +662,46 @@ function ContactModal({ company, contact, onClose, onSaved }) {
               ))}
             </select>
           </div>
+
+          {!isEdit && (
+            <div className="border border-theme rounded-xl p-3 space-y-2 bg-slate-50 dark:bg-slate-900/40">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-body">Already reached out?</label>
+                <button
+                  type="button"
+                  onClick={() => setOutreachDone(v => !v)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${outreachDone ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${outreachDone ? 'translate-x-5' : ''}`} />
+                </button>
+              </div>
+              {outreachDone && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex gap-2">
+                    {['linkedin', 'email'].map(ch => (
+                      <button
+                        key={ch}
+                        type="button"
+                        onClick={() => setOutreachChannel(ch)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${outreachChannel === ch ? 'bg-blue-500 text-white border-blue-500' : 'border-theme text-muted'}`}
+                      >
+                        {ch === 'linkedin' ? 'LinkedIn' : 'Email'}
+                      </button>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted block mb-1">Date sent</label>
+                    <input
+                      type="date"
+                      value={outreachDate}
+                      onChange={e => setOutreachDate(e.target.value)}
+                      className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
