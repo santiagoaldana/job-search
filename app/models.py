@@ -28,7 +28,7 @@ class Company(SQLModel, table=True):
     suggested_by_ai: bool = Field(default=False)
 
     # Company metadata
-    funding_stage: str = Field(default="unknown")  # series_b|series_c|series_d|public|unknown
+    funding_stage: str = Field(default="unknown")  # series_b|series_c|series_d|series_e|series_f|series_g|series_h|public|unknown
     headcount_range: str = Field(default="unknown")  # 1-50|51-200|201-500|500+|unknown
 
     # Scraper routing

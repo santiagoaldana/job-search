@@ -43,7 +43,7 @@ Current:
   new financial services. Leveraging AI, payments, and blockchain expertise for
   agentic AI, fraud prevention, AI for financial processes, and marketing.
 - Managing Partner, AI Data Solutions — exclusive LATAM distribution of
-  Maven AGI (Agentic AI for CX). Contact: santiago@aidatasolutions.ai
+  Maven AGI (Agentic AI for CX).
 
 Education: MIT Sloan MBA (Strategy, Innovation & Technology);
 Industrial Engineering — Universidad de los Andes.

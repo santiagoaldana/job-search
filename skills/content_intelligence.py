@@ -49,7 +49,7 @@ TOPIC_FOCUS = [
     "BNPL", "cross-border payments", "tokenization", "real-time payments",
     "RTP", "FedNow", "central bank digital currency", "CBDC",
     "fraud prevention", "KYC", "AML", "crypto payments", "fintech",
-    "neobank", "challenger bank", "payment orchestration",
+    "neobank", "challenger bank", "payment orchestration", 
 ]
 
 # ── Data Models ───────────────────────────────────────────────────────────────
@@ -207,8 +207,7 @@ No explanation. Just the array."""
 
 # ── LinkedIn Post Drafting ────────────────────────────────────────────────────
 
-DRAFT_PROMPT = """You are a ghostwriter for a senior FinTech executive who wants to build a reputation
-as a contrarian thinker — not a cheerleader for consensus views.
+DRAFT_PROMPT = """You are a Strategic Executive Architect. You combine the high-stakes positioning of a PR Expert, the market-matching insight of an Executive Search Consultant, and the tactical communication style of a Leadership Coach. Your goal is to help Santiago build "Intellectual Authority" on LinkedIn without ever appearing to be job hunting.
 
 EXECUTIVE PROFILE:
 {profile}
@@ -219,11 +218,21 @@ Source: {source}
 URL: {url}
 Summary: {summary}
 
-Write a LinkedIn post (200–280 words) that:
-1. OPENS with a non-obvious or contrarian observation — challenge the article's premise or highlight what it misses, or surface a tension the industry isn't discussing
-2. REFERENCES one specific experience from Santiago's career that gives him standing to make this claim (e.g., "When we scaled SoyYo to 3M users...", "At Avianca, managing $110M in IT spend taught me...")
-3. ENDS with one sharp, genuinely debatable question — not a rhetorical one, but one where reasonable experts would disagree
-4. AVOIDS: "excited to share", "great article", "I believe", "thrilled", "honored", generic takes, platitudes, emojis, hashtag spam (max 3 relevant hashtags at the end only)
+WRITING PRINCIPLES:
+- First Principles: Do not use clichés. Break every topic down to its fundamental truths (e.g., instead of "improving payments," discuss the "atomic unit of trust in digital exchange").
+- Anti-Sales Mandate: Never use hashtags like #Hiring or #OpenToWork. Make Santiago appear so deeply embedded in the future of the industry that his "next move" feels like an inevitable evolution, not a request.
+- Style: Clever, minimalist, authoritative. Short, punchy sentences. No corporate jargon (use "friction" not "synergistic challenges"). No dashes: use colons, semicolons, and commas instead.
+- Hook: The first line must be a "Pattern Interrupt": it challenges a common assumption, states a surprising fact, or shows deep literacy on the topic.
+- No emojis. Max 3 relevant hashtags at the end only. Avoid: "excited to share", "great article", "I believe", "thrilled", "honored", platitudes.
+
+ANALYSIS FRAMEWORK (apply all three lenses in the post):
+1. Macro Trend: Why does this topic matter to the economy or industry right now?
+2. The "So What?": What is the non-obvious insight only Santiago can offer, grounded in specific career experience? (e.g., "When we scaled SoyYo to 3M users...", "At Avianca, managing $110M in IT spend taught me...")
+3. Call to Conversation: End with a high-level question that invites peers (CEOs, Founders) to comment: not rhetorical, but one where reasonable experts would genuinely disagree.
+
+TRANSFORMATION FILTER: When the topic touches AI, Payments, Identity, or Stablecoins, position Santiago as the strategist who understands both the code and the culture, with the capacity to be hands-on as an entrepreneur and a senior executive in regulated industries. Highlight the Execution Gap: the distance between what the technology promises and what organizations can actually deliver.
+
+Generate a post of appropriate length to gain traction on LinkedIn (typically 150-300 words; longer if the topic demands depth).
 
 Return ONLY valid JSON (no markdown, no explanation):
 {{

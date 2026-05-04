@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Literal
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from pydantic import BaseModel
@@ -33,7 +33,7 @@ class CompanyUpdate(BaseModel):
 class CompanyCreate(BaseModel):
     name: str
     motivation: int = 7
-    funding_stage: str = "unknown"
+    funding_stage: Literal["series_b", "series_c", "series_d", "series_e", "series_f", "series_g", "series_h", "public", "unknown"] = "unknown"
     career_page_url: Optional[str] = None
     suggested_by_ai: bool = False
 

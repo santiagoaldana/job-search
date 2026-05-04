@@ -1,5 +1,5 @@
 # Event Discovery Report
-_Generated: 2026-04-20 08:00_  
+_Generated: 2026-04-27 08:13_  
 _Scope: Boston/Cambridge hub + MIT ecosystem + Global Strategic forums_
 _Events scored: Utility − (Risk × 0.4) = Net Score_
 
@@ -67,26 +67,6 @@ _Events scored: Utility − (Risk × 0.4) = Net Score_
 
 ---
 
-### PHYSICAL AI HAPPY HOUR, BOSTON
-- **Date**: 2026-04-23
-- **Location**: Somerville, Massachusetts
-- **Cost**: Free
-- **Utility**: 7/10 | **Risk**: 1/10 | **Net Score**: 6.6
-- **URL**: https://lu.ma/elebmd85
-- **Context**: Auto-discovered via Luma (boston). 1 keyword matches. 
-
----
-
-### Rainbow Dreams: Lisa Frank Inspired DIY Sticker Workshop
-- **Date**: 2026-04-24
-- **Location**: Boston, Massachusetts
-- **Cost**: Free
-- **Utility**: 7/10 | **Risk**: 1/10 | **Net Score**: 6.6
-- **URL**: https://lu.ma/uyus9msq
-- **Context**: Auto-discovered via Luma (boston). 1 keyword matches. 
-
----
-
 ### Building an AI Research Copilot with Hybrid Search and Knowledge Graphs
 - **Date**: 2026-04-27
 - **Location**: Peabody, Massachusetts
@@ -129,7 +109,7 @@ _Events scored: Utility − (Risk × 0.4) = Net Score_
 
 ### Techstars Startup Weekend Boston
 - **Date**: 2026-05-01
-- **Location**: Boston, Massachusetts
+- **Location**: Boston, MA
 - **Cost**: Free
 - **Utility**: 7/10 | **Risk**: 1/10 | **Net Score**: 6.6
 - **URL**: https://lu.ma/0pckwwi8
@@ -143,6 +123,26 @@ _Events scored: Utility − (Risk × 0.4) = Net Score_
 - **Cost**: Free
 - **Utility**: 7/10 | **Risk**: 1/10 | **Net Score**: 6.6
 - **URL**: https://lu.ma/3hxy1qop
+- **Context**: Auto-discovered via Luma (boston). 1 keyword matches. 
+
+---
+
+### The New Fundraising Playbook for the AI Age
+- **Date**: 2026-05-06
+- **Location**: Boston, Massachusetts
+- **Cost**: Free
+- **Utility**: 7/10 | **Risk**: 1/10 | **Net Score**: 6.6
+- **URL**: https://lu.ma/aupneusd
+- **Context**: Auto-discovered via Luma (boston). 1 keyword matches. 
+
+---
+
+### AI Systems: From Copilots to Autonomous Operators
+- **Date**: 2026-05-07
+- **Location**: Cambridge, Massachusetts
+- **Cost**: Free
+- **Utility**: 7/10 | **Risk**: 1/10 | **Net Score**: 6.6
+- **URL**: https://lu.ma/1ycd50ck
 - **Context**: Auto-discovered via Luma (boston). 1 keyword matches. 
 
 ---
