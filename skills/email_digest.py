@@ -199,6 +199,61 @@ def _render_event_card(event: dict) -> str:
 </div>"""
 
 
+def get_recent_replies(hours: int = 24) -> list[dict]:
+    """
+    Fetch outreach records that received replies in the last N hours.
+    Returns list of dicts: [{contact_name, company_name, sent_date, days_elapsed, notes_snippet}]
+    """
+    try:
+        with Session(engine) as session:
+            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            records = session.query(OutreachRecord).filter(
+                OutreachRecord.response_status == "pending",
+                OutreachRecord.updated_at >= cutoff_time.isoformat(),
+            ).order_by(OutreachRecord.updated_at.desc()).all()
+
+            replies = []
+            for rec in records:
+                # Check notes for [Auto] reply indication
+                if "[Auto] Reply" not in (rec.notes or ""):
+                    continue
+
+                company = session.get(Company, rec.company_id) if rec.company_id else None
+                contact = session.get(Contact, rec.contact_id) if rec.contact_id else None
+
+                # Calculate days since sent
+                days_elapsed = 0
+                if rec.sent_at:
+                    try:
+                        sent_date = datetime.fromisoformat(rec.sent_at[:10]).date()
+                        days_elapsed = (datetime.utcnow().date() - sent_date).days
+                    except (ValueError, TypeError):
+                        pass
+
+                # Extract reply snippet from notes
+                notes_snippet = ""
+                if rec.notes and "[Auto] Reply" in rec.notes:
+                    lines = rec.notes.split("\n")
+                    for i, line in enumerate(lines):
+                        if "[Auto] Reply" in line:
+                            notes_snippet = line[:150]  # 150 char snippet
+                            break
+
+                replies.append({
+                    "contact_name": contact.name if contact else "Unknown",
+                    "company_name": company.name if company else "Unknown",
+                    "sent_date": rec.sent_at[:10] if rec.sent_at else "Unknown",
+                    "days_elapsed": days_elapsed,
+                    "notes_snippet": notes_snippet,
+                    "outreach_id": rec.id,
+                })
+
+            return replies
+    except Exception as e:
+        print(f"[Email Digest] Warning: Could not fetch recent replies: {e}", file=sys.stderr)
+        return []
+
+
 def _render_section(title: str, events: list[dict], icon: str = "") -> str:
     if not events:
         return ""
@@ -213,17 +268,51 @@ def _render_section(title: str, events: list[dict], icon: str = "") -> str:
 </div>"""
 
 
-def render_html(grouped: dict[str, list[dict]], date_range_label: str) -> str:
+def render_html(grouped: dict[str, list[dict]], date_range_label: str, recent_replies: list[dict] = None) -> str:
     """
-    Render the full HTML email from grouped events.
+    Render the full HTML email from grouped events and recent replies.
     All CSS is inline — required for email client compatibility.
     max-width: 600px for mobile readability.
     """
+    if recent_replies is None:
+        recent_replies = []
+
     now_str = datetime.now().strftime("%B %-d, %Y at %-I:%M %p")
     total = sum(len(v) for v in grouped.values())
 
+    # Build replies section
+    replies_content = ""
+    if recent_replies:
+        replies_content = '<div style="padding:20px 32px;border-bottom:1px solid #eee;">'
+        replies_content += '<h2 style="margin:0 0 16px;font-size:16px;font-weight:600;color:#0d6a1c;">🔔 Replies Received</h2>'
+        for reply in recent_replies[:10]:  # Limit to 10 most recent
+            contact = reply.get("contact_name", "Unknown")
+            company = reply.get("company_name", "Unknown")
+            days = reply.get("days_elapsed", 0)
+            snippet = reply.get("notes_snippet", "")
+
+            replies_content += f'''
+<div style="padding:12px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">
+  <div style="margin:0;color:#333;">
+    <strong>{contact}</strong> @ {company}
+  </div>
+  <div style="margin:4px 0 0;color:#666;font-size:12px;">
+    Replied {days} day{"s" if days != 1 else ""} after initial outreach
+  </div>
+  <div style="margin:4px 0 0;color:#888;font-size:11px;font-style:italic;">
+    {snippet[:100]}...
+  </div>
+  <div style="margin:8px 0 0;">
+    <a href="mailto:" style="color:#0057b7;text-decoration:none;font-size:12px;">
+      → View conversation & draft Day-3 follow-up
+    </a>
+  </div>
+</div>'''
+
+        replies_content += '</div>'
+
     # Empty state
-    if total == 0:
+    if total == 0 and not recent_replies:
         body_content = """
 <div style="padding:40px 32px;text-align:center;color:#888;">
   <div style="font-size:32px;margin-bottom:12px;">📭</div>
@@ -237,7 +326,7 @@ def render_html(grouped: dict[str, list[dict]], date_range_label: str) -> str:
         this_week = _render_section("This Week", grouped["THIS_WEEK"], "🔥")
         this_month = _render_section("This Month", grouped["THIS_MONTH"], "📅")
         upcoming = _render_section("Upcoming", grouped["UPCOMING"], "🗓")
-        body_content = this_week + this_month + upcoming
+        body_content = replies_content + this_week + this_month + upcoming
 
     # Legend
     legend_items = "".join(
@@ -364,35 +453,41 @@ def send_email(
 def run() -> str:
     """
     Main entry point called by orchestrate.py digest command.
-    Loads events → groups → renders → sends.
+    Loads events → groups → fetches recent replies → renders → sends.
     Returns status string. Does not raise — all errors are caught and reported.
     """
     cache_path = DATA_DIR / "events_cache.json"
 
     # 1. Load events
     events = load_events(cache_path)
-    if not events:
-        msg = "[Email Digest] No upcoming events found in cache. Run 'events' module first."
+
+    # 2. Fetch recent replies
+    recent_replies = get_recent_replies(hours=24)
+
+    if not events and not recent_replies:
+        msg = "[Email Digest] No upcoming events or recent replies found."
         print(msg)
         return msg
 
-    # 2. Group
-    grouped = group_events(events)
+    # 3. Group events
+    grouped = group_events(events) if events else {"THIS_WEEK": [], "THIS_MONTH": [], "UPCOMING": []}
 
-    # 3. Build date range label for subject + header
+    # 4. Build date range label for subject + header
     today = datetime.now()
     monday = today - timedelta(days=today.weekday())
     sunday = monday + timedelta(days=6)
     date_range = f"{monday.strftime('%b %-d')} – {sunday.strftime('%b %-d, %Y')}"
     subject = f"📅 Your Week in Events — {date_range}"
 
-    # 4. Render HTML
-    html = render_html(grouped, date_range)
+    # 5. Render HTML
+    html = render_html(grouped, date_range, recent_replies=recent_replies)
 
-    # 5. Send
+    # 6. Send
     try:
         send_email(html, subject)
-        result = f"Email digest sent to {EMAIL_ADDRESS} — {sum(len(v) for v in grouped.values())} events"
+        event_count = sum(len(v) for v in grouped.values())
+        reply_count = len(recent_replies)
+        result = f"Email digest sent to {EMAIL_ADDRESS} — {event_count} events, {reply_count} recent replies"
         print(f"[Email Digest] {result}")
         return result
     except RuntimeError as e:
@@ -416,14 +511,15 @@ if __name__ == "__main__":
 
     cache_path = DATA_DIR / "events_cache.json"
     events = load_events(cache_path)
-    grouped = group_events(events)
+    grouped = group_events(events) if events else {"THIS_WEEK": [], "THIS_MONTH": [], "UPCOMING": []}
+    recent_replies = get_recent_replies(hours=24)
 
     today = datetime.now()
     monday = today - timedelta(days=today.weekday())
     sunday = monday + timedelta(days=6)
     date_range = f"{monday.strftime('%b %-d')} – {sunday.strftime('%b %-d, %Y')}"
 
-    html = render_html(grouped, date_range)
+    html = render_html(grouped, date_range, recent_replies=recent_replies)
 
     preview_path = DATA_DIR / "digest_preview.html"
     preview_path.write_text(html, encoding="utf-8")
@@ -431,6 +527,7 @@ if __name__ == "__main__":
     print(f"[Email Digest] Events loaded: {len(events)}")
     for group, evs in grouped.items():
         print(f"  {group}: {len(evs)}")
+    print(f"[Email Digest] Recent replies: {len(recent_replies)}")
 
     # Open in default browser for visual inspection
     _sp.run(["open", str(preview_path)])

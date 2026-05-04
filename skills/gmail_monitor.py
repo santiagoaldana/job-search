@@ -503,12 +503,13 @@ def _extract_body(payload: dict) -> str:
 
 # ── Contact Matching ──────────────────────────────────────────────────────────
 
-def match_to_contact(from_email: str, from_name: str, tracker_records: list) -> Optional[dict]:
+def match_to_contact(from_email: str, from_name: str, tracker_records: list, email_body: str = "", subject: str = "") -> Optional[dict]:
     """
-    3-pass matching against outreach tracker:
+    4-pass matching against outreach tracker:
       Pass 1: exact email match on contact_email field
       Pass 2: domain match (same company domain) + name partial match
       Pass 3: name token overlap (≥2 tokens matching, case-insensitive)
+      Pass 4: thread continuity — if email contains reply markers (Re:, quoted text >, wrote:)
     Returns the matching OutreachRecord dict or None.
     """
     from_email = from_email.lower().strip()
@@ -535,6 +536,21 @@ def match_to_contact(from_email: str, from_name: str, tracker_records: list) -> 
         for rec in tracker_records:
             rec_name_tokens = set(rec.get("contact_name", "").lower().split())
             if len(name_tokens & rec_name_tokens) >= 2:
+                return rec
+
+    # Pass 4: thread continuity — strong signal of reply if email contains reply markers
+    is_likely_reply = (
+        subject.lower().startswith("re:") or
+        subject.lower().startswith("fwd:") or
+        "\n>" in email_body or  # quoted text
+        "wrote:" in email_body.lower() or
+        "on " in email_body.lower() and " wrote:" in email_body.lower()  # "On [date] wrote:"
+    )
+    if is_likely_reply and len(name_tokens) >= 1:
+        # More lenient matching for likely replies — single token match is enough
+        for rec in tracker_records:
+            rec_name_tokens = set(rec.get("contact_name", "").lower().split())
+            if name_tokens & rec_name_tokens:
                 return rec
 
     return None
@@ -1259,6 +1275,8 @@ def run_monitor_cycle(args=None) -> str:
                     email_data["from_email"],
                     email_data["from_name"],
                     tracker_records,
+                    email_body=email_data.get("body_full", ""),
+                    subject=email_data.get("subject", ""),
                 )
                 if matched:
                     update_tracker_on_reply(matched, email_data, tracker_records, tracker_path)
