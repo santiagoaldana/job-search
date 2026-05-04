@@ -60,6 +60,7 @@ const ACTION_ICON_COLORS = {
 function FollowUpModal({ action, onClose, onSent }) {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [conversation, setConversation] = useState('')
   const [drafting, setDrafting] = useState(true)
   const [sending, setSending] = useState(false)
   const [done, setDone] = useState(false)
@@ -73,6 +74,7 @@ function FollowUpModal({ action, onClose, onSent }) {
       .then(d => {
         setSubject(d.subject || '')
         setBody(d.body || '')
+        setConversation(d.conversation_text || '')
         setDrafting(false)
       })
       .catch(e => {
@@ -148,6 +150,14 @@ function FollowUpModal({ action, onClose, onSent }) {
             </div>
           ) : (
             <>
+              {conversation && (
+                <div className="mb-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <label className="text-xs font-semibold text-muted mb-2 block">Previous Conversation</label>
+                  <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-32 overflow-y-auto font-mono leading-relaxed">
+                    {conversation}
+                  </pre>
+                </div>
+              )}
               <div className="mb-2">
                 <label className="text-xs text-muted mb-1 block">Subject</label>
                 <input
