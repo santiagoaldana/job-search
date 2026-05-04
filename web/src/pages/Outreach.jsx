@@ -128,7 +128,7 @@ function StatsCard() {
   )
 }
 
-function OutreachCard({ record, companyMap, contactMap, onStatusChange }) {
+function OutreachCard({ record, companyMap, contactMap, onStatusChange, onSkip }) {
   const navigate = useNavigate()
   const company = companyMap[record.company_id]
   const contact = record.contact_id ? contactMap[record.contact_id] : null
@@ -190,7 +190,11 @@ function OutreachCard({ record, companyMap, contactMap, onStatusChange }) {
 
       {/* Actions */}
       {record.response_status !== 'ghosted' ? (
-        <div className="flex gap-2 mt-3 flex-wrap">
+        <div className="flex gap-2 mt-3 flex-wrap items-center">
+          <button
+            onClick={() => onSkip(record.id)}
+            className="text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-500 dark:text-slate-400 hover:text-body transition-colors"
+          >Skip follow-ups</button>
           {['positive', 'negative', 'ghosted'].map(s => (
             <button
               key={s}
@@ -254,6 +258,15 @@ export default function OutreachPage() {
   const handleStatusChange = async (id, status) => {
     await api.updateOutreachResponse(id, status)
     load()
+  }
+
+  const handleSkip = async (id) => {
+    try {
+      await api.skipOutreach(id)
+      load()
+    } catch (e) {
+      alert(e.message)
+    }
   }
 
   const dedup = (list) => {
@@ -329,6 +342,7 @@ export default function OutreachPage() {
               companyMap={companyMap}
               contactMap={contactMap}
               onStatusChange={handleStatusChange}
+              onSkip={handleSkip}
             />
           ))
         )}

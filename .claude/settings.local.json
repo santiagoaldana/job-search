@@ -224,7 +224,11 @@
       "mcp__job-search__search_companies",
       "mcp__job-search__list_hot_leads",
       "mcp__job-search__add_company",
-      "Bash(python3 patch_slugs.py)"
+      "Bash(python3 patch_slugs.py)",
+      "Bash(cat)",
+      "Bash(python3 /tmp/check_leads.py)",
+      "Bash(python3 /tmp/check_jegen.py)",
+      "Bash(python3 /tmp/cleanup.py)"
     ],
     "additionalDirectories": [
       "/Users/santiagoaldana/.cloudflared",

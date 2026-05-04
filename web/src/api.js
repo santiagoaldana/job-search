@@ -63,6 +63,7 @@ export const api = {
   updateResponse: (id, status, notes) => patch(`/outreach/${id}/response`, { response_status: status, notes }),
   draftFollowup: (id, followup_day, language = 'en') => post(`/outreach/${id}/draft-followup`, { followup_day, language }),
   sendFollowup: (id, data) => post(`/outreach/${id}/send-followup`, data),
+  skipOutreach: (id) => post(`/outreach/${id}/skip`, {}),
 
   // CV
   getMasterCV: () => get('/cv/master'),

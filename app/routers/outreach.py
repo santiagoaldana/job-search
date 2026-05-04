@@ -411,3 +411,20 @@ def send_followup(
     session.commit()
 
     return {"ok": True, "mailto_url": mailto_url, "to_email": to_email or None}
+
+
+@router.post("/{record_id}/skip")
+def skip_outreach(record_id: int, session: Session = Depends(get_session)):
+    """Skip all remaining follow-ups (mark as sent, set response to ghosted)."""
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    record.follow_up_3_sent = True
+    record.follow_up_7_sent = True
+    record.response_status = "ghosted"
+    record.updated_at = datetime.utcnow().isoformat()
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    return record
