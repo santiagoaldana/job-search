@@ -55,6 +55,7 @@ def run_migrations():
         ("lead", "salary_notes", "TEXT"),
         ("contentdraft", "content_type", "TEXT DEFAULT 'linkedin'"),
         ("company", "network_path_json", "TEXT"),
+        ("outreachrecord", "linkedin_accepted", "BOOLEAN"),
     ]
 
     with engine.connect() as conn:
