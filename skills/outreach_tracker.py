@@ -29,15 +29,18 @@ import json
 from dataclasses import dataclass, asdict, field
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import anthropic
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich import box
+from sqlmodel import Session
 
 from skills.shared import DATA_DIR, EXECUTIVE_PROFILE, MODEL_OPUS
+from app.database import engine
+from app.models import ConversationMessage, OutreachRecord as DBOutreachRecord
 
 console = Console()
 
@@ -334,6 +337,53 @@ def mark_referral(
     record.referral_received = True
     record.referral_contact  = referral_contact
     return record
+
+
+def get_conversation_history(outreach_id: int) -> List[dict]:
+    """
+    Retrieve full conversation history for an outreach record.
+    Returns list of messages sorted by date, with last 10 messages or ~3KB context max.
+
+    Args:
+        outreach_id: ID of OutreachRecord
+
+    Returns:
+        List of dicts: [{date, from_email, from_name, subject, body_preview}, ...]
+    """
+    try:
+        with Session(engine) as session:
+            messages = session.query(ConversationMessage).filter(
+                ConversationMessage.outreach_record_id == outreach_id
+            ).order_by(ConversationMessage.message_date.asc()).all()
+
+            if not messages:
+                return []
+
+            # Limit to last 10 messages and ~3KB of context
+            result = []
+            total_chars = 0
+            max_chars = 3000
+
+            # Reverse to get last 10, but keep original order in result
+            for msg in reversed(messages[-10:]):
+                body_preview = msg.body_full[:200] if msg.body_full else ""  # 200 char preview
+                msg_dict = {
+                    "date": msg.message_date,
+                    "from_email": msg.from_email,
+                    "from_name": msg.from_name or "Unknown",
+                    "subject": msg.subject or "(no subject)",
+                    "body_preview": body_preview,
+                    "message_type": msg.message_type,
+                }
+                total_chars += len(str(msg_dict))
+                if total_chars > max_chars:
+                    break
+                result.append(msg_dict)
+
+            return result
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to retrieve conversation history: {e}[/yellow]")
+        return []
 
 
 def get_due_actions(records: list[OutreachRecord]) -> list[dict]:

@@ -20,7 +20,11 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+from sqlmodel import Session
+
 from skills.shared import DATA_DIR
+from app.database import engine
+from app.models import OutreachRecord, Contact, Company
 
 # ── Config ────────────────────────────────────────────────────────────────────
 

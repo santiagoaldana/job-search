@@ -267,7 +267,12 @@ async def draft_followup(
     req: FollowUpDraftRequest,
     session: Session = Depends(get_session),
 ):
-    """Generate an AI-drafted follow-up email for a pending outreach record."""
+    """
+    Generate a template-based follow-up email (no API cost).
+    Returns: {subject, body, stage, template_used: True, has_conversation_context: bool}
+
+    Optional query param: ?enhance_with_context=true to refine with Claude Opus (API cost).
+    """
     record = session.get(OutreachRecord, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
@@ -275,92 +280,90 @@ async def draft_followup(
     company = session.get(Company, record.company_id) if record.company_id else None
     contact = session.get(Contact, record.contact_id) if record.contact_id else None
 
-    days_since = 0
-    if record.sent_at:
-        try:
-            sent = datetime.fromisoformat(record.sent_at[:10])
-            days_since = (datetime.utcnow() - sent).days
-        except Exception:
-            pass
+    # Map followup_day to stage
+    stage = "day_3" if req.followup_day == 3 else "day_7"
 
-    language = req.language if req.language in ("en", "es") else "en"
+    # Build outreach record dict for template function
+    from datetime import datetime, date
+    outreach_dict = {
+        "company": company.name if company else "Unknown",
+        "contact_name": contact.name if contact else "there",
+        "contact_role": contact.title if contact else "Professional",
+        "sent_date": record.sent_at or datetime.utcnow().isoformat(),
+        "generated_subject": record.subject or "our conversation",
+        "notes": record.notes or "",
+    }
 
-    if req.followup_day == 3:
-        followup_type = "soft bump"
-        if language == "es":
-            instruction = (
-                "Este es un recordatorio suave del Día 3 — corto, cálido, sin presión. "
-                "Menciona brevemente el tema del correo original. Pregunta si tuvo oportunidad de verlo. "
-                "Máximo 2-3 oraciones. Sin nuevo pitch. Escribe en español."
-            )
-        else:
-            instruction = (
-                "This is a gentle Day 3 bump — short, warm, no pressure. "
-                "Reference the original email topic briefly. Ask if they had a chance to see it. "
-                "2-3 sentences max. No new pitch."
-            )
-    else:
-        followup_type = "polite close"
-        if language == "es":
-            instruction = (
-                "Este es el cierre educado del Día 7 — cierra con gracia. "
-                "Di que no quieres saturar su bandeja de entrada, deja la puerta abierta para el futuro. "
-                "Máximo 3-4 oraciones. Tono positivo y profesional. Escribe en español."
-            )
-        else:
-            instruction = (
-                "This is a Day 7 polite close — wrap up gracefully. "
-                "Say you don't want to clog their inbox, leave the door open for the future. "
-                "3-4 sentences max. Positive and professional tone."
-            )
+    # Generate template-based draft (no API call)
+    from app.services.outreach_generator import draft_followup_from_template
+    draft = draft_followup_from_template(stage, outreach_dict)
 
-    contact_name = contact.name if contact else "there"
-    original_subject = record.subject or "my previous note"
-    company_name = company.name if company else "your company"
-    original_body_snippet = (record.body or "")[:300]
-    language_instruction = "Write the email in Spanish." if language == "es" else "Write the email in English."
+    if "error" in draft:
+        raise HTTPException(status_code=400, detail=draft["error"])
 
-    prompt = f"""You are writing a follow-up email for Santiago Aldana, a FinTech executive (MIT Sloan MBA, 20+ years payments/AI/LATAM leadership).
+    # Check if conversation history exists (for UI indication)
+    from skills.outreach_tracker import get_conversation_history
+    history = get_conversation_history(record_id) if record_id else []
 
-Company: {company_name}
-Contact: {contact_name}
-Days since initial outreach: {days_since}
-Follow-up type: {followup_type}
-Original subject: {original_subject}
-Original email (excerpt): {original_body_snippet}
+    return {
+        "subject": draft.get("subject"),
+        "body": draft.get("body"),
+        "stage": draft.get("stage"),
+        "template_used": draft.get("template_used", True),
+        "has_conversation_context": len(history) > 0,
+        "followup_day": req.followup_day,
+        "company_name": company.name if company else "Unknown",
+        "contact_name": contact.name if contact else "Unknown",
+        "reasoning": draft.get("reasoning", "Generated from template"),
+    }
 
-Instructions: {instruction}
-Language: {language_instruction}
 
-Return ONLY a JSON object with exactly two keys:
-{{"subject": "Re: {original_subject}", "body": "the email body text"}}
+class EnhanceWithContextRequest(BaseModel):
+    subject: str  # Template-generated subject
+    body: str  # Template-generated body
+    stage: str  # "day_3" | "day_7" | "harvest"
 
-The subject should be natural, starting with "Re: ". Body should be plain text (no HTML), professional but warm."""
 
-    try:
-        import anthropic
-        client = anthropic.Anthropic()
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=500,
-            messages=[{"role": "user", "content": prompt}],
+@router.post("/{record_id}/enhance-with-context")
+async def enhance_with_context(
+    record_id: int,
+    req: EnhanceWithContextRequest,
+    session: Session = Depends(get_session),
+):
+    """
+    Optional on-demand enhancement: refine a template draft using conversation context.
+    Calls Claude Opus with full conversation history (costs API token).
+    Returns: {subject, body, reasoning, enhanced: True}
+    """
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    # Fetch conversation history
+    from skills.outreach_tracker import get_conversation_history
+    history = get_conversation_history(record_id)
+
+    if not history:
+        raise HTTPException(
+            status_code=400,
+            detail="No conversation history found for this record. Enhancement requires prior exchange.",
         )
-        raw = response.content[0].text.strip()
-        # Strip markdown code fences if present
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        parsed = json.loads(raw)
-        return {
-            "subject": parsed.get("subject", f"Re: {original_subject}"),
-            "body": parsed.get("body", ""),
-            "followup_day": req.followup_day,
-            "company_name": company_name,
-            "contact_name": contact_name,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+    # Call enhancement function
+    from app.services.outreach_generator import enhance_draft_with_context
+    enhanced = await enhance_draft_with_context(
+        req.subject,
+        req.body,
+        history,
+        stage=req.stage,
+    )
+
+    return {
+        "subject": enhanced.get("subject"),
+        "body": enhanced.get("body"),
+        "reasoning": enhanced.get("reasoning"),
+        "enhanced": enhanced.get("enhanced", False),
+    }
 
 
 @router.post("/{record_id}/send-followup")

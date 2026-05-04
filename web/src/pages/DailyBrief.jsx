@@ -467,6 +467,8 @@ export default function DailyBrief() {
             </div>
           </div>
 
+          <WeeklyHealth />
+
           {brief.total_actions === 0 && (
             <div className="mx-4 p-8 text-center text-muted">
               <div className="text-4xl mb-3">✓</div>

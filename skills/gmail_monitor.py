@@ -56,6 +56,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich import box
 from rich.prompt import Prompt, Confirm
+from sqlmodel import Session
+
+from app.database import engine
+from app.models import ConversationMessage, OutreachRecord
 
 console = Console()
 
@@ -541,7 +545,7 @@ def match_to_contact(from_email: str, from_name: str, tracker_records: list) -> 
 def update_tracker_on_reply(matched_record: dict, email_data: dict, all_records: list, tracker_path: Path) -> None:
     """
     Mark a contacted person as 'responded' in the tracker.
-    Atomic write via temp file.
+    Atomic write via temp file. Also stores full message to conversation history.
     """
     for rec in all_records:
         if (rec.get("contact_name") == matched_record.get("contact_name") and
@@ -549,11 +553,75 @@ def update_tracker_on_reply(matched_record: dict, email_data: dict, all_records:
             rec["status"] = "responded"
             rec["notes"] = (rec.get("notes", "") +
                             f"\n[Auto] Reply received {email_data['date_str']}: {email_data['body_snippet'][:120]}").strip()
+
+            # Store full conversation message to database
+            try:
+                with Session(engine) as session:
+                    outreach = session.query(OutreachRecord).filter(
+                        OutreachRecord.company.has(name=matched_record.get("company")),
+                    ).filter(
+                        OutreachRecord.contact.has(name=matched_record.get("contact_name"))
+                    ).first()
+                    if outreach:
+                        store_conversation_message(outreach.id, email_data, message_type="reply")
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not store conversation message: {e}[/yellow]")
+
             break
 
     tmp = tracker_path.with_suffix(".tmp")
     tmp.write_text(json.dumps(all_records, indent=2, ensure_ascii=False))
     os.replace(tmp, tracker_path)
+
+
+def store_conversation_message(outreach_id: int, email_data: dict, message_type: str = "reply") -> None:
+    """
+    Store full email body to ConversationMessage table for conversation history.
+    Deduplicates by gmail_message_id or outlook_message_id.
+
+    Args:
+        outreach_id: ID of the OutreachRecord this message belongs to
+        email_data: Email dict from parse_email() with: from_email, from_name, subject, body_full, date_str, gmail_message_id, outlook_message_id, thread_id, conversation_id
+        message_type: "outreach" | "reply" | "follow_up" (default "reply")
+    """
+    try:
+        with Session(engine) as session:
+            gmail_msg_id = email_data.get("gmail_message_id")
+            outlook_msg_id = email_data.get("outlook_message_id")
+
+            # Check for existing message (dedup)
+            existing = None
+            if gmail_msg_id:
+                existing = session.query(ConversationMessage).filter(
+                    ConversationMessage.gmail_message_id == gmail_msg_id
+                ).first()
+            elif outlook_msg_id:
+                existing = session.query(ConversationMessage).filter(
+                    ConversationMessage.outlook_message_id == outlook_msg_id
+                ).first()
+
+            if existing:
+                return  # Already stored, skip
+
+            # Create new ConversationMessage record
+            msg = ConversationMessage(
+                outreach_record_id=outreach_id,
+                message_date=email_data.get("date_str", datetime.utcnow().isoformat()),
+                from_email=email_data.get("from_email", ""),
+                from_name=email_data.get("from_name"),
+                to_email=email_data.get("to_email", ""),
+                subject=email_data.get("subject"),
+                body_full=email_data.get("body_full", ""),
+                message_type=message_type,
+                gmail_message_id=gmail_msg_id,
+                outlook_message_id=outlook_msg_id,
+                thread_id=email_data.get("thread_id"),
+                conversation_id=email_data.get("conversation_id"),
+            )
+            session.add(msg)
+            session.commit()
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to store conversation message: {e}[/yellow]")
 
 
 # ── Follow-up Candidate Identification ───────────────────────────────────────

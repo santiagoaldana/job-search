@@ -149,6 +149,28 @@ class OutreachRecord(SQLModel, table=True):
 
     company: Optional[Company] = Relationship(back_populates="outreach_records")
     contact: Optional[Contact] = Relationship(back_populates="outreach_records")
+    messages: List["ConversationMessage"] = Relationship(back_populates="outreach_record")
+
+
+# ── ConversationMessage (Email thread history) ────────────────────────────────
+
+class ConversationMessage(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    outreach_record_id: int = Field(foreign_key="outreachrecord.id", index=True)
+    message_date: str  # ISO datetime string
+    from_email: str
+    from_name: Optional[str] = Field(default=None)
+    to_email: str
+    subject: Optional[str] = Field(default=None)
+    body_full: str  # Complete email body (not truncated)
+    message_type: str  # "outreach" | "reply" | "follow_up"
+    gmail_message_id: Optional[str] = Field(default=None)  # For Gmail dedup
+    outlook_message_id: Optional[str] = Field(default=None)  # For Outlook dedup
+    thread_id: Optional[str] = Field(default=None)  # Gmail threadId
+    conversation_id: Optional[str] = Field(default=None)  # Outlook conversationId
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+    outreach_record: Optional[OutreachRecord] = Relationship(back_populates="messages")
 
 
 # ── Application ───────────────────────────────────────────────────────────────
