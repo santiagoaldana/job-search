@@ -324,16 +324,21 @@ async def draft_followup(
     # Fetch conversation history (zero API cost — just database read)
     from skills.outreach_tracker import get_conversation_history
     history = get_conversation_history(record_id) if record_id else []
+    print(f"[DEBUG] draft_followup: record_id={record_id}, history_count={len(history)}", flush=True)
 
     # Format conversation for display
     conversation_text = ""
     if history:
+        print(f"[DEBUG] Formatting {len(history)} messages into conversation_text", flush=True)
         for msg in reversed(history[-5:]):  # Last 5 messages, reversed for chronological order
             conversation_text += f"\n{'='*60}\n"
             conversation_text += f"From: {msg.get('from_name', msg.get('from_email', 'Unknown'))}\n"
             conversation_text += f"Date: {msg.get('date', 'Unknown')}\n"
             conversation_text += f"Subject: {msg.get('subject', '(no subject)')}\n"
             conversation_text += f"---\n{msg.get('body_preview', '')}\n"
+        print(f"[DEBUG] conversation_text length: {len(conversation_text)}", flush=True)
+    else:
+        print(f"[DEBUG] No history returned, conversation_text will be empty", flush=True)
 
     return {
         "subject": draft.get("subject"),
