@@ -251,6 +251,31 @@ def delete_outreach(record_id: int, session: Session = Depends(get_session)):
     return {"ok": True}
 
 
+class OutreachUpdate(BaseModel):
+    follow_up_3_due: Optional[str] = None
+    follow_up_7_due: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@router.patch("/{record_id}")
+def patch_outreach(record_id: int, data: OutreachUpdate, session: Session = Depends(get_session)):
+    """Patch arbitrary fields on an outreach record."""
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Not found")
+    if data.follow_up_3_due is not None:
+        record.follow_up_3_due = data.follow_up_3_due
+    if data.follow_up_7_due is not None:
+        record.follow_up_7_due = data.follow_up_7_due
+    if data.notes is not None:
+        record.notes = data.notes
+    record.updated_at = datetime.utcnow().isoformat()
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    return record
+
+
 @router.patch("/{record_id}/response")
 def update_response(
     record_id: int,
@@ -267,6 +292,14 @@ def update_response(
 
     record.response_status = response_status
     record.updated_at = datetime.utcnow().isoformat()
+
+    # Reset follow-up counter from today when a reply is received
+    if response_status == "positive":
+        today = datetime.utcnow().date()
+        record.follow_up_3_due = add_business_days(today, 3).isoformat()
+        record.follow_up_7_due = add_business_days(today, 7).isoformat()
+        record.follow_up_3_sent = False
+        record.follow_up_7_sent = False
 
     # Advance company stage on positive response
     if response_status == "positive" and record.company_id:
