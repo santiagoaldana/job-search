@@ -352,23 +352,28 @@ def get_conversation_history(outreach_id: int) -> List[dict]:
         List of dicts: [{date, from_email, from_name, subject, body_preview}, ...]
     """
     try:
+        from sqlmodel import select
         with Session(engine) as session:
-            messages = session.query(ConversationMessage).filter(
-                ConversationMessage.outreach_record_id == outreach_id
-            ).order_by(ConversationMessage.message_date.asc()).all()
+            messages = session.exec(
+                select(ConversationMessage).where(
+                    ConversationMessage.outreach_record_id == outreach_id
+                ).order_by(ConversationMessage.message_date.asc())
+            ).all()
 
             # If no stored messages, reconstruct from OutreachRecord
             if not messages:
-                record = session.query(DBOutreachRecord).filter(
-                    DBOutreachRecord.id == outreach_id
+                record = session.exec(
+                    select(DBOutreachRecord).where(
+                        DBOutreachRecord.id == outreach_id
+                    )
                 ).first()
-                if record and record.subject and record.body:
+                if record and (record.subject or record.body):
                     return [{
                         "date": record.sent_at or record.created_at,
                         "from_email": "santiago@aidatasolutions.co",
                         "from_name": "Santiago Aldana",
-                        "subject": record.subject,
-                        "body_preview": record.body[:200] if record.body else "",
+                        "subject": record.subject or "(no subject)",
+                        "body_preview": (record.body[:200] if record.body else "") or "(original email body not stored)",
                         "message_type": "outreach",
                     }]
                 return []
