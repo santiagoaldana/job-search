@@ -175,6 +175,26 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
 
     session.commit()
     session.refresh(record)
+
+    # Store original outreach message in conversation history
+    from app.models import ConversationMessage
+    try:
+        contact = session.get(Contact, data.contact_id) if data.contact_id else None
+        outreach_msg = ConversationMessage(
+            outreach_record_id=record.id,
+            message_date=sent_at,
+            from_email="santiago@aidatasolutions.co",
+            from_name="Santiago Aldana",
+            to_email=contact.email if contact else "",
+            subject=data.subject,
+            body_full=data.body or "",
+            message_type="outreach",
+        )
+        session.add(outreach_msg)
+        session.commit()
+    except Exception:
+        pass  # Non-critical; conversation history still works
+
     return record
 
 
