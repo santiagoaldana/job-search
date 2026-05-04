@@ -254,7 +254,10 @@ def delete_outreach(record_id: int, session: Session = Depends(get_session)):
 class OutreachUpdate(BaseModel):
     follow_up_3_due: Optional[str] = None
     follow_up_7_due: Optional[str] = None
+    follow_up_3_sent: Optional[bool] = None
+    follow_up_7_sent: Optional[bool] = None
     notes: Optional[str] = None
+    linkedin_accepted: Optional[bool] = None
 
 
 @router.patch("/{record_id}")
@@ -267,8 +270,14 @@ def patch_outreach(record_id: int, data: OutreachUpdate, session: Session = Depe
         record.follow_up_3_due = data.follow_up_3_due
     if data.follow_up_7_due is not None:
         record.follow_up_7_due = data.follow_up_7_due
+    if data.follow_up_3_sent is not None:
+        record.follow_up_3_sent = data.follow_up_3_sent
+    if data.follow_up_7_sent is not None:
+        record.follow_up_7_sent = data.follow_up_7_sent
     if data.notes is not None:
         record.notes = data.notes
+    if data.linkedin_accepted is not None:
+        record.linkedin_accepted = data.linkedin_accepted
     record.updated_at = datetime.utcnow().isoformat()
     session.add(record)
     session.commit()

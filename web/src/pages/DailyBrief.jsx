@@ -27,6 +27,8 @@ const ACTION_ICONS = {
   try_linkedin_dm: Mail,
   linkedin_reimport: Lightbulb,
   event: Calendar,
+  check_linkedin_acceptance: UserPlus,
+  email_escalation: Mail,
 }
 
 const ACTION_COLORS = {
@@ -41,6 +43,8 @@ const ACTION_COLORS = {
   email_bounce_retry: 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/40',
   try_linkedin_dm: 'border-purple-300 bg-purple-50 dark:border-purple-700 dark:bg-purple-950/40',
   linkedin_reimport: 'border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/40',
+  check_linkedin_acceptance: 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/40',
+  email_escalation: 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/40',
 }
 
 const ACTION_ICON_COLORS = {
@@ -55,6 +59,8 @@ const ACTION_ICON_COLORS = {
   email_bounce_retry: 'text-orange-500',
   try_linkedin_dm: 'text-purple-500',
   linkedin_reimport: 'text-yellow-500',
+  check_linkedin_acceptance: 'text-blue-500',
+  email_escalation: 'text-orange-500',
 }
 
 function FollowUpModal({ action, onClose, onSent }) {
@@ -246,7 +252,133 @@ function FollowUpModal({ action, onClose, onSent }) {
   )
 }
 
-function Section({ title, icon: Icon, items, onAction, badge, badgeColor = 'blue', defaultOpen = true }) {
+function LinkedInAcceptanceCard({ action, onRefresh }) {
+  const [state, setState] = useState('prompt') // prompt | escalating | escalated | done
+  const [nextStep, setNextStep] = useState(action.next_step || null)
+  const [busy, setBusy] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+
+  const handleAccepted = async () => {
+    setBusy(true)
+    try {
+      await api.patchOutreach(action.payload_id, { linkedin_accepted: true, follow_up_3_sent: true })
+    } catch (_) {}
+    setBusy(false)
+    setState('done')
+    setTimeout(onRefresh, 800)
+  }
+
+  const handleNotAccepted = async () => {
+    setBusy(true)
+    try {
+      await api.patchOutreach(action.payload_id, { linkedin_accepted: false })
+      if (action.contact_id) {
+        const res = await api.getContactNextStep(action.contact_id)
+        setNextStep(res.next_step)
+      }
+    } catch (_) {}
+    setBusy(false)
+    setState('escalating')
+  }
+
+  const handleBounced = async () => {
+    setBusy(true)
+    try {
+      const res = await api.markEmailBounced(action.contact_id)
+      setNextStep(res.next_step)
+      setEmailSent(false)
+    } catch (_) {}
+    setBusy(false)
+  }
+
+  const handleSendEmail = () => {
+    if (!nextStep?.guessed_email) return
+    const mailto = `mailto:${nextStep.guessed_email}?subject=${encodeURIComponent('Following up — ' + (action.contact_name || ''))}`
+    window.open(mailto, '_blank')
+    setEmailSent(true)
+    setState('escalated')
+  }
+
+  return (
+    <div className="p-4 rounded-xl border border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/40 space-y-3">
+      <div className="flex items-start gap-3">
+        <UserPlus size={16} className="mt-0.5 flex-shrink-0 text-blue-500" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-body text-sm">{action.label}</div>
+          <div className="text-xs text-muted mt-0.5">{action.detail}</div>
+        </div>
+      </div>
+
+      {state === 'prompt' && (
+        <div className="flex gap-2">
+          <button
+            onClick={handleNotAccepted}
+            disabled={busy}
+            className="flex-1 border border-theme text-body rounded-lg py-2 text-xs font-medium disabled:opacity-50"
+          >
+            Not yet
+          </button>
+          <button
+            onClick={handleAccepted}
+            disabled={busy}
+            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-2 text-xs font-semibold disabled:opacity-50"
+          >
+            {busy ? '...' : 'Yes, accepted'}
+          </button>
+        </div>
+      )}
+
+      {state === 'done' && (
+        <div className="text-xs text-green-600 font-medium">Marked as connected. DM follow-up queued.</div>
+      )}
+
+      {(state === 'escalating' || state === 'escalated') && nextStep && (
+        <div className="space-y-2">
+          {nextStep.action === 'draft_email_guessed' && (
+            <>
+              <div className="text-xs text-muted">Guessed email: <span className="font-mono text-body">{nextStep.guessed_email}</span></div>
+              {!emailSent ? (
+                <button
+                  onClick={handleSendEmail}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold"
+                >
+                  Send via Gmail →
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleBounced}
+                    disabled={busy}
+                    className="flex-1 border border-red-300 text-red-600 rounded-lg py-2 text-xs font-medium disabled:opacity-50"
+                  >
+                    {busy ? '...' : 'Email bounced — try next'}
+                  </button>
+                  <button
+                    onClick={() => { setState('done'); onRefresh() }}
+                    className="flex-1 bg-green-500 text-white rounded-lg py-2 text-xs font-semibold"
+                  >
+                    Sent
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {nextStep.action === 'exhausted' && (
+            <div className="text-xs text-muted">All email patterns tried. Try a mutual connection intro or phone outreach.</div>
+          )}
+          {nextStep.action === 'prompt_manual_email' && (
+            <div className="text-xs text-muted">No company domain found to guess email. Add their email manually in the Contacts tab.</div>
+          )}
+          {nextStep.action === 'draft_linkedin_dm' && (
+            <div className="text-xs text-muted">They are already a 1st-degree connection — send a LinkedIn DM directly.</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Section({ title, icon: Icon, items, onAction, onRefresh, badge, badgeColor = 'blue', defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
@@ -278,6 +410,10 @@ function Section({ title, icon: Icon, items, onAction, badge, badgeColor = 'blue
             <div className="py-4 text-center text-muted text-xs">Nothing to do here ✓</div>
           ) : (
             items.map((action, i) => {
+              if (action.action_type === 'check_linkedin_acceptance' || action.action_type === 'email_escalation') {
+                return <LinkedInAcceptanceCard key={i} action={action} onRefresh={onRefresh} />
+              }
+
               const Icon = ACTION_ICONS[action.action_type] || AlertCircle
               const cardColor = ACTION_COLORS[action.action_type] || 'border-theme bg-card'
               const iconColor = ACTION_ICON_COLORS[action.action_type] || 'text-muted'
@@ -534,6 +670,7 @@ export default function DailyBrief() {
               icon={Mail}
               items={brief.outreach || []}
               onAction={handleAction}
+              onRefresh={load}
               badgeColor="red"
             />
             <div className="mx-4 border-t border-theme my-1" />

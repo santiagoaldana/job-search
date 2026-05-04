@@ -66,6 +66,7 @@ export const api = {
   markFollowupSent: (id, data) => post(`/outreach/${id}/mark-followup-sent`, data),
   sendFollowup: (id, data) => post(`/outreach/${id}/send-followup`, data),
   skipOutreach: (id) => post(`/outreach/${id}/skip`, {}),
+  patchOutreach: (id, data) => patch(`/outreach/${id}`, data),
 
   // CV
   getMasterCV: () => get('/cv/master'),

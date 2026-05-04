@@ -142,6 +142,7 @@ class OutreachRecord(SQLModel, table=True):
     follow_up_7_due: Optional[str] = Field(default=None)   # ISO date string (3B7 day 7)
     follow_up_3_sent: bool = Field(default=False)           # day-3 bump sent
     follow_up_7_sent: bool = Field(default=False)           # day-7 close sent
+    linkedin_accepted: Optional[bool] = Field(default=None) # None=pending, True=accepted, False=not accepted
     notes: Optional[str] = Field(default=None)
 
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
