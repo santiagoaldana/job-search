@@ -72,6 +72,7 @@ function FollowUpModal({ action, onClose, onSent }) {
     setError(null)
     api.draftFollowup(action.payload_id, action.followup_day, language)
       .then(d => {
+        console.log('[FollowUpModal] API response:', { conversation_text_length: d.conversation_text?.length, has_conversation_context: d.has_conversation_context, conversation_history_count: d.conversation_history?.length })
         setSubject(d.subject || '')
         setBody(d.body || '')
         setConversation(d.conversation_text || '')
