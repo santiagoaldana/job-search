@@ -403,13 +403,13 @@ async def enhance_with_context(
     }
 
 
-@router.post("/{record_id}/send-followup")
-def send_followup(
+@router.post("/{record_id}/build-mailto")
+def build_mailto(
     record_id: int,
     req: SendFollowUpRequest,
     session: Session = Depends(get_session),
 ):
-    """Mark follow-up as sent, log new outreach record, return mailto link."""
+    """Build and return a mailto URL without marking the follow-up as sent."""
     record = session.get(OutreachRecord, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
@@ -417,13 +417,58 @@ def send_followup(
     contact = session.get(Contact, record.contact_id) if record.contact_id else None
     to_email = (contact.email or "") if contact else ""
 
-    # Build mailto link — must use %20 (RFC 3986), not + (form encoding)
     subject_enc = urllib.parse.quote(req.subject or "", safe="")
     body_enc = urllib.parse.quote(req.body or "", safe="")
     to_part = f"mailto:{urllib.parse.quote(to_email, safe='@.')}" if to_email else "mailto:"
     mailto_url = f"{to_part}?subject={subject_enc}&body={body_enc}"
 
-    # Mark the appropriate follow-up sent and reset Day 7 from actual send date
+    return {"mailto_url": mailto_url, "to_email": to_email or None}
+
+
+@router.post("/{record_id}/mark-followup-sent")
+def mark_followup_sent(
+    record_id: int,
+    req: SendFollowUpRequest,
+    session: Session = Depends(get_session),
+):
+    """Mark a follow-up as sent after user confirms they actually sent it."""
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    today = date.today()
+    if req.followup_day == 3:
+        record.follow_up_3_sent = True
+        record.follow_up_7_due = (today + timedelta(days=4)).isoformat()
+    else:
+        record.follow_up_7_sent = True
+    record.updated_at = datetime.utcnow().isoformat()
+
+    session.add(record)
+    session.commit()
+
+    return {"ok": True}
+
+
+@router.post("/{record_id}/send-followup")
+def send_followup(
+    record_id: int,
+    req: SendFollowUpRequest,
+    session: Session = Depends(get_session),
+):
+    """Legacy: build mailto AND mark as sent in one step. Kept for backwards compatibility."""
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    to_email = (contact.email or "") if contact else ""
+
+    subject_enc = urllib.parse.quote(req.subject or "", safe="")
+    body_enc = urllib.parse.quote(req.body or "", safe="")
+    to_part = f"mailto:{urllib.parse.quote(to_email, safe='@.')}" if to_email else "mailto:"
+    mailto_url = f"{to_part}?subject={subject_enc}&body={body_enc}"
+
     today = date.today()
     if req.followup_day == 3:
         record.follow_up_3_sent = True

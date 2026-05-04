@@ -63,6 +63,8 @@ function FollowUpModal({ action, onClose, onSent }) {
   const [conversation, setConversation] = useState('')
   const [drafting, setDrafting] = useState(true)
   const [sending, setSending] = useState(false)
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false)
+  const [maitoUrl, setMailtoUrl] = useState(null)
   const [done, setDone] = useState(false)
   const [error, setError] = useState(null)
   const [language, setLanguage] = useState('en')
@@ -84,24 +86,37 @@ function FollowUpModal({ action, onClose, onSent }) {
       })
   }, [action.payload_id, action.followup_day, language])
 
-  const handleSend = async () => {
+  const handleOpenGmail = async () => {
     setSending(true)
     try {
-      const result = await api.sendFollowup(action.payload_id, {
-        subject,
-        body,
-        followup_day: action.followup_day,
-      })
+      const result = await api.buildMailto(action.payload_id, { subject, body, followup_day: action.followup_day })
+      const url = result.mailto_url
+      setMailtoUrl(url)
+      if (url) window.open(url, '_blank')
+      setAwaitingConfirm(true)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleConfirmSent = async () => {
+    setSending(true)
+    try {
+      await api.markFollowupSent(action.payload_id, { followup_day: action.followup_day })
       setDone(true)
-      if (result.mailto_url) {
-        window.open(result.mailto_url, '_blank')
-      }
       onSent && onSent(action.payload_id, action.followup_day)
     } catch (e) {
       setError(e.message)
     } finally {
       setSending(false)
     }
+  }
+
+  const handleDidNotSend = () => {
+    setAwaitingConfirm(false)
+    setMailtoUrl(null)
   }
 
   const title = action.followup_day === 3 ? 'Day 3 Bump' : 'Day 7 Close'
@@ -182,16 +197,41 @@ function FollowUpModal({ action, onClose, onSent }) {
         </div>
 
         {/* Footer */}
-        {!drafting && !done && (
+        {!drafting && !done && !awaitingConfirm && (
           <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
             <button
-              onClick={handleSend}
+              onClick={handleOpenGmail}
               disabled={sending || !subject || !body}
               className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors"
             >
               {sending ? 'Opening Gmail…' : 'Send via Gmail →'}
             </button>
             <div className="text-xs text-muted text-center mt-2">Opens your email client with this message pre-filled</div>
+          </div>
+        )}
+        {!drafting && !done && awaitingConfirm && (
+          <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
+            <div className="text-sm font-medium text-body text-center mb-3">Did you send the email?</div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDidNotSend}
+                className="flex-1 border border-theme text-body rounded-xl py-3 text-sm font-medium"
+              >
+                No, go back
+              </button>
+              <button
+                onClick={handleConfirmSent}
+                disabled={sending}
+                className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors"
+              >
+                {sending ? 'Saving…' : 'Yes, mark as sent'}
+              </button>
+            </div>
+            {maitoUrl && (
+              <button onClick={() => window.open(maitoUrl, '_blank')} className="w-full text-xs text-blue-500 text-center mt-2">
+                Re-open Gmail draft
+              </button>
+            )}
           </div>
         )}
         {done && (
