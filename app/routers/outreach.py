@@ -8,6 +8,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from pydantic import BaseModel
 
+
+def add_business_days(start: date, days: int) -> date:
+    """Return a date that is `days` business days after `start`, skipping weekends."""
+    current = start
+    added = 0
+    while added < days:
+        current += timedelta(days=1)
+        if current.weekday() < 5:  # Mon=0 … Fri=4
+            added += 1
+    return current
+
 from app.database import get_session
 from app.models import OutreachRecord, Company, Contact
 
@@ -148,8 +159,8 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
     """Log an outreach that was sent (manual entry)."""
     sent_at = data.sent_at or datetime.utcnow().isoformat()
     sent_date = datetime.fromisoformat(sent_at).date()
-    follow_up_3 = (sent_date + timedelta(days=3)).isoformat()
-    follow_up_7 = (sent_date + timedelta(days=7)).isoformat()
+    follow_up_3 = add_business_days(sent_date, 3).isoformat()
+    follow_up_7 = add_business_days(sent_date, 7).isoformat()
 
     record = OutreachRecord(
         company_id=data.company_id,
@@ -439,7 +450,7 @@ def mark_followup_sent(
     today = date.today()
     if req.followup_day == 3:
         record.follow_up_3_sent = True
-        record.follow_up_7_due = (today + timedelta(days=4)).isoformat()
+        record.follow_up_7_due = add_business_days(today, 4).isoformat()
     else:
         record.follow_up_7_sent = True
     record.updated_at = datetime.utcnow().isoformat()
@@ -472,7 +483,7 @@ def send_followup(
     today = date.today()
     if req.followup_day == 3:
         record.follow_up_3_sent = True
-        record.follow_up_7_due = (today + timedelta(days=4)).isoformat()
+        record.follow_up_7_due = add_business_days(today, 4).isoformat()
     else:
         record.follow_up_7_sent = True
     record.updated_at = datetime.utcnow().isoformat()
