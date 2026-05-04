@@ -223,7 +223,8 @@
       "Bash(sqlite3 \"/Users/santiagoaldana/Library/CloudStorage/OneDrive-Personal/OneDrive Personal/Claude Code/Job search/job_search.db\" \"SELECT COUNT\\(*\\) as companies FROM company WHERE is_archived=0;\")",
       "mcp__job-search__search_companies",
       "mcp__job-search__list_hot_leads",
-      "mcp__job-search__add_company"
+      "mcp__job-search__add_company",
+      "Bash(python3 patch_slugs.py)"
     ],
     "additionalDirectories": [
       "/Users/santiagoaldana/.cloudflared",

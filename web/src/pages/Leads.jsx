@@ -13,7 +13,7 @@ export default function Leads() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [minFit, setMinFit] = useState(65)
-  const [locationOnly, setLocationOnly] = useState(false)
+  const [locationOnly, setLocationOnly] = useState(true)
   const [expanded, setExpanded] = useState({})
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()

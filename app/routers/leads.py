@@ -32,6 +32,9 @@ def list_leads(
     result = []
     for lead in leads:
         company = session.get(Company, lead.company_id) if lead.company_id else None
+        # Filter out leads from low-motivation companies (motivation < 7)
+        if company and company.motivation < 7:
+            continue
         result.append({
             **lead.dict(),
             "company_name": company.name if company else "Unknown",
