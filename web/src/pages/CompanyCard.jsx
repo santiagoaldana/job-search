@@ -360,7 +360,10 @@ export default function CompanyCard() {
             )}
             {company.leads?.map(l => (
               <div key={l.id} className={`bg-card border rounded-xl p-4 ${!l.location_compatible ? 'border-theme opacity-60' : 'border-theme'}`}>
-                <div className="font-medium text-body">{l.title}</div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-medium text-body">{l.title}</div>
+                  {l.status === 'applied' && <Badge color="green">Applied</Badge>}
+                </div>
                 <div className="text-xs text-muted mt-0.5">{l.location || 'Location unknown'}</div>
                 {l.fit_score > 0 && <div className="mt-2"><FitBar score={l.fit_score} /></div>}
                 {!l.location_compatible && <Badge color="slate" className="mt-2">Location mismatch</Badge>}

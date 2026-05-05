@@ -114,7 +114,7 @@ def get_company(company_id: int, session: Session = Depends(get_session)):
         select(Contact).where(Contact.company_id == company_id)
     ).all()
     leads = session.exec(
-        select(Lead).where(Lead.company_id == company_id, Lead.status == "active")
+        select(Lead).where(Lead.company_id == company_id, Lead.status.in_(["active", "applied"]))
         .order_by(Lead.fit_score.desc())
     ).all()
     outreach = session.exec(
