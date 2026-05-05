@@ -12,7 +12,6 @@ from app.models import (
 )
 from app.services.email_finder import determine_next_step as _contact_next_step
 
-_CONTACTS_WITHOUT_EMAIL_THRESHOLD = 5
 
 
 def compute_daily_brief(session: Session) -> dict:
@@ -216,23 +215,6 @@ def compute_daily_brief(session: Session) -> dict:
                 "payload_type": "outreach",
             })
 
-    # LinkedIn CSV reimport reminder
-    contacts_no_email_since_import = session.exec(
-        select(Contact).where(
-            Contact.connection_degree == 1,
-            Contact.email == None,
-            Contact.email_guessed == False,
-        )
-    ).all()
-    if len(contacts_no_email_since_import) >= _CONTACTS_WITHOUT_EMAIL_THRESHOLD:
-        outreach.append({
-            "action_type": "linkedin_reimport",
-            "label": f"{len(contacts_no_email_since_import)} contacts without email — re-export LinkedIn",
-            "detail": "Export LinkedIn Connections CSV to pick up newly shared emails",
-            "cta": "Upload contacts",
-            "payload_id": None,
-            "payload_type": "settings",
-        })
 
     # Contact gap — high-motivation companies with no contacts and no active outreach
     active_company_ids_with_outreach = {

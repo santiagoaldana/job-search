@@ -25,7 +25,6 @@ const ACTION_ICONS = {
   contact_gap: UserPlus,
   email_bounce_retry: AlertCircle,
   try_linkedin_dm: Mail,
-  linkedin_reimport: Lightbulb,
   event: Calendar,
   check_linkedin_acceptance: UserPlus,
   email_escalation: Mail,
@@ -42,7 +41,6 @@ const ACTION_COLORS = {
   contact_gap: 'border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40',
   email_bounce_retry: 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/40',
   try_linkedin_dm: 'border-purple-300 bg-purple-50 dark:border-purple-700 dark:bg-purple-950/40',
-  linkedin_reimport: 'border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/40',
   check_linkedin_acceptance: 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/40',
   email_escalation: 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/40',
 }
@@ -58,7 +56,6 @@ const ACTION_ICON_COLORS = {
   contact_gap: 'text-slate-500',
   email_bounce_retry: 'text-orange-500',
   try_linkedin_dm: 'text-purple-500',
-  linkedin_reimport: 'text-yellow-500',
   check_linkedin_acceptance: 'text-blue-500',
   email_escalation: 'text-orange-500',
 }
