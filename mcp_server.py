@@ -451,6 +451,12 @@ def _render_outreach_stats_html(data: dict) -> str:
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     try:
         result = await _dispatch(name, arguments)
+        # For quick_add_contact, return plain text so the outreach prompt is visible
+        if name == "quick_add_contact" and "_prompt" in result:
+            contact_id = result.get("contact_id", "?")
+            matched = result.get("matched_company", "")
+            text = f"Contact added (ID: {contact_id}{f', matched to {matched}' if matched else ''}).\n\n{result['_prompt']}"
+            return [types.TextContent(type="text", text=text)]
         return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
     except httpx.HTTPStatusError as e:
         err = {"error": f"API {e.response.status_code}", "detail": e.response.text[:300]}
