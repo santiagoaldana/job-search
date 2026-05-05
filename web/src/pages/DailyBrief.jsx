@@ -204,7 +204,7 @@ function FollowUpModal({ action, onClose, onSent }) {
 
         {/* Footer */}
         {!drafting && !done && !awaitingConfirm && (
-          <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
+          <div className="px-4 pt-2 border-t border-theme flex-shrink-0" style={{paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'}}>
             <button
               onClick={handleOpenGmail}
               disabled={sending || !subject || !body}
@@ -213,6 +213,13 @@ function FollowUpModal({ action, onClose, onSent }) {
               {sending ? 'Opening Gmail…' : 'Send via Gmail →'}
             </button>
             <div className="text-xs text-muted text-center mt-2">Write your message above, then open in Gmail</div>
+            <button
+              onClick={handleConfirmSent}
+              disabled={sending}
+              className="w-full text-xs text-muted text-center mt-1 py-1"
+            >
+              Already sent? Mark as done
+            </button>
           </div>
         )}
         {!drafting && !done && awaitingConfirm && (
@@ -378,7 +385,7 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
   )
 }
 
-function Section({ title, icon: Icon, items, onAction, onRefresh, badge, badgeColor = 'blue', defaultOpen = true }) {
+function Section({ title, icon: Icon, items, onAction, onMarkSent, onRefresh, badge, badgeColor = 'blue', defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
@@ -420,27 +427,39 @@ function Section({ title, icon: Icon, items, onAction, onRefresh, badge, badgeCo
               const isFollowUp = action.action_type === 'follow_up_3' || action.action_type === 'follow_up_7'
 
               return (
-                <button
+                <div
                   key={i}
-                  onClick={() => onAction(action)}
-                  className={`w-full text-left p-4 rounded-xl border ${cardColor} transition-all active:scale-[0.99]`}
+                  className={`w-full text-left p-4 rounded-xl border ${cardColor}`}
                 >
-                  <div className="flex items-start gap-3">
-                    <Icon size={16} className={`mt-0.5 flex-shrink-0 ${iconColor}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-body text-sm leading-snug">{action.label}</div>
-                      {action.detail && (
-                        <div className="text-xs text-muted mt-0.5 leading-relaxed">{action.detail}</div>
-                      )}
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className={`text-xs font-semibold ${isFollowUp ? 'text-red-500' : 'text-blue-500'}`}>
-                          {action.cta} →
-                        </span>
-                        {isFollowUp && <AICostBadge model="haiku" cost="$0.003" />}
+                  <button
+                    onClick={() => onAction(action)}
+                    className="w-full text-left transition-all active:scale-[0.99]"
+                  >
+                    <div className="flex items-start gap-3">
+                      <Icon size={16} className={`mt-0.5 flex-shrink-0 ${iconColor}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-body text-sm leading-snug">{action.label}</div>
+                        {action.detail && (
+                          <div className="text-xs text-muted mt-0.5 leading-relaxed">{action.detail}</div>
+                        )}
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className={`text-xs font-semibold ${isFollowUp ? 'text-red-500' : 'text-blue-500'}`}>
+                            {action.cta} →
+                          </span>
+                          {isFollowUp && <AICostBadge model="haiku" cost="$0.003" />}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  {isFollowUp && onMarkSent && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onMarkSent(action) }}
+                      className="mt-2 w-full text-xs text-muted text-center py-1 border-t border-theme/50 pt-2"
+                    >
+                      Already sent? Mark as done
+                    </button>
+                  )}
+                </div>
               )
             })
           )}
@@ -606,11 +625,19 @@ export default function DailyBrief() {
   }
 
   const handleFollowUpSent = (recordId, followupDay) => {
-    // Refresh brief so the sent item disappears
     setTimeout(() => {
       load()
       setFollowUpModal(null)
     }, 1500)
+  }
+
+  const handleMarkSent = async (action) => {
+    try {
+      await api.markFollowupSent(action.payload_id, { followup_day: action.followup_day })
+      load()
+    } catch (e) {
+      console.error('markFollowupSent error', e)
+    }
   }
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
@@ -670,6 +697,7 @@ export default function DailyBrief() {
               icon={Mail}
               items={brief.outreach || []}
               onAction={handleAction}
+              onMarkSent={handleMarkSent}
               onRefresh={load}
               badgeColor="red"
             />
