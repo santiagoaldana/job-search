@@ -482,6 +482,40 @@ async def enrich_single(company_id: int, session: Session = Depends(get_session)
     return company
 
 
+@router.delete("/{company_id}")
+def delete_company(
+    company_id: int,
+    merge_into: Optional[int] = Query(None, description="Reassign leads/contacts to this company ID before deleting"),
+    session: Session = Depends(get_session),
+):
+    """Delete a company. If merge_into is provided, reassigns all leads and contacts first."""
+    company = session.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    if merge_into:
+        target = session.get(Company, merge_into)
+        if not target:
+            raise HTTPException(status_code=404, detail="Target company not found")
+        for lead in session.exec(select(Lead).where(Lead.company_id == company_id)).all():
+            lead.company_id = merge_into
+            session.add(lead)
+        for contact in session.exec(select(Contact).where(Contact.company_id == company_id)).all():
+            contact.company_id = merge_into
+            session.add(contact)
+        for record in session.exec(select(OutreachRecord).where(OutreachRecord.company_id == company_id)).all():
+            record.company_id = merge_into
+            session.add(record)
+        for app in session.exec(select(Application).where(Application.company_id == company_id)).all():
+            app.company_id = merge_into
+            session.add(app)
+        session.commit()
+
+    session.delete(company)
+    session.commit()
+    return {"deleted": company_id, "merged_into": merge_into}
+
+
 @router.post("/{company_id}/intel/refresh")
 async def refresh_intel(company_id: int, session: Session = Depends(get_session)):
     company = session.get(Company, company_id)
