@@ -248,7 +248,7 @@ function FollowUpModal({ action, onClose, onSent }) {
             </div>
           </div>
         )}
-        {!drafting && !done && !awaitingConfirm && snoozing && (
+        {!drafting && !done && snoozing && (
           <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
             <div className="text-sm font-medium text-body mb-3">Set new follow-up date</div>
             <div className="flex gap-2 mb-3">
@@ -276,8 +276,8 @@ function FollowUpModal({ action, onClose, onSent }) {
             </div>
           </div>
         )}
-        {!drafting && !done && awaitingConfirm && (
-          <div className="px-4 pt-2 border-t border-theme flex-shrink-0" style={{paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'}}>
+        {!drafting && !done && awaitingConfirm && !snoozing && (
+          <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
             <div className="text-sm font-medium text-body text-center mb-3">Did you send the email?</div>
             <div className="flex gap-2">
               <button
@@ -299,6 +299,9 @@ function FollowUpModal({ action, onClose, onSent }) {
                 Re-open Gmail draft
               </button>
             )}
+            <button onClick={() => setSnoozing(true)} className="w-full text-xs text-muted text-center mt-2 py-1">
+              Snooze / reschedule instead
+            </button>
           </div>
         )}
         {done && (
