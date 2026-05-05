@@ -28,12 +28,29 @@ def list_leads(
 
     leads = session.exec(q).all()
 
+    EXEC_KEYWORDS = {"director", "vp", "head", "chief", "manager", "president", "officer", "lead"}
+
+    def _is_junk_title(title: str) -> bool:
+        t = (title or "").strip().lower()
+        if not t:
+            return True
+        # Long strings with no exec keyword are scraper page-section artifacts
+        if len(t) > 80 and not any(k in t for k in EXEC_KEYWORDS):
+            return True
+        # Known non-job-posting page titles
+        if t in {"contact our sales team", "solutions", "products", "platform", "pricing", "about"}:
+            return True
+        return False
+
     # Enrich with company name and sort by lamp_score desc, then company name asc
     result = []
     for lead in leads:
         company = session.get(Company, lead.company_id) if lead.company_id else None
         # Filter out leads from low-motivation companies (motivation < 7)
         if company and company.motivation < 7:
+            continue
+        # Filter scraper junk
+        if _is_junk_title(lead.title):
             continue
         result.append({
             **lead.dict(),

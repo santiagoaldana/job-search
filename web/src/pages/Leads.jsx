@@ -12,7 +12,7 @@ export default function Leads() {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [minFit, setMinFit] = useState(65)
+  const [minFit, setMinFit] = useState(50)
   const [locationOnly, setLocationOnly] = useState(true)
   const [expanded, setExpanded] = useState({})
   const [searchParams] = useSearchParams()
@@ -102,7 +102,7 @@ export default function Leads() {
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs text-muted">
             <span>Min fit score</span>
-            <span className={minFit >= 65 ? 'text-orange-500 font-medium' : 'text-muted'}>
+            <span className={minFit >= 50 ? 'text-orange-500 font-medium' : 'text-muted'}>
               {minFit > 0 ? `${minFit}%` : 'All'}
             </span>
           </div>
