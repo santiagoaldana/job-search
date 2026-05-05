@@ -1144,6 +1144,11 @@ function OutreachTab({ company, onReload, defaultContactId }) {
     }
   }
 
+  const handleWriteMyself = () => {
+    const contact = company.contacts?.find(c => c.id === selectedContact)
+    setDraft({ subject: '', body: '', manual: true, contact_name: contact?.name })
+  }
+
   const handleCopy = () => {
     const text = `Subject: ${draft.subject}\n\n${draft.body}`
     navigator.clipboard.writeText(text)
@@ -1171,14 +1176,23 @@ function OutreachTab({ company, onReload, defaultContactId }) {
           <div className="text-xs text-green-700 dark:text-green-400 mb-3">
             {warmContact.title && `${warmContact.title} · `}1st-degree LinkedIn connection · reach out now
           </div>
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-          >
-            {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : `Draft outreach to ${warmContact.name.split(' ')[0]} →`}
-          </button>
-          <div className="text-xs text-green-700 dark:text-green-400 text-center mt-2">Or fill in context below for a more tailored draft</div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleWriteMyself}
+              className="flex-1 border border-green-400 text-green-800 dark:text-green-300 rounded-xl py-3 text-sm font-medium transition-colors"
+            >
+              Write myself
+            </button>
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+            >
+              {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : `AI draft →`}
+              {!generating && <AICostBadge model="opus" cost="$0.05" />}
+            </button>
+          </div>
+          <div className="text-xs text-green-700 dark:text-green-400 text-center mt-2">Or fill in context below for a more tailored AI draft</div>
         </div>
       )}
 
@@ -1266,21 +1280,32 @@ function OutreachTab({ company, onReload, defaultContactId }) {
         />
       </div>
 
-      <button
-        onClick={handleGenerate}
-        disabled={generating}
-        className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
-      >
-        {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : <><Send size={14} /> Generate email</>}
-        {!generating && <AICostBadge model="opus" cost="$0.05" />}
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={handleWriteMyself}
+          disabled={generating}
+          className="flex-1 border border-theme text-body rounded-xl py-3 text-sm font-medium transition-colors"
+        >
+          Write myself
+        </button>
+        <button
+          onClick={handleGenerate}
+          disabled={generating}
+          className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+        >
+          {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : <><Send size={14} /> AI draft</>}
+          {!generating && <AICostBadge model="opus" cost="$0.05" />}
+        </button>
+      </div>
 
       {/* Draft result */}
       {draft && (
         <div className="bg-card border border-blue-300 dark:border-blue-700 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-theme bg-blue-50 dark:bg-blue-950/40">
             <div>
-              <span className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Draft</span>
+              <span className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+                {draft.manual ? 'Your draft' : 'AI Draft'}
+              </span>
               {draft.word_count && (
                 <span className={`ml-2 text-xs ${draft.word_count > 75 ? 'text-orange-500' : 'text-green-600 dark:text-green-400'}`}>
                   {draft.word_count} words
@@ -1293,17 +1318,30 @@ function OutreachTab({ company, onReload, defaultContactId }) {
             </button>
           </div>
           <div className="p-4 space-y-2">
-            <div className="text-sm font-semibold text-body">{draft.subject}</div>
-            <div className="text-sm text-body whitespace-pre-wrap leading-relaxed">{draft.body}</div>
+            <input
+              value={draft.subject}
+              onChange={e => setDraft(d => ({ ...d, subject: e.target.value }))}
+              placeholder="Subject"
+              className="w-full text-sm font-semibold text-body bg-transparent border-b border-theme pb-1 outline-none"
+            />
+            <textarea
+              value={draft.body}
+              onChange={e => setDraft(d => ({ ...d, body: e.target.value }))}
+              placeholder="Write your message…"
+              rows={draft.manual ? 8 : 6}
+              className="w-full text-sm text-body bg-transparent outline-none resize-none leading-relaxed"
+            />
             {draft.rationale && (
               <div className="text-xs text-muted italic pt-1 border-t border-theme">{draft.rationale}</div>
             )}
           </div>
           <div className="flex gap-2 px-4 pb-3 flex-wrap">
-            <button onClick={handleGenerate} disabled={generating}
-              className="flex-1 bg-card2 border border-theme text-body rounded-lg py-2 text-xs font-medium">
-              Regenerate
-            </button>
+            {!draft.manual && (
+              <button onClick={handleGenerate} disabled={generating}
+                className="flex-1 bg-card2 border border-theme text-body rounded-lg py-2 text-xs font-medium">
+                Regenerate
+              </button>
+            )}
             {(() => {
               const contactEmail = company.contacts?.find(c => c.id === selectedContact)?.email
               const to = encodeURIComponent(contactEmail || '')
