@@ -128,12 +128,25 @@ function StatsCard() {
   )
 }
 
-function OutreachCard({ record, companyMap, contactMap, onStatusChange, onSkip }) {
+function OutreachCard({ record, companyMap, contactMap, onStatusChange, onSkip, onReload }) {
   const navigate = useNavigate()
   const company = companyMap[record.company_id]
   const contact = record.contact_id ? contactMap[record.contact_id] : null
   const days = daysSince(record.sent_at)
   const action = record.response_status === 'pending' ? nextAction(record) : null
+  const [editingDates, setEditingDates] = useState(false)
+  const [due3, setDue3] = useState(record.follow_up_3_due || '')
+  const [due7, setDue7] = useState(record.follow_up_7_due || '')
+  const [savingDates, setSavingDates] = useState(false)
+
+  const handleSaveDates = async () => {
+    setSavingDates(true)
+    try {
+      await api.patchOutreach(record.id, { follow_up_3_due: due3 || null, follow_up_7_due: due7 || null })
+      setEditingDates(false)
+      onReload?.()
+    } catch (e) { alert(e.message) } finally { setSavingDates(false) }
+  }
 
   const primaryName = contact?.name || company?.name || `Company #${record.company_id}`
   const secondaryLine = contact
@@ -176,10 +189,32 @@ function OutreachCard({ record, companyMap, contactMap, onStatusChange, onSkip }
         Sent {record.sent_at?.slice(0, 10)}{days !== null ? ` · ${days}d ago` : ''}
       </div>
 
-      {/* Next action */}
-      {action && (
-        <div className={`mt-2 text-xs font-medium ${action.urgent ? 'text-red-500' : 'text-muted'}`}>
-          {action.urgent ? '⚡ ' : ''}{action.label}
+      {/* Next action + edit dates */}
+      {action && !editingDates && (
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          <span className={`text-xs font-medium ${action.urgent ? 'text-red-500' : 'text-muted'}`}>
+            {action.urgent ? '⚡ ' : ''}{action.label}
+          </span>
+          <button onClick={() => setEditingDates(true)} className="text-xs text-blue-500 underline">Edit dates</button>
+        </div>
+      )}
+      {editingDates && (
+        <div className="mt-2 flex flex-wrap gap-2 items-end">
+          <div>
+            <label className="text-[10px] text-muted block mb-0.5">Day 3 due</label>
+            <input type="date" value={due3} onChange={e => setDue3(e.target.value)}
+              className="border border-theme rounded-lg px-2 py-1 text-xs bg-card text-body" />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted block mb-0.5">Day 7 due</label>
+            <input type="date" value={due7} onChange={e => setDue7(e.target.value)}
+              className="border border-theme rounded-lg px-2 py-1 text-xs bg-card text-body" />
+          </div>
+          <button onClick={handleSaveDates} disabled={savingDates}
+            className="text-xs bg-blue-500 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">
+            {savingDates ? 'Saving…' : 'Save'}
+          </button>
+          <button onClick={() => setEditingDates(false)} className="text-xs text-muted">Cancel</button>
         </div>
       )}
 
@@ -333,6 +368,7 @@ export default function OutreachPage() {
               contactMap={contactMap}
               onStatusChange={handleStatusChange}
               onSkip={handleSkip}
+              onReload={load}
             />
           ))
         )}

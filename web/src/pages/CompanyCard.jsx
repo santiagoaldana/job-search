@@ -894,9 +894,22 @@ function NetworkPath({ companyId }) {
   )
 }
 
-function OutreachHistoryCard({ o, onResponseUpdate, onUseAsContext }) {
+function OutreachHistoryCard({ o, onResponseUpdate, onUseAsContext, onDatesUpdated }) {
   const [expanded, setExpanded] = useState(false)
+  const [editingDates, setEditingDates] = useState(false)
+  const [due3, setDue3] = useState(o.follow_up_3_due || '')
+  const [due7, setDue7] = useState(o.follow_up_7_due || '')
+  const [savingDates, setSavingDates] = useState(false)
   const hasBody = !!o.body
+
+  const handleSaveDates = async () => {
+    setSavingDates(true)
+    try {
+      await api.patchOutreach(o.id, { follow_up_3_due: due3 || null, follow_up_7_due: due7 || null })
+      setEditingDates(false)
+      onDatesUpdated?.()
+    } catch (e) { alert(e.message) } finally { setSavingDates(false) }
+  }
 
   return (
     <div className="bg-card border border-theme rounded-xl p-4">
@@ -908,10 +921,35 @@ function OutreachHistoryCard({ o, onResponseUpdate, onUseAsContext }) {
           o.response_status === 'ghosted' ? 'slate' : 'yellow'
         }>{o.response_status}</Badge>
       </div>
-      <div className="text-xs text-muted mb-2">
-        {o.sent_at ? `Sent ${o.sent_at.slice(0, 10)}` : 'Draft'}
-        {o.follow_up_3_due && ` · Follow-up due ${o.follow_up_3_due}`}
+      <div className="text-xs text-muted mb-2 flex items-center gap-2 flex-wrap">
+        <span>{o.sent_at ? `Sent ${o.sent_at.slice(0, 10)}` : 'Draft'}</span>
+        {!editingDates && (
+          <>
+            {due3 && <span>· D3 {due3}</span>}
+            {due7 && <span>· D7 {due7}</span>}
+            <button onClick={() => setEditingDates(true)} className="text-blue-500 underline">Edit dates</button>
+          </>
+        )}
       </div>
+      {editingDates && (
+        <div className="mb-2 flex flex-wrap gap-2 items-end">
+          <div>
+            <label className="text-[10px] text-muted block mb-0.5">Day 3 due</label>
+            <input type="date" value={due3} onChange={e => setDue3(e.target.value)}
+              className="border border-theme rounded-lg px-2 py-1 text-xs bg-card text-body" />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted block mb-0.5">Day 7 due</label>
+            <input type="date" value={due7} onChange={e => setDue7(e.target.value)}
+              className="border border-theme rounded-lg px-2 py-1 text-xs bg-card text-body" />
+          </div>
+          <button onClick={handleSaveDates} disabled={savingDates}
+            className="text-xs bg-blue-500 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">
+            {savingDates ? 'Saving…' : 'Save'}
+          </button>
+          <button onClick={() => setEditingDates(false)} className="text-xs text-muted">Cancel</button>
+        </div>
+      )}
 
       {hasBody && (
         <>
@@ -1240,6 +1278,7 @@ function OutreachTab({ company, onReload, defaultContactId }) {
               o={o}
               onResponseUpdate={handleResponseUpdate}
               onUseAsContext={(text) => setContext(text)}
+              onDatesUpdated={onReload}
             />
           ))}
         </div>
