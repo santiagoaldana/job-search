@@ -802,17 +802,17 @@ function ContactModal({ company, contact, onClose, onSaved }) {
               )}
             </div>
           )}
-        </div>
 
-        {/* Footer */}
-        <div className="px-4 pt-2 border-t border-theme flex-shrink-0" style={{paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'}}>
-          <button
-            onClick={handleSave}
-            disabled={saving || (!isEdit && !form.name.trim())}
-            className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors"
-          >
-            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add contact'}
-          </button>
+          {/* Save button at bottom of scroll area — always reachable on mobile */}
+          <div className="pt-2" style={{paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'}}>
+            <button
+              onClick={handleSave}
+              disabled={saving || (!isEdit && !form.name.trim())}
+              className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors"
+            >
+              {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add contact'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
