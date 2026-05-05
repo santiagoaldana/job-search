@@ -106,8 +106,9 @@ class Lead(SQLModel, table=True):
     # Cambridge/Boston/Remote=True; onsite-only elsewhere=False
     location_compatible: bool = Field(default=True)
 
-    # Status: active|applied|closed
+    # Status: active|applied|closed|skipped
     status: str = Field(default="active")
+    discard_reason: Optional[str] = Field(default=None)  # wrong_seniority|wrong_location|not_my_sector|no_real_posting
     # Source: greenhouse|lever|career_page
     source: str = Field(default="career_page")
 

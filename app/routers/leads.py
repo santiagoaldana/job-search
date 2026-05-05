@@ -188,15 +188,18 @@ async def parse_salary(lead_id: int, session: Session = Depends(get_session)):
 def update_lead_status(
     lead_id: int,
     status: str,
+    reason: Optional[str] = Query(None),
     session: Session = Depends(get_session),
 ):
-    valid = {"active", "applied", "closed"}
+    valid = {"active", "applied", "closed", "skipped"}
     if status not in valid:
         raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
     lead = session.get(Lead, lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     lead.status = status
+    if status == "skipped" and reason:
+        lead.discard_reason = reason
     session.add(lead)
     session.commit()
-    return {"id": lead_id, "status": status}
+    return {"id": lead_id, "status": status, "discard_reason": lead.discard_reason}

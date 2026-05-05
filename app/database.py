@@ -57,6 +57,7 @@ def run_migrations():
         ("company", "network_path_json", "TEXT"),
         ("outreachrecord", "linkedin_accepted", "BOOLEAN"),
         ("contact", "referral_target_company_id", "INTEGER"),
+        ("lead", "discard_reason", "TEXT"),
     ]
 
     with engine.connect() as conn:

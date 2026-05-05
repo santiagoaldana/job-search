@@ -48,7 +48,7 @@ export const api = {
   refreshLeads: () => post('/leads/refresh'),
   scoreLead: (id) => post(`/leads/${id}/score`),
   fetchLeadJD: (id) => post(`/leads/${id}/fetch-jd`),
-  updateLeadStatus: (id, status) => request('PATCH', `/leads/${id}/status?status=${status}`),
+  updateLeadStatus: (id, status, reason = null) => request('PATCH', `/leads/${id}/status?status=${status}${reason ? `&reason=${reason}` : ''}`),
   parseSalary: (id) => post(`/leads/${id}/parse-salary`),
 
   // Outreach
