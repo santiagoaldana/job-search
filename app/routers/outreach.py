@@ -285,25 +285,33 @@ def patch_outreach(record_id: int, data: OutreachUpdate, session: Session = Depe
     return record
 
 
+class ResponseUpdate(BaseModel):
+    response_status: str
+    notes: Optional[str] = None
+
+
 @router.patch("/{record_id}/response")
 def update_response(
     record_id: int,
-    response_status: str,
+    data: ResponseUpdate,
     session: Session = Depends(get_session),
 ):
     valid = {"pending", "positive", "negative", "ghosted"}
-    if response_status not in valid:
+    if data.response_status not in valid:
         raise HTTPException(status_code=400, detail=f"Invalid status")
 
     record = session.get(OutreachRecord, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
 
-    record.response_status = response_status
+    record.response_status = data.response_status
     record.updated_at = datetime.utcnow().isoformat()
 
+    if data.notes is not None:
+        record.notes = data.notes
+
     # Reset follow-up counter from today when a reply is received
-    if response_status == "positive":
+    if data.response_status == "positive":
         today = datetime.utcnow().date()
         record.follow_up_3_due = add_business_days(today, 3).isoformat()
         record.follow_up_7_due = add_business_days(today, 7).isoformat()
@@ -311,7 +319,7 @@ def update_response(
         record.follow_up_7_sent = False
 
     # Advance company stage on positive response
-    if response_status == "positive" and record.company_id:
+    if data.response_status == "positive" and record.company_id:
         company = session.get(Company, record.company_id)
         if company and company.stage == "outreach":
             company.stage = "response"
