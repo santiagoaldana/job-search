@@ -152,8 +152,8 @@ function FollowUpModal({ action, onClose, onSent }) {
   return (
     <div className="fixed inset-0 z-[60] bg-black/50" onClick={onClose}>
       <div
-        className="absolute inset-x-0 bottom-16 mx-auto max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-xl flex flex-col"
-        style={{maxHeight: 'calc(100dvh - 5rem)'}}
+        className="absolute inset-x-0 bottom-16 mx-auto max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-xl flex flex-col overflow-hidden"
+        style={{maxHeight: 'calc(100dvh - 8rem)'}}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -200,7 +200,7 @@ function FollowUpModal({ action, onClose, onSent }) {
               {conversation && (
                 <div className="mb-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
                   <label className="text-xs font-semibold text-muted mb-2 block">📧 Previous Conversation</label>
-                  <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-32 overflow-y-auto font-mono leading-relaxed">
+                  <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-20 overflow-y-auto font-mono leading-relaxed">
                     {conversation}
                   </pre>
                 </div>
@@ -219,7 +219,7 @@ function FollowUpModal({ action, onClose, onSent }) {
                 <textarea
                   value={body}
                   onChange={e => setBody(e.target.value)}
-                  rows={6}
+                  rows={4}
                   className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none"
                 />
               </div>
