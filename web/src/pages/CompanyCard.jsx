@@ -1063,6 +1063,9 @@ function OutreachTab({ company, onReload, defaultContactId }) {
   const warmContact = defaultContactId
     ? company.contacts?.find(c => c.id === defaultContactId)
     : null
+  const warmAlreadySent = warmContact
+    ? (company.outreach || []).some(o => o.contact_id === warmContact.id)
+    : false
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -1168,7 +1171,7 @@ function OutreachTab({ company, onReload, defaultContactId }) {
   return (
     <div className="space-y-4">
       {/* Warm path banner */}
-      {warmContact && !draft && (
+      {warmContact && !draft && !warmAlreadySent && (
         <div className="bg-green-50 dark:bg-green-950/40 border border-green-300 dark:border-green-700 rounded-xl p-4">
           <div className="text-sm font-semibold text-green-800 dark:text-green-300 mb-0.5">
             Warm path — {warmContact.name}
