@@ -146,34 +146,15 @@ Return JSON (no markdown):
 FOLLOW_UP_TEMPLATES = {
     "day_3": {
         "subject": "Re: {original_subject}",
-        "body": """Hi {first_name},
-
-Just following up on my previous message. I'd love to hear your thoughts on {brief_context}.
-
-Looking forward to connecting.
-
-Best,
-Santiago""",
+        "body": "",
     },
     "day_7": {
         "subject": "Re: {original_subject}",
-        "body": """Hi {first_name},
-
-I understand you're busy. If now isn't a good time, no worries—I'll leave this here. Feel free to reach out if you'd like to chat.
-
-Best,
-Santiago""",
+        "body": "",
     },
     "harvest": {
-        "subject": "Quick check-in",
-        "body": """Hi {first_name},
-
-It's been {days_since} since we last connected. I wanted to see if there's been any movement on your end that we should discuss.
-
-Looking forward to reconnecting.
-
-Best,
-Santiago""",
+        "subject": "Re: {original_subject}",
+        "body": "",
     },
 }
 

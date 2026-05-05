@@ -212,7 +212,7 @@ function FollowUpModal({ action, onClose, onSent }) {
             >
               {sending ? 'Opening Gmail…' : 'Send via Gmail →'}
             </button>
-            <div className="text-xs text-muted text-center mt-2">Opens your email client with this message pre-filled</div>
+            <div className="text-xs text-muted text-center mt-2">Write your message above, then open in Gmail</div>
           </div>
         )}
         {!drafting && !done && awaitingConfirm && (
