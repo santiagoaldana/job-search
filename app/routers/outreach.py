@@ -184,6 +184,14 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
             company.updated_at = datetime.utcnow().isoformat()
             session.add(company)
 
+    # Update contact outreach status
+    if data.contact_id:
+        contact = session.get(Contact, data.contact_id)
+        if contact and contact.outreach_status == "none":
+            contact.outreach_status = "drafted"
+            contact.updated_at = datetime.utcnow().isoformat()
+            session.add(contact)
+
     session.commit()
     session.refresh(record)
 

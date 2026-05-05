@@ -139,7 +139,10 @@ def compute_daily_brief(session: Session) -> dict:
     high_motivation_ids = {
         c.id for c in session.exec(select(Company).where(Company.motivation >= 5, Company.is_archived == False)).all()
     }
-    recent_warm = [c for c in recent_warm if c.company_id in high_motivation_ids]
+    contacted_contact_ids = {
+        r.contact_id for r in session.exec(select(OutreachRecord).where(OutreachRecord.contact_id != None)).all()
+    }
+    recent_warm = [c for c in recent_warm if c.company_id in high_motivation_ids and c.id not in contacted_contact_ids]
 
     for contact in recent_warm[:3]:
         company = session.get(Company, contact.company_id) if contact.company_id else None
