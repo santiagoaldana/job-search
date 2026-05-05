@@ -136,12 +136,30 @@ def get_company(company_id: int, session: Session = Depends(get_session)):
             d["introduced_by_name"] = None
         contacts.append(d)
 
+    # Referral contacts — people who don't work here but can open doors
+    referral_contacts_raw = session.exec(
+        select(Contact).where(Contact.referral_target_company_id == company_id)
+    ).all()
+    referral_contacts = []
+    for c in referral_contacts_raw:
+        current_company = session.get(Company, c.company_id) if c.company_id else None
+        referral_contacts.append({
+            "id": c.id,
+            "name": c.name,
+            "title": c.title,
+            "current_company_name": current_company.name if current_company else None,
+            "warmth": c.warmth,
+            "linkedin_url": c.linkedin_url,
+            "relationship_notes": c.relationship_notes,
+        })
+
     return {
         "company": company,
         "contacts": contacts,
         "leads": leads,
         "outreach": outreach,
         "applications": applications,
+        "referral_contacts": referral_contacts,
     }
 
 

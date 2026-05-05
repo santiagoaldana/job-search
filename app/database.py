@@ -56,6 +56,7 @@ def run_migrations():
         ("contentdraft", "content_type", "TEXT DEFAULT 'linkedin'"),
         ("company", "network_path_json", "TEXT"),
         ("outreachrecord", "linkedin_accepted", "BOOLEAN"),
+        ("contact", "referral_target_company_id", "INTEGER"),
     ]
 
     with engine.connect() as conn:

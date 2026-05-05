@@ -45,7 +45,7 @@ export default function CompanyCard() {
     setLoading(true)
     api.getCompany(id)
       .then(r => {
-        const c = { ...r.company, contacts: r.contacts, leads: r.leads, outreach: r.outreach, applications: r.applications }
+        const c = { ...r.company, contacts: r.contacts, leads: r.leads, outreach: r.outreach, applications: r.applications, referral_contacts: r.referral_contacts || [] }
         setCompany(c); setMotivation(c.motivation)
       })
       .catch(console.error)
@@ -318,6 +318,38 @@ export default function CompanyCard() {
                 </button>
               </>
             )}
+
+            {/* Referral Sources */}
+            {company.referral_contacts?.length > 0 && (
+              <div className="mt-4">
+                <div className="text-xs text-muted font-medium uppercase tracking-wide mb-2">
+                  Referral sources ({company.referral_contacts.length})
+                </div>
+                {company.referral_contacts.map(c => (
+                  <div key={c.id} className="bg-card border border-theme rounded-xl p-4 mb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-body">{c.name}</div>
+                        {c.title && <div className="text-sm text-muted mt-0.5">{c.title}</div>}
+                        {c.current_company_name && (
+                          <div className="text-xs text-muted mt-0.5">Now at {c.current_company_name}</div>
+                        )}
+                        {c.relationship_notes && (
+                          <div className="text-xs text-muted italic mt-0.5">{c.relationship_notes}</div>
+                        )}
+                      </div>
+                      <Badge color={c.warmth === 'hot' ? 'red' : c.warmth === 'warm' ? 'orange' : 'slate'}>
+                        {c.warmth}
+                      </Badge>
+                    </div>
+                    {c.linkedin_url && (
+                      <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-blue-500 mt-2 block">LinkedIn →</a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -528,6 +560,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
   const [outreachDone, setOutreachDone] = useState(false)
   const [outreachChannel, setOutreachChannel] = useState('linkedin')
   const [outreachDate, setOutreachDate] = useState(new Date().toISOString().slice(0, 10))
+  const [isReferral, setIsReferral] = useState(contact?.referral_target_company_id === company.id)
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
 
@@ -575,6 +608,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           met_via: form.met_via || undefined,
           relationship_notes: form.relationship_notes || undefined,
           introduced_by_contact_id: introducedById,
+          referral_target_company_id: isReferral ? company.id : null,
         })
         onSaved()
       } else {
@@ -588,6 +622,9 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           relationship_notes: form.relationship_notes || undefined,
           introduced_by_contact_id: introducedById,
         })
+        if (isReferral && result.contact_id) {
+          await api.updateContact(result.contact_id, { referral_target_company_id: company.id })
+        }
         if (outreachDone && result.contact_id) {
           await api.createOutreach({
             company_id: company.id,
@@ -710,6 +747,17 @@ function ContactModal({ company, contact, onClose, onSaved }) {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="flex items-center justify-between border border-theme rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-900/40">
+            <label className="text-xs font-medium text-body">Can refer me to {company.name}</label>
+            <button
+              type="button"
+              onClick={() => setIsReferral(v => !v)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${isReferral ? 'bg-purple-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isReferral ? 'translate-x-5' : ''}`} />
+            </button>
           </div>
 
           {!isEdit && (

@@ -78,6 +78,7 @@ class Contact(SQLModel, table=True):
     relationship_notes: Optional[str] = Field(default=None)
     met_at_event_id: Optional[int] = Field(default=None)
     introduced_by_contact_id: Optional[int] = Field(default=None, foreign_key="contact.id")
+    referral_target_company_id: Optional[int] = Field(default=None, foreign_key="company.id")
     email_guessed: bool = Field(default=False)              # pattern-guessed, not confirmed
     email_invalid: bool = Field(default=False)              # bounce confirmed
     email_patterns_tried: Optional[str] = Field(default=None)  # JSON list of tried patterns
