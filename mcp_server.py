@@ -110,6 +110,21 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="log_outreach",
+            description="Log an outreach record for a contact — call this after quick_add_contact when the user confirms they already reached out. This starts the follow-up clock (Day 3 / Day 7).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contact_id": {"type": "integer", "description": "Contact ID returned by quick_add_contact"},
+                    "company_name": {"type": "string", "description": "Company name to resolve company_id"},
+                    "channel": {"type": "string", "enum": ["linkedin", "email", "referral"], "description": "How outreach was sent"},
+                    "sent_date": {"type": "string", "description": "ISO date when outreach was sent, e.g. 2026-05-01"},
+                    "notes": {"type": "string", "description": "Optional notes about the outreach"},
+                },
+                "required": ["contact_id", "channel", "sent_date"],
+            },
+        ),
+        types.Tool(
             name="compose_linkedin_post",
             description="Generate a LinkedIn post in Santiago's executive voice from a topic or conference insight.",
             inputSchema={
@@ -446,7 +461,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
 async def _dispatch(name: str, args: dict) -> dict:
     if name == "quick_add_contact":
-        return await _post("/api/contacts/quick-add", {
+        result = await _post("/api/contacts/quick-add", {
             "name": args["name"],
             "title": args.get("title"),
             "company_name": args.get("company_name"),
@@ -454,6 +469,34 @@ async def _dispatch(name: str, args: dict) -> dict:
             "linkedin_url": args.get("linkedin_url"),
             "relationship_notes": args.get("relationship_notes"),
             "outreach_status": args.get("outreach_status"),
+        })
+        contact_id = result.get("contact_id")
+        name_str = args["name"]
+        result["_prompt"] = (
+            f"Contact added (ID: {contact_id}). "
+            f"Did you already reach out to {name_str}? "
+            f"If yes, say the channel (linkedin or email) and the date — e.g. 'yes, linkedin, May 1' — "
+            f"and I'll call log_outreach to start the follow-up clock. Or say 'not yet'."
+        )
+        return result
+
+    elif name == "log_outreach":
+        contact_id = args["contact_id"]
+        company_name = args.get("company_name")
+        company_id = None
+        if company_name:
+            results = await _get("/api/companies", {"q": company_name})
+            if results:
+                company_id = results[0]["id"]
+        sent_at = args["sent_date"] + "T00:00:00"
+        channel = args["channel"]
+        return await _post("/api/outreach", {
+            "company_id": company_id,
+            "contact_id": contact_id,
+            "channel": channel,
+            "sent_at": sent_at,
+            "subject": f"{'LinkedIn connection request' if channel == 'linkedin' else 'Email outreach'} — logged via MCP",
+            "body": args.get("notes", f"Outreach via {channel} logged from Claude desktop."),
         })
 
     elif name == "generate_outreach":

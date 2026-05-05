@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy, Users, Network, Plus, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy, Users, Network, Plus, X, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
 import { api } from '../api'
 import Badge from '../components/Badge'
 import FitBar from '../components/FitBar'
@@ -31,6 +31,9 @@ export default function CompanyCard() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState(searchParams.get('tab') || 'Intel')
   const [refreshingIntel, setRefreshingIntel] = useState(false)
+  const [editingIntel, setEditingIntel] = useState(false)
+  const [intelDraft, setIntelDraft] = useState('')
+  const [savingIntel, setSavingIntel] = useState(false)
   const [motivation, setMotivation] = useState(null)
   const [savingMotivation, setSavingMotivation] = useState(false)
   const [generatingOutreach, setGeneratingOutreach] = useState(false)
@@ -161,21 +164,67 @@ export default function CompanyCard() {
       <div className="px-4 pb-4">
         {tab === 'Intel' && (
           <div>
-            <button onClick={handleRefreshIntel} disabled={refreshingIntel}
-              className="flex items-center gap-2 text-sm text-blue-500 mb-4 disabled:opacity-50">
-              <RefreshCw size={14} className={refreshingIntel ? 'animate-spin' : ''} />
-              {refreshingIntel ? 'Generating…' : 'Refresh intel'}
-              <AICostBadge model="opus" cost="$0.04" />
-            </button>
-            {company.intel_summary ? (
+            <div className="flex items-center gap-3 mb-4">
+              <button onClick={handleRefreshIntel} disabled={refreshingIntel}
+                className="flex items-center gap-2 text-sm text-blue-500 disabled:opacity-50">
+                <RefreshCw size={14} className={refreshingIntel ? 'animate-spin' : ''} />
+                {refreshingIntel ? 'Generating…' : 'Refresh intel'}
+                <AICostBadge model="opus" cost="$0.04" />
+              </button>
+              {!editingIntel && (
+                <button
+                  onClick={() => { setIntelDraft(company.intel_summary || ''); setEditingIntel(true) }}
+                  className="flex items-center gap-1 text-sm text-muted hover:text-body"
+                >
+                  <Pencil size={13} /> Edit
+                </button>
+              )}
+            </div>
+
+            {editingIntel ? (
+              <div className="space-y-2">
+                <textarea
+                  value={intelDraft}
+                  onChange={e => setIntelDraft(e.target.value)}
+                  rows={10}
+                  className="w-full border border-theme rounded-xl p-4 text-sm bg-card text-body resize-none leading-relaxed"
+                  placeholder="Add intel: news, funding, hiring signals, key initiatives, people notes…"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingIntel(false)}
+                    className="flex-1 border border-theme text-muted rounded-xl py-2 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={savingIntel}
+                    onClick={async () => {
+                      setSavingIntel(true)
+                      try {
+                        await api.updateCompany(id, { intel_summary: intelDraft })
+                        setCompany(c => ({ ...c, intel_summary: intelDraft }))
+                        setEditingIntel(false)
+                      } catch (e) { alert(e.message) }
+                      setSavingIntel(false)
+                    }}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2 text-sm font-semibold"
+                  >
+                    {savingIntel ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : company.intel_summary ? (
               <div className="bg-card border border-theme rounded-xl p-4 text-sm text-body leading-relaxed whitespace-pre-wrap">
                 {company.intel_summary}
               </div>
             ) : (
               <div className="text-center text-muted text-sm py-8">
-                No intel yet. Tap "Refresh intel" to generate a brief.
+                No intel yet. Tap "Refresh intel" to generate, or "Edit" to add manually.
               </div>
             )}
+
             {company.org_notes && (
               <div className="mt-3 bg-card border border-theme rounded-xl p-4">
                 <div className="text-xs text-muted font-medium uppercase tracking-wide mb-2">Notes</div>
