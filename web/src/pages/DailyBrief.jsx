@@ -129,8 +129,8 @@ function FollowUpModal({ action, onClose, onSent }) {
   const companyName = action.label?.replace(/Day \d+ (?:follow-up|close) — /, '') || ''
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4" style={{paddingBottom: 'env(safe-area-inset-bottom)'}}>
-      <div className="bg-white dark:bg-slate-900 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4 pb-16 sm:pb-0">
+      <div className="bg-white dark:bg-slate-900 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-theme flex-shrink-0">
           <div>
@@ -204,7 +204,7 @@ function FollowUpModal({ action, onClose, onSent }) {
 
         {/* Footer */}
         {!drafting && !done && !awaitingConfirm && (
-          <div className="px-4 pt-2 border-t border-theme flex-shrink-0" style={{paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'}}>
+          <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
             <button
               onClick={handleOpenGmail}
               disabled={sending || !subject || !body}
