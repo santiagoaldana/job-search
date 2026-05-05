@@ -374,6 +374,16 @@ def update_contact(
     return contact
 
 
+@router.delete("/{contact_id}")
+def delete_contact(contact_id: int, session: Session = Depends(get_session)):
+    contact = session.get(Contact, contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    session.delete(contact)
+    session.commit()
+    return {"ok": True}
+
+
 @router.post("/{contact_id}/bounce")
 def mark_email_bounce(contact_id: int, session: Session = Depends(get_session)):
     """Mark contact email as bounced, advance to next pattern, return updated next_step."""
