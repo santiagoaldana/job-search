@@ -1060,6 +1060,10 @@ function OutreachTab({ company, onReload, defaultContactId }) {
   const [copied, setCopied] = useState(false)
   const [undoId, setUndoId] = useState(null)
 
+  const warmContact = defaultContactId
+    ? company.contacts?.find(c => c.id === defaultContactId)
+    : null
+
   const handleGenerate = async () => {
     setGenerating(true)
     setDraft(null)
@@ -1158,6 +1162,26 @@ function OutreachTab({ company, onReload, defaultContactId }) {
 
   return (
     <div className="space-y-4">
+      {/* Warm path banner */}
+      {warmContact && !draft && (
+        <div className="bg-green-50 dark:bg-green-950/40 border border-green-300 dark:border-green-700 rounded-xl p-4">
+          <div className="text-sm font-semibold text-green-800 dark:text-green-300 mb-0.5">
+            Warm path — {warmContact.name}
+          </div>
+          <div className="text-xs text-green-700 dark:text-green-400 mb-3">
+            {warmContact.title && `${warmContact.title} · `}1st-degree LinkedIn connection · reach out now
+          </div>
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+          >
+            {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : `Draft outreach to ${warmContact.name.split(' ')[0]} →`}
+          </button>
+          <div className="text-xs text-green-700 dark:text-green-400 text-center mt-2">Or fill in context below for a more tailored draft</div>
+        </div>
+      )}
+
       {/* Email type selector */}
       <div className="flex gap-1 bg-card2 border border-theme rounded-xl p-1">
         {[
