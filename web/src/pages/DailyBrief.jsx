@@ -129,7 +129,7 @@ function FollowUpModal({ action, onClose, onSent }) {
   const companyName = action.label?.replace(/Day \d+ (?:follow-up|close) — /, '') || ''
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4" style={{paddingBottom: 'env(safe-area-inset-bottom)'}}>
       <div className="bg-white dark:bg-slate-900 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-theme flex-shrink-0">
@@ -194,7 +194,7 @@ function FollowUpModal({ action, onClose, onSent }) {
                 <textarea
                   value={body}
                   onChange={e => setBody(e.target.value)}
-                  rows={9}
+                  rows={6}
                   className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none"
                 />
               </div>
@@ -216,7 +216,7 @@ function FollowUpModal({ action, onClose, onSent }) {
           </div>
         )}
         {!drafting && !done && awaitingConfirm && (
-          <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
+          <div className="px-4 pt-2 border-t border-theme flex-shrink-0" style={{paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'}}>
             <div className="text-sm font-medium text-body text-center mb-3">Did you send the email?</div>
             <div className="flex gap-2">
               <button
