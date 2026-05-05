@@ -21,6 +21,7 @@ const patch = (path, body) => request('PATCH', path, body)
 export const api = {
   // Daily brief
   getDailyBrief: () => get('/daily-brief'),
+  dismissBriefAction: (action_type, payload_id) => post('/daily-brief/dismiss', { action_type, payload_id }),
 
   // Companies
   getCompanies: (params = {}) => {

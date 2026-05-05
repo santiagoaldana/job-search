@@ -505,7 +505,7 @@ function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
   )
 }
 
-function Section({ title, icon: Icon, items, onAction, onMarkSent, onRefresh, badge, badgeColor = 'blue', defaultOpen = true }) {
+function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, onRefresh, badge, badgeColor = 'blue', defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
@@ -551,26 +551,37 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onRefresh, ba
                   key={i}
                   className={`w-full text-left p-4 rounded-xl border ${cardColor}`}
                 >
-                  <button
-                    onClick={() => onAction(action)}
-                    className="w-full text-left transition-all active:scale-[0.99]"
-                  >
-                    <div className="flex items-start gap-3">
-                      <Icon size={16} className={`mt-0.5 flex-shrink-0 ${iconColor}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-body text-sm leading-snug">{action.label}</div>
-                        {action.detail && (
-                          <div className="text-xs text-muted mt-0.5 leading-relaxed">{action.detail}</div>
-                        )}
-                        <div className="mt-2 flex items-center gap-2">
-                          <span className={`text-xs font-semibold ${isFollowUp ? 'text-red-500' : 'text-blue-500'}`}>
-                            {action.cta} →
-                          </span>
-                          {isFollowUp && <AICostBadge model="haiku" cost="$0.003" />}
+                  <div className="flex items-start gap-2">
+                    <button
+                      onClick={() => onAction(action)}
+                      className="flex-1 text-left transition-all active:scale-[0.99] min-w-0"
+                    >
+                      <div className="flex items-start gap-3">
+                        <Icon size={16} className={`mt-0.5 flex-shrink-0 ${iconColor}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-body text-sm leading-snug">{action.label}</div>
+                          {action.detail && (
+                            <div className="text-xs text-muted mt-0.5 leading-relaxed">{action.detail}</div>
+                          )}
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className={`text-xs font-semibold ${isFollowUp ? 'text-red-500' : 'text-blue-500'}`}>
+                              {action.cta} →
+                            </span>
+                            {isFollowUp && <AICostBadge model="haiku" cost="$0.003" />}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                    {onDismiss && (
+                      <button
+                        onClick={e => { e.stopPropagation(); onDismiss(action) }}
+                        className="flex-shrink-0 p-1 text-muted hover:text-body"
+                        title="Dismiss"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
                   {isFollowUp && onMarkSent && (
                     <FollowUpCardActions action={action} onMarkSent={onMarkSent} onRescheduled={onRefresh} />
                   )}
@@ -755,6 +766,15 @@ export default function DailyBrief() {
     }
   }
 
+  const handleDismiss = async (action) => {
+    try {
+      await api.dismissBriefAction(action.action_type, action.payload_id ?? null)
+      load()
+    } catch (e) {
+      console.error('dismiss error', e)
+    }
+  }
+
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
   const overdueCount = brief ? (brief.overdue_count || 0) : 0
 
@@ -813,6 +833,7 @@ export default function DailyBrief() {
               items={brief.outreach || []}
               onAction={handleAction}
               onMarkSent={handleMarkSent}
+              onDismiss={handleDismiss}
               onRefresh={load}
               badgeColor="red"
             />
@@ -822,6 +843,7 @@ export default function DailyBrief() {
               icon={Briefcase}
               items={brief.positions || []}
               onAction={handleAction}
+              onDismiss={handleDismiss}
               badgeColor="orange"
             />
             <div className="mx-4 border-t border-theme my-1" />
@@ -830,6 +852,7 @@ export default function DailyBrief() {
               icon={Calendar}
               items={brief.events || []}
               onAction={handleAction}
+              onDismiss={handleDismiss}
               badgeColor="blue"
             />
           </div>

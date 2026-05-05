@@ -296,6 +296,13 @@ class Reference(SQLModel, table=True):
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
+class DismissedBriefAction(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    action_type: str = Field(index=True)
+    payload_id: Optional[int] = Field(default=None, index=True)
+    dismissed_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+
 class AITargetSuggestion(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str

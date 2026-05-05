@@ -8,7 +8,8 @@ from sqlmodel import Session, select
 
 from app.models import (
     OutreachRecord, Lead, Event, Application,
-    ContentDraft, AITargetSuggestion, Company, Interview, Contact
+    ContentDraft, AITargetSuggestion, Company, Interview, Contact,
+    DismissedBriefAction
 )
 from app.services.email_finder import determine_next_step as _contact_next_step
 
@@ -19,6 +20,11 @@ def compute_daily_brief(session: Session) -> dict:
     positions = []
     outreach = []
     events_section = []
+
+    dismissed = {
+        (d.action_type, d.payload_id)
+        for d in session.exec(select(DismissedBriefAction)).all()
+    }
 
     # ══════════════════════════════════════════════════════════════════════════
     # OUTREACH SECTION
@@ -442,6 +448,13 @@ def compute_daily_brief(session: Session) -> dict:
     # RETURN 3-SECTION RESPONSE
     # ══════════════════════════════════════════════════════════════════════════
 
+    def _not_dismissed(a):
+        return (a["action_type"], a.get("payload_id")) not in dismissed
+
+    positions = [a for a in positions if _not_dismissed(a)]
+    outreach = [a for a in outreach if _not_dismissed(a)]
+    events_section = [a for a in events_section if _not_dismissed(a)]
+
     total = len(positions) + len(outreach) + len(events_section)
     overdue = len([a for a in outreach if a["action_type"] in ("follow_up_3", "follow_up_7")])
 
@@ -452,7 +465,6 @@ def compute_daily_brief(session: Session) -> dict:
         "positions": positions,
         "outreach": outreach,
         "events": events_section,
-        # Legacy flat list for backwards compat with any old clients
         "actions": positions + outreach + events_section,
     }
 

@@ -1,5 +1,6 @@
 """Daily brief router — priority-ordered action list for today."""
 
+from typing import Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlmodel import Session
@@ -14,6 +15,28 @@ def get_daily_brief(session: Session = Depends(get_session)):
     """Return the ordered list of actions for today."""
     from app.services.daily_brief import compute_daily_brief
     return compute_daily_brief(session)
+
+
+class DismissRequest(BaseModel):
+    action_type: str
+    payload_id: Optional[int] = None
+
+
+@router.post("/dismiss")
+def dismiss_action(req: DismissRequest, session: Session = Depends(get_session)):
+    """Permanently dismiss a brief action so it never appears again."""
+    from app.models import DismissedBriefAction
+    from sqlmodel import select
+    existing = session.exec(
+        select(DismissedBriefAction).where(
+            DismissedBriefAction.action_type == req.action_type,
+            DismissedBriefAction.payload_id == req.payload_id,
+        )
+    ).first()
+    if not existing:
+        session.add(DismissedBriefAction(action_type=req.action_type, payload_id=req.payload_id))
+        session.commit()
+    return {"dismissed": True}
 
 
 class ApproveRequest(BaseModel):
