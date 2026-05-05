@@ -547,7 +547,9 @@ function NextStepChip({ nextStep, contactName, onDone }) {
 function ContactModal({ company, contact, onClose, onSaved }) {
   const isEdit = !!contact
   const linkedOutreach = isEdit
-    ? (company.outreach || []).find(o => o.contact_id === contact.id) || null
+    ? (company.outreach || []).find(o => o.contact_id === contact.id)
+      || [...(company.outreach || [])].sort((a, b) => b.id - a.id)[0]
+      || null
     : null
   const [form, setForm] = useState({
     name: contact?.name || '',
@@ -618,11 +620,15 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           introduced_by_contact_id: introducedById,
           referral_target_company_id: isReferral ? company.id : null,
         })
-        if (linkedOutreach && (due3 !== (linkedOutreach.follow_up_3_due || '') || due7 !== (linkedOutreach.follow_up_7_due || ''))) {
-          await api.patchOutreach(linkedOutreach.id, {
-            follow_up_3_due: due3 || null,
-            follow_up_7_due: due7 || null,
-          })
+        if (linkedOutreach) {
+          const datesChanged = due3 !== (linkedOutreach.follow_up_3_due || '') || due7 !== (linkedOutreach.follow_up_7_due || '')
+          const needsContactLink = linkedOutreach.contact_id !== contact.id
+          if (datesChanged || needsContactLink) {
+            await api.patchOutreach(linkedOutreach.id, {
+              ...(datesChanged ? { follow_up_3_due: due3 || null, follow_up_7_due: due7 || null } : {}),
+              ...(needsContactLink ? { contact_id: contact.id } : {}),
+            })
+          }
         }
         onSaved()
       } else {

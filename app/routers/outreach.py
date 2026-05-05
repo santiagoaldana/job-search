@@ -258,6 +258,7 @@ class OutreachUpdate(BaseModel):
     follow_up_7_sent: Optional[bool] = None
     notes: Optional[str] = None
     linkedin_accepted: Optional[bool] = None
+    contact_id: Optional[int] = None
 
 
 @router.patch("/{record_id}")
@@ -278,6 +279,8 @@ def patch_outreach(record_id: int, data: OutreachUpdate, session: Session = Depe
         record.notes = data.notes
     if data.linkedin_accepted is not None:
         record.linkedin_accepted = data.linkedin_accepted
+    if data.contact_id is not None:
+        record.contact_id = data.contact_id
     record.updated_at = datetime.utcnow().isoformat()
     session.add(record)
     session.commit()
