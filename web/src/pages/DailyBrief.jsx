@@ -385,6 +385,72 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
   )
 }
 
+function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
+  const [rescheduling, setRescheduling] = useState(false)
+  const [newDate, setNewDate] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!newDate) return
+    setSaving(true)
+    try {
+      const field = action.followup_day === 3 ? 'follow_up_3_due' : 'follow_up_7_due'
+      await api.patchOutreach(action.payload_id, { [field]: newDate })
+      setRescheduling(false)
+      onRescheduled && onRescheduled()
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-2 border-t border-theme/50 pt-2">
+      {rescheduling ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={newDate}
+            onChange={e => setNewDate(e.target.value)}
+            className="flex-1 border border-theme rounded-lg px-2 py-1 text-xs bg-card text-body"
+            autoFocus
+          />
+          <button
+            onClick={handleSave}
+            disabled={saving || !newDate}
+            className="text-xs font-medium text-blue-500 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            onClick={() => setRescheduling(false)}
+            className="text-xs text-muted"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 justify-center">
+          <button
+            onClick={e => { e.stopPropagation(); onMarkSent(action) }}
+            className="text-xs text-muted"
+          >
+            Already sent? Mark done
+          </button>
+          <span className="text-theme/30">·</span>
+          <button
+            onClick={e => { e.stopPropagation(); setRescheduling(true) }}
+            className="text-xs text-muted"
+          >
+            Reschedule
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Section({ title, icon: Icon, items, onAction, onMarkSent, onRefresh, badge, badgeColor = 'blue', defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen)
 
@@ -452,12 +518,7 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onRefresh, ba
                     </div>
                   </button>
                   {isFollowUp && onMarkSent && (
-                    <button
-                      onClick={e => { e.stopPropagation(); onMarkSent(action) }}
-                      className="mt-2 w-full text-xs text-muted text-center py-1 border-t border-theme/50 pt-2"
-                    >
-                      Already sent? Mark as done
-                    </button>
+                    <FollowUpCardActions action={action} onMarkSent={onMarkSent} onRescheduled={onRefresh} />
                   )}
                 </div>
               )
