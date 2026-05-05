@@ -74,6 +74,8 @@ function FollowUpModal({ action, onClose, onSent }) {
   const [done, setDone] = useState(false)
   const [error, setError] = useState(null)
   const [language, setLanguage] = useState('en')
+  const [snoozing, setSnoozing] = useState(false)
+  const [snoozeDays, setSnoozeDays] = useState(3)
 
   useEffect(() => {
     setDrafting(true)
@@ -125,12 +127,35 @@ function FollowUpModal({ action, onClose, onSent }) {
     setMailtoUrl(null)
   }
 
+  const handleSnooze = async () => {
+    setSending(true)
+    try {
+      const today = new Date()
+      today.setDate(today.getDate() + snoozeDays)
+      const newDate = today.toISOString().split('T')[0]
+      const patch = action.followup_day === 3
+        ? { follow_up_3_due: newDate }
+        : { follow_up_7_due: newDate }
+      await api.patchOutreach(action.payload_id, patch)
+      setDone(true)
+      onSent && onSent(action.payload_id, action.followup_day)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
   const title = action.followup_day === 3 ? 'Day 3 Bump' : 'Day 7 Close'
   const companyName = action.label?.replace(/Day \d+ (?:follow-up|close) — /, '') || ''
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4 pb-16 sm:pb-0">
-      <div className="bg-white dark:bg-slate-900 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[85vh] flex flex-col">
+    <div className="fixed inset-0 z-[60] bg-black/50" onClick={onClose}>
+      <div
+        className="absolute inset-x-0 bottom-16 mx-auto max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-xl flex flex-col"
+        style={{maxHeight: 'calc(100dvh - 5rem)'}}
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-theme flex-shrink-0">
           <div>
@@ -203,7 +228,7 @@ function FollowUpModal({ action, onClose, onSent }) {
         </div>
 
         {/* Footer */}
-        {!drafting && !done && !awaitingConfirm && (
+        {!drafting && !done && !awaitingConfirm && !snoozing && (
           <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
             <button
               onClick={handleOpenGmail}
@@ -212,14 +237,43 @@ function FollowUpModal({ action, onClose, onSent }) {
             >
               {sending ? 'Opening Gmail…' : 'Send via Gmail →'}
             </button>
-            <div className="text-xs text-muted text-center mt-2">Write your message above, then open in Gmail</div>
-            <button
-              onClick={handleConfirmSent}
-              disabled={sending}
-              className="w-full text-xs text-muted text-center mt-1 py-1"
-            >
-              Already sent? Mark as done
-            </button>
+            <div className="flex gap-3 mt-2 justify-center">
+              <button onClick={handleConfirmSent} disabled={sending} className="text-xs text-muted py-1">
+                Already sent? Mark as done
+              </button>
+              <span className="text-xs text-muted py-1">·</span>
+              <button onClick={() => setSnoozing(true)} className="text-xs text-muted py-1">
+                Snooze / reschedule
+              </button>
+            </div>
+          </div>
+        )}
+        {!drafting && !done && !awaitingConfirm && snoozing && (
+          <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
+            <div className="text-sm font-medium text-body mb-3">Set new follow-up date</div>
+            <div className="flex gap-2 mb-3">
+              {[2, 3, 5, 7].map(d => (
+                <button
+                  key={d}
+                  onClick={() => setSnoozeDays(d)}
+                  className={`flex-1 rounded-lg py-2 text-xs font-medium border transition-colors ${snoozeDays === d ? 'bg-blue-500 text-white border-blue-500' : 'border-theme text-body'}`}
+                >
+                  +{d}d
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setSnoozing(false)} className="flex-1 border border-theme text-body rounded-xl py-2.5 text-sm font-medium">
+                Back
+              </button>
+              <button
+                onClick={handleSnooze}
+                disabled={sending}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
+              >
+                {sending ? 'Saving…' : `Snooze ${snoozeDays} days`}
+              </button>
+            </div>
           </div>
         )}
         {!drafting && !done && awaitingConfirm && (
