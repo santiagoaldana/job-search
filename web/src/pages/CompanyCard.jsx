@@ -546,11 +546,13 @@ function NextStepChip({ nextStep, contactName, onDone }) {
 
 function ContactModal({ company, contact, onClose, onSaved }) {
   const isEdit = !!contact
+  console.log('[ContactModal] outreach records:', company.outreach, 'contact.id:', contact?.id)
   const linkedOutreach = isEdit
     ? (company.outreach || []).find(o => o.contact_id === contact.id)
-      || (company.outreach || []).find(o => o.contact_name && contact.name && o.contact_name.toLowerCase() === contact.name.toLowerCase())
+      || [...(company.outreach || [])].sort((a, b) => b.id - a.id)[0]
       || null
     : null
+  console.log('[ContactModal] linkedOutreach:', linkedOutreach)
   const [form, setForm] = useState({
     name: contact?.name || '',
     title: contact?.title || '',
