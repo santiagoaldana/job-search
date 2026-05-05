@@ -64,6 +64,15 @@ export default function Leads() {
     }
   }
 
+  const handleDiscard = async (leadId, reason) => {
+    try {
+      await api.updateLeadStatus(leadId, 'skipped', reason)
+      setLeads(prev => prev.filter(l => l.id !== leadId))
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
   const handleSalaryParsed = (updated) => {
     setLeads(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l))
   }
@@ -157,6 +166,7 @@ export default function Leads() {
               expanded={expanded[lead.id]}
               onToggle={() => toggleExpanded(lead.id)}
               onMarkApplied={handleMarkApplied}
+              onDiscard={handleDiscard}
               onSalaryParsed={handleSalaryParsed}
               navigate={navigate}
             />
@@ -174,6 +184,7 @@ export default function Leads() {
                   expanded={expanded[lead.id]}
                   onToggle={() => toggleExpanded(lead.id)}
                   onMarkApplied={handleMarkApplied}
+                  onDiscard={handleDiscard}
                   onSalaryParsed={handleSalaryParsed}
                   navigate={navigate}
                 />
@@ -196,8 +207,9 @@ function fmtSalary(lead) {
   return `Up to ${cur} ${fmt(lead.salary_max)}`
 }
 
-function LeadCard({ lead, expanded, onToggle, onMarkApplied, onSalaryParsed, navigate }) {
+function LeadCard({ lead, expanded, onToggle, onMarkApplied, onDiscard, onSalaryParsed, navigate }) {
   const [parsingSalary, setParsingSalary] = useState(false)
+  const [discarding, setDiscarding] = useState(false)
   const isHot = lead.fit_score >= 65 && lead.location_compatible && lead.status !== 'applied'
   const isApplied = lead.status === 'applied'
 
@@ -310,6 +322,16 @@ function LeadCard({ lead, expanded, onToggle, onMarkApplied, onSalaryParsed, nav
             Mark Applied
           </button>
         )}
+        {!isApplied && (
+          <button
+            onClick={() => setDiscarding(v => !v)}
+            className={`text-xs px-3 py-2.5 rounded-lg flex-shrink-0 border transition-colors ${
+              discarding ? 'bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700 text-red-500' : 'border-theme text-muted'
+            }`}
+          >
+            Not interested
+          </button>
+        )}
         <button
           onClick={() => navigate(`/cv?lead_id=${lead.id}`)}
           className="bg-blue-500 text-white text-xs font-medium px-3 py-2.5 rounded-lg flex-shrink-0 flex items-center gap-1.5"
@@ -318,6 +340,26 @@ function LeadCard({ lead, expanded, onToggle, onMarkApplied, onSalaryParsed, nav
           <AICostBadge model="opus" cost="$0.07" />
         </button>
       </div>
+
+      {/* Discard reason picker */}
+      {discarding && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {[
+            ['Wrong seniority', 'wrong_seniority'],
+            ['Wrong location', 'wrong_location'],
+            ['Not my sector', 'not_my_sector'],
+            ['No real posting', 'no_real_posting'],
+          ].map(([label, reason]) => (
+            <button
+              key={reason}
+              onClick={() => { setDiscarding(false); onDiscard(lead.id, reason) }}
+              className="text-xs px-3 py-1.5 rounded-full border border-red-300 dark:border-red-700 text-red-500 bg-red-50 dark:bg-red-950/30 active:bg-red-100"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
