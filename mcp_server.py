@@ -118,10 +118,10 @@ async def list_tools() -> list[types.Tool]:
                     "contact_id": {"type": "integer", "description": "Contact ID returned by quick_add_contact"},
                     "company_name": {"type": "string", "description": "Company name to resolve company_id"},
                     "channel": {"type": "string", "enum": ["linkedin", "email", "referral"], "description": "How outreach was sent"},
-                    "sent_date": {"type": "string", "description": "ISO date when outreach was sent, e.g. 2026-05-01"},
+                    "sent_date": {"type": "string", "description": "ISO date when outreach was sent, e.g. 2026-05-01. Defaults to today if not specified."},
                     "notes": {"type": "string", "description": "Optional notes about the outreach"},
                 },
-                "required": ["contact_id", "channel", "sent_date"],
+                "required": ["contact_id", "channel"],
             },
         ),
         types.Tool(
@@ -488,7 +488,8 @@ async def _dispatch(name: str, args: dict) -> dict:
             results = await _get("/api/companies", {"q": company_name})
             if results:
                 company_id = results[0]["id"]
-        sent_at = args["sent_date"] + "T00:00:00"
+        from datetime import date as _date
+        sent_at = (args.get("sent_date") or _date.today().isoformat()) + "T00:00:00"
         channel = args["channel"]
         return await _post("/api/outreach", {
             "company_id": company_id,
