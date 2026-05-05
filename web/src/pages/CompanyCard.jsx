@@ -804,7 +804,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           )}
 
           {/* Save button at bottom of scroll area — always reachable on mobile */}
-          <div className="pt-2" style={{paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'}}>
+          <div className="pt-2" style={{paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))'}}>
             <button
               onClick={handleSave}
               disabled={saving || (!isEdit && !form.name.trim())}
