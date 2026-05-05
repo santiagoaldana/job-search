@@ -664,7 +664,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-slate-900 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-slate-900 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col" style={{maxHeight: 'calc(85vh - env(safe-area-inset-bottom))' }}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-theme flex-shrink-0">
           <div className="text-sm font-semibold text-body">
@@ -805,7 +805,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
         </div>
 
         {/* Footer */}
-        <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
+        <div className="px-4 pt-2 border-t border-theme flex-shrink-0" style={{paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'}}>
           <button
             onClick={handleSave}
             disabled={saving || (!isEdit && !form.name.trim())}
