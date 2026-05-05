@@ -345,6 +345,10 @@ class SendFollowUpRequest(BaseModel):
     followup_day: int  # 3 or 7
 
 
+class MarkFollowUpSentRequest(BaseModel):
+    followup_day: int  # 3 or 7
+
+
 @router.post("/{record_id}/draft-followup")
 async def draft_followup(
     record_id: int,
@@ -492,7 +496,7 @@ def build_mailto(
 @router.post("/{record_id}/mark-followup-sent")
 def mark_followup_sent(
     record_id: int,
-    req: SendFollowUpRequest,
+    req: MarkFollowUpSentRequest,
     session: Session = Depends(get_session),
 ):
     """Mark a follow-up as sent after user confirms they actually sent it."""
