@@ -546,6 +546,9 @@ function NextStepChip({ nextStep, contactName, onDone }) {
 
 function ContactModal({ company, contact, onClose, onSaved }) {
   const isEdit = !!contact
+  const linkedOutreach = isEdit
+    ? (company.outreach || []).find(o => o.contact_id === contact.id) || null
+    : null
   const [form, setForm] = useState({
     name: contact?.name || '',
     title: contact?.title || '',
@@ -564,6 +567,8 @@ function ContactModal({ company, contact, onClose, onSaved }) {
   const [outreachChannel, setOutreachChannel] = useState('linkedin')
   const [outreachDate, setOutreachDate] = useState(new Date().toISOString().slice(0, 10))
   const [isReferral, setIsReferral] = useState(contact?.referral_target_company_id === company.id)
+  const [due3, setDue3] = useState(linkedOutreach?.follow_up_3_due || '')
+  const [due7, setDue7] = useState(linkedOutreach?.follow_up_7_due || '')
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
 
@@ -613,6 +618,12 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           introduced_by_contact_id: introducedById,
           referral_target_company_id: isReferral ? company.id : null,
         })
+        if (linkedOutreach && (due3 !== (linkedOutreach.follow_up_3_due || '') || due7 !== (linkedOutreach.follow_up_7_due || ''))) {
+          await api.patchOutreach(linkedOutreach.id, {
+            follow_up_3_due: due3 || null,
+            follow_up_7_due: due7 || null,
+          })
+        }
         onSaved()
       } else {
         const result = await api.quickAddContact({
@@ -762,6 +773,32 @@ function ContactModal({ company, contact, onClose, onSaved }) {
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isReferral ? 'translate-x-5' : ''}`} />
             </button>
           </div>
+
+          {isEdit && linkedOutreach && (
+            <div className="border border-theme rounded-xl p-3 space-y-2 bg-slate-50 dark:bg-slate-900/40">
+              <div className="text-xs font-medium text-body mb-1">Follow-up dates</div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-muted block mb-1">Day 3 bump</label>
+                  <input
+                    type="date"
+                    value={due3}
+                    onChange={e => setDue3(e.target.value)}
+                    className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-muted block mb-1">Day 7 close</label>
+                  <input
+                    type="date"
+                    value={due7}
+                    onChange={e => setDue7(e.target.value)}
+                    className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {!isEdit && (
             <div className="border border-theme rounded-xl p-3 space-y-2 bg-slate-50 dark:bg-slate-900/40">
