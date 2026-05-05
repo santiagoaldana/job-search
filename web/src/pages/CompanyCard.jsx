@@ -548,7 +548,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
   const isEdit = !!contact
   const linkedOutreach = isEdit
     ? (company.outreach || []).find(o => o.contact_id === contact.id)
-      || [...(company.outreach || [])].sort((a, b) => b.id - a.id)[0]
+      || (company.outreach || []).find(o => o.contact_name && contact.name && o.contact_name.toLowerCase() === contact.name.toLowerCase())
       || null
     : null
   const [form, setForm] = useState({
@@ -780,7 +780,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
             </button>
           </div>
 
-          {isEdit && linkedOutreach && (
+          {isEdit && (
             <div className="border border-theme rounded-xl p-3 space-y-2 bg-slate-50 dark:bg-slate-900/40">
               <div className="text-xs font-medium text-body mb-1">Follow-up dates</div>
               <div className="flex gap-2">
