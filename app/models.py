@@ -323,6 +323,7 @@ class GmailSyncState(SQLModel, table=True):
     account_email: str = Field(index=True, unique=True)
     last_poll_at: Optional[str] = Field(default=None)       # ISO datetime of last sync
     last_sync_summary: Optional[str] = Field(default=None)  # JSON: {new_outreach, new_replies, linkedin_accepted}
+    gmail_token_json: Optional[str] = Field(default=None)   # Persisted OAuth token — avoids re-encoding on Render
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 

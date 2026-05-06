@@ -48,22 +48,52 @@ GENERIC_DOMAINS = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "me.c
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
-def _bootstrap_token():
-    """Write credentials + token from env vars if present (for Render deployment)."""
+def _bootstrap_token(session: Session = None):
+    """Write credentials + token to disk. Prefers DB-persisted token over env var."""
     TOKEN_DIR.mkdir(parents=True, exist_ok=True)
 
     creds_b64 = os.environ.get("GMAIL_CREDENTIALS_B64", "").strip()
     if creds_b64:
         (TOKEN_DIR / "credentials.json").write_text(base64.b64decode(creds_b64).decode())
 
+    sanitized = GMAIL_ACCOUNT.replace("@", "_").replace(".", "_")
+    token_path = TOKEN_DIR / f"{sanitized}_token.json"
+
+    # Prefer DB token (stays fresh after each sync) over static env var snapshot
+    if session is not None:
+        state = session.exec(
+            select(GmailSyncState).where(GmailSyncState.account_email == GMAIL_ACCOUNT)
+        ).first()
+        if state and state.gmail_token_json:
+            token_path.write_text(state.gmail_token_json)
+            return
+
     token_b64 = os.environ.get("GMAIL_TOKEN_B64", "").strip()
     if token_b64:
-        sanitized = GMAIL_ACCOUNT.replace("@", "_").replace(".", "_")
-        (TOKEN_DIR / f"{sanitized}_token.json").write_text(base64.b64decode(token_b64).decode())
+        token_path.write_text(base64.b64decode(token_b64).decode())
 
 
-def _get_gmail_service():
-    _bootstrap_token()
+def _persist_token(session: Session):
+    """Read the current token file from disk and save it back to the DB."""
+    sanitized = GMAIL_ACCOUNT.replace("@", "_").replace(".", "_")
+    token_path = TOKEN_DIR / f"{sanitized}_token.json"
+    if not token_path.exists():
+        return
+    token_json = token_path.read_text()
+    state = session.exec(
+        select(GmailSyncState).where(GmailSyncState.account_email == GMAIL_ACCOUNT)
+    ).first()
+    if not state:
+        state = GmailSyncState(account_email=GMAIL_ACCOUNT)
+        session.add(state)
+    state.gmail_token_json = token_json
+    state.updated_at = datetime.utcnow().isoformat()
+    session.add(state)
+    session.commit()
+
+
+def _get_gmail_service(session: Session = None):
+    _bootstrap_token(session)
     from skills.gmail_monitor import authenticate_gmail
     return authenticate_gmail(GMAIL_ACCOUNT)
 
@@ -469,7 +499,8 @@ def get_or_create_sync_state(session: Session) -> GmailSyncState:
 def run_gmail_sync(session: Session) -> dict:
     """Called once daily at 7am. Looks back 24 hours. No Claude API cost."""
     try:
-        service = _get_gmail_service()
+        service = _get_gmail_service(session)
+        _persist_token(session)  # save refreshed token back to DB immediately
     except Exception as e:
         return {"error": f"Gmail auth failed: {e}", "new_outreach": [], "new_replies": [], "linkedin_accepted": []}
 

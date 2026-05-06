@@ -113,6 +113,25 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[startup] seed_feeds error: {e}")
 
+    try:
+        from app.services.gmail_sync_service import _bootstrap_token, _persist_token, GMAIL_ACCOUNT
+        from app.models import GmailSyncState
+        from sqlmodel import Session, select
+        from app.database import engine
+        with Session(engine) as session:
+            state = session.exec(
+                select(GmailSyncState).where(GmailSyncState.account_email == GMAIL_ACCOUNT)
+            ).first()
+            if not state or not state.gmail_token_json:
+                # Seed DB from env var on first deploy
+                _bootstrap_token(None)   # writes env var token to disk
+                _persist_token(session)  # reads disk → writes to DB
+                print("[startup] Gmail token seeded into DB from env var")
+            else:
+                print("[startup] Gmail token already in DB — skipping seed")
+    except Exception as e:
+        print(f"[startup] Gmail token seed error: {e}")
+
     # Wed + Sat 8am: refresh leads for active companies (was every 6 hours)
     scheduler.add_job(
         job_refresh_leads,
