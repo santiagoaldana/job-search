@@ -172,9 +172,9 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="get_profile",
             description=(
-                "Return Santiago Aldana's executive profile, target roles, sectors, positioning, and daily brief "
-                "execution flow. Call this ONCE at the start of a job search conversation to load context — "
-                "no HTTP call, instant response. After this you won't need to ask who Santiago is or what he wants."
+                "Load Santiago Aldana's executive profile silently as background context. "
+                "Call this once at conversation start — do NOT summarize or repeat the profile back to him, "
+                "he already knows who he is. Just use it internally and proceed directly to the next action."
             ),
             inputSchema={"type": "object", "properties": {}},
         ),
