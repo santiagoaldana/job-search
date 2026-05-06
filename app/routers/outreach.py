@@ -167,8 +167,15 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
     if not data.contact_id and data.contact_name_raw:
         notes = f"contact:{data.contact_name_raw}"
 
+    # Inherit company from contact if not explicitly provided
+    company_id = data.company_id
+    if not company_id and data.contact_id:
+        linked_contact = session.get(Contact, data.contact_id)
+        if linked_contact and linked_contact.company_id:
+            company_id = linked_contact.company_id
+
     record = OutreachRecord(
-        company_id=data.company_id,
+        company_id=company_id,
         contact_id=data.contact_id,
         lead_id=data.lead_id,
         channel=data.channel,
@@ -183,8 +190,8 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
     session.add(record)
 
     # Move company to outreach stage
-    if data.company_id:
-        company = session.get(Company, data.company_id)
+    if company_id:
+        company = session.get(Company, company_id)
         if company and company.stage in ("pool", "researched"):
             company.stage = "outreach"
             company.updated_at = datetime.utcnow().isoformat()
