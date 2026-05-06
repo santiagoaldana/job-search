@@ -33,6 +33,7 @@ class OutreachCreate(BaseModel):
     subject: Optional[str] = None
     body: Optional[str] = None
     sent_at: Optional[str] = None  # ISO datetime; defaults to now
+    contact_name_raw: Optional[str] = None  # fallback when contact not yet in DB
 
 
 class OutreachGenerateRequest(BaseModel):
@@ -162,6 +163,10 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
     follow_up_3 = add_business_days(sent_date, 3).isoformat()
     follow_up_7 = add_business_days(sent_date, 7).isoformat()
 
+    notes = None
+    if not data.contact_id and data.contact_name_raw:
+        notes = f"contact:{data.contact_name_raw}"
+
     record = OutreachRecord(
         company_id=data.company_id,
         contact_id=data.contact_id,
@@ -173,6 +178,7 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
         response_status="pending",
         follow_up_3_due=follow_up_3,
         follow_up_7_due=follow_up_7,
+        notes=notes,
     )
     session.add(record)
 

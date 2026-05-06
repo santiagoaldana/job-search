@@ -735,8 +735,13 @@ async def _dispatch(name: str, args: dict) -> dict:
             else:
                 next_action = "All follow-ups sent"
             contact_info = contact_map.get(r.get("contact_id"), {})
+            notes_val = r.get("notes") or ""
+            raw_name = None
+            if not r.get("contact_id") and notes_val.startswith("contact:"):
+                raw_name = notes_val[len("contact:"):]
+            contact_name = contact_info.get("name") or raw_name or "—"
             pipeline.append({
-                "contact_name": contact_info.get("name", "—"),
+                "contact_name": contact_name,
                 "contact_title": contact_info.get("title", ""),
                 "company": company_map.get(r["company_id"], f"Company #{r['company_id']}"),
                 "subject": r.get("subject", ""),
@@ -756,6 +761,7 @@ async def _dispatch(name: str, args: dict) -> dict:
         return await _post("/api/outreach", {
             "company_id": cid,
             "contact_id": contact_id,
+            "contact_name_raw": args.get("contact_name") if not contact_id else None,
             "channel": args.get("channel", "email"),
             "subject": args["subject"],
             "body": args.get("body"),
