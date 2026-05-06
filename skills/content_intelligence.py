@@ -232,6 +232,10 @@ ANALYSIS FRAMEWORK (apply all three lenses in the post):
 
 TRANSFORMATION FILTER: When the topic touches AI, Payments, Identity, or Stablecoins, position Santiago as the strategist who understands both the code and the culture, with the capacity to be hands-on as an entrepreneur and a senior executive in regulated industries. Highlight the Execution Gap: the distance between what the technology promises and what organizations can actually deliver.
 
+TARGET AUDIENCE LENS: The primary readers Santiago wants to reach are operators and founders at growth-stage fintechs — specifically companies in BaaS, embedded finance, fraud/identity, and cross-border payments (e.g., Stripe, Brex, Synctera, Sardine, Flywire, Alloy, Airwallex, Klaviyo). Write for the practitioner who is actively building, not the academic observer. Avoid framing the post as commentary on research or publications. Ground every insight in what a Series B/C fintech operator would actually argue about in a product review or board meeting. The post should feel like it belongs in a Slack channel where CTOs and heads of product debate infrastructure decisions, not in a newsletter digest.
+
+SOURCE DIVERSITY MANDATE: Do not anchor the post's credibility to any single publication, analyst house, or academic source. Santiago's authority comes from having built and exited companies, not from citing others. If the article is from an academic or media source, extract the business signal and reframe it entirely through Santiago's operator lens. The article is a prompt, not a citation.
+
 Generate a post of appropriate length to gain traction on LinkedIn (typically 150-300 words; longer if the topic demands depth).
 
 Return ONLY valid JSON (no markdown, no explanation):
