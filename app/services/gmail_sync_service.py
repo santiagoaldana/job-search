@@ -39,8 +39,18 @@ LINKEDIN_ACCEPT_PATTERNS = [
 ]
 
 IRRELEVANT_SENDERS = [
-    "noreply", "no-reply", "donotreply", "mailer-daemon",
+    "noreply", "no-reply", "donotreply",
     "newsletter", "billing", "invoice", "receipt", "alerts", "updates",
+]
+
+BOUNCE_SENDERS = ["mailer-daemon", "postmaster"]
+BOUNCE_SUBJECT_PATTERNS = [
+    r"delivery status notification",
+    r"delivery failure",
+    r"undeliverable",
+    r"mail delivery failed",
+    r"returned mail",
+    r"could not be delivered",
 ]
 
 GENERIC_DOMAINS = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "me.com", "icloud.com", "live.com"}
@@ -190,7 +200,7 @@ def _extract_body(payload: dict) -> str:
 # ── Classification ────────────────────────────────────────────────────────────
 
 def classify_email_type(from_email: str, subject: str, body_text: str) -> str:
-    """Return 'linkedin_acceptance' | 'outreach_reply' | 'irrelevant'."""
+    """Return 'linkedin_acceptance' | 'bounce' | 'outreach_reply' | 'irrelevant'."""
     from_lower = from_email.lower()
     subject_lower = subject.lower()
     body_lower = body_text.lower()[:500]
@@ -200,6 +210,13 @@ def classify_email_type(from_email: str, subject: str, body_text: str) -> str:
         if any(re.search(p, combined) for p in LINKEDIN_ACCEPT_PATTERNS):
             return "linkedin_acceptance"
         return "irrelevant"
+
+    # Bounce detection before generic irrelevant filter
+    if any(kw in from_lower for kw in BOUNCE_SENDERS):
+        if any(re.search(p, subject_lower) for p in BOUNCE_SUBJECT_PATTERNS):
+            return "bounce"
+        # mailer-daemon is always a bounce even if subject doesn't match patterns
+        return "bounce"
 
     if any(kw in from_lower for kw in IRRELEVANT_SENDERS):
         return "irrelevant"
@@ -393,6 +410,57 @@ def handle_outreach_reply(session: Session, msg_data: dict, record: OutreachReco
     }
 
 
+def handle_bounce_email(session: Session, msg_data: dict) -> dict:
+    """Extract failed address from bounce, mark contact.email_invalid=True."""
+    body = msg_data["body_text"]
+    subject = msg_data["subject"]
+
+    # Extract failed recipient email from bounce body
+    failed_email = None
+    patterns = [
+        r"(?:Final-Recipient|Original-Recipient):[^\n]*?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})",
+        r"address[^\n]*?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})",
+        r"(?:couldn't be delivered to|not found|failed to deliver[^\n]*?to)\s*[:\"]?\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})",
+    ]
+    for p in patterns:
+        m = re.search(p, body, re.IGNORECASE)
+        if m:
+            failed_email = m.group(1).lower()
+            break
+
+    # Fallback: scan all email addresses in body, pick the non-gmail one
+    if not failed_email:
+        all_emails = re.findall(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", body)
+        for addr in all_emails:
+            addr_lower = addr.lower()
+            if "gmail" not in addr_lower and "google" not in addr_lower and "mailer-daemon" not in addr_lower:
+                failed_email = addr_lower
+                break
+
+    if not failed_email:
+        return {"bounce_handled": False, "reason": "could not extract failed email"}
+
+    # Find contact with that email
+    contact = session.exec(
+        select(Contact).where(Contact.email == failed_email)
+    ).first()
+    if not contact:
+        return {"bounce_handled": False, "reason": f"no contact with email {failed_email}", "failed_email": failed_email}
+
+    contact.email_invalid = True
+    session.add(contact)
+    session.commit()
+
+    company = session.get(Company, contact.company_id) if contact.company_id else None
+    return {
+        "bounce_handled": True,
+        "failed_email": failed_email,
+        "contact_name": contact.name,
+        "company_name": company.name if company else None,
+        "contact_id": contact.id,
+    }
+
+
 def handle_sent_email(session: Session, msg_data: dict) -> dict:
     """Auto-create OutreachRecord for sent email if recipient matches a known Contact."""
     to_email = msg_data["to_email"]
@@ -504,7 +572,7 @@ def run_gmail_sync(session: Session) -> dict:
     except Exception as e:
         return {"error": f"Gmail auth failed: {e}", "new_outreach": [], "new_replies": [], "linkedin_accepted": []}
 
-    results: dict = {"new_outreach": [], "new_replies": [], "linkedin_accepted": [], "errors": []}
+    results: dict = {"new_outreach": [], "new_replies": [], "linkedin_accepted": [], "bounces": [], "errors": []}
 
     # Stream 3: LinkedIn acceptance emails (INBOX from notifications@linkedin.com)
     inbox_msgs = _fetch_messages(service, "INBOX")
@@ -515,6 +583,13 @@ def run_gmail_sync(session: Session) -> dict:
             r = handle_linkedin_acceptance(session, msg["subject"], msg["body_text"])
             if r.get("updated"):
                 results["linkedin_accepted"].append(r)
+
+        elif email_type == "bounce":
+            r = handle_bounce_email(session, msg)
+            if r.get("bounce_handled"):
+                results["bounces"].append(r)
+            else:
+                results["errors"].append(f"bounce unhandled: {r.get('reason')} ({r.get('failed_email', '?')})")
 
         elif email_type == "outreach_reply":
             matched = match_email_to_outreach(session, msg["from_email"], msg["from_name"], msg["thread_id"])
@@ -537,10 +612,11 @@ def run_gmail_sync(session: Session) -> dict:
         "new_outreach": len(results["new_outreach"]),
         "new_replies": len(results["new_replies"]),
         "linkedin_accepted": len(results["linkedin_accepted"]),
+        "bounces": len(results["bounces"]),
     })
     state.updated_at = datetime.utcnow().isoformat()
     session.add(state)
     session.commit()
 
-    print(f"[gmail_sync] outreach={len(results['new_outreach'])} replies={len(results['new_replies'])} li_accepted={len(results['linkedin_accepted'])}")
+    print(f"[gmail_sync] outreach={len(results['new_outreach'])} replies={len(results['new_replies'])} li_accepted={len(results['linkedin_accepted'])} bounces={len(results['bounces'])}")
     return results
