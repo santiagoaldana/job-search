@@ -51,7 +51,7 @@ def compute_daily_brief(session: Session) -> dict:
             continue
         company = session.get(Company, record.company_id) if record.company_id else None
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
-        who = f"{contact.name} at {company.name}" if contact and company else (company.name if company else "Unknown")
+        who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else "Unknown"))
         snippet = (latest_reply_msg.body_full or "")[:120].replace("\n", " ").strip()
         outreach.append({
             "action_type": "new_reply",
@@ -77,7 +77,7 @@ def compute_daily_brief(session: Session) -> dict:
     for record in recent_accepted[:3]:
         company = session.get(Company, record.company_id) if record.company_id else None
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
-        who = f"{contact.name} at {company.name}" if contact and company else (company.name if company else "Unknown")
+        who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else "Unknown"))
         outreach.append({
             "action_type": "linkedin_accepted",
             "label": f"LinkedIn accepted — {who}",
@@ -104,7 +104,7 @@ def compute_daily_brief(session: Session) -> dict:
         company = session.get(Company, record.company_id) if record.company_id else None
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
         days_overdue = _days_diff(record.follow_up_3_due, today)
-        who = f"{contact.name} at {company.name}" if contact and company else (company.name if company else 'Unknown')
+        who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else 'Unknown'))
 
         if record.channel == "linkedin" and record.linkedin_accepted is None:
             outreach.append({
@@ -145,7 +145,7 @@ def compute_daily_brief(session: Session) -> dict:
         company = session.get(Company, record.company_id) if record.company_id else None
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
         days_overdue = _days_diff(record.follow_up_7_due, today)
-        who = f"{contact.name} at {company.name}" if contact and company else (company.name if company else 'Unknown')
+        who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else 'Unknown'))
 
         if record.channel == "linkedin" and record.linkedin_accepted is None:
             # Connection still not accepted after 7 days — escalate to email
