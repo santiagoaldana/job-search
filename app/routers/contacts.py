@@ -4,7 +4,7 @@ import base64
 import csv
 import io
 import json
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import Optional
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -327,16 +327,36 @@ def log_interaction(req: LogInteractionRequest, session: Session = Depends(get_s
     contact.updated_at = datetime.utcnow().isoformat()
     session.add(contact)
 
-    record = OutreachRecord(
-        company_id=contact.company_id,
-        contact_id=contact.id,
-        channel=req.channel,
-        sent_at=datetime.utcnow().isoformat(),
-        body=req.note,
-        response_status="positive" if req.had_reply else "pending",
-    )
-    session.add(record)
-    session.commit()
+    today = datetime.utcnow().date()
+
+    def _add_business_days(start: date, days: int) -> date:
+        d = start
+        added = 0
+        while added < days:
+            d += timedelta(days=1)
+            if d.weekday() < 5:
+                added += 1
+        return d
+
+    follow_up_3 = _add_business_days(today, 3).isoformat()
+    follow_up_7 = _add_business_days(today, 7).isoformat()
+
+    try:
+        record = OutreachRecord(
+            company_id=contact.company_id,
+            contact_id=contact.id,
+            channel=req.channel,
+            sent_at=datetime.utcnow().isoformat(),
+            body=req.note,
+            response_status="positive" if req.had_reply else "pending",
+            follow_up_3_due=follow_up_3,
+            follow_up_7_due=follow_up_7,
+        )
+        session.add(record)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save outreach record: {str(e)}")
 
     company = session.get(Company, contact.company_id) if contact.company_id else None
     return {
