@@ -27,6 +27,37 @@ HEADERS = {"X-MCP-Secret": MCP_SECRET, "Content-Type": "application/json"}
 
 server = Server("job-search")
 
+SANTIAGO_PROFILE = {
+    "name": "Santiago Aldana",
+    "current_role": "Chief Product & Solutions Officer, St. Mary's Credit Union (SMCU)",
+    "managing_partner": "AI Data Solutions — exclusive LATAM distribution of Maven AGI",
+    "target_roles": ["CEO", "COO", "CPO", "SVP Product", "SVP Payments", "SVP Embedded Banking"],
+    "target_sectors": ["Payments", "Embedded Banking", "Agentic AI", "Digital Identity", "BaaS"],
+    "positioning": (
+        "Enterprise Whisperer / Speedboat — brings enterprise discipline to growth-stage FinTech. "
+        "Turns regulated complexity into competitive moat."
+    ),
+    "key_credentials": [
+        "CEO SoyYo (2020-2024) — digital identity platform, 3M+ users, sold to Redeban (Colombia's leading PSP)",
+        "CDTO Avianca (2017-2019) — $110M IT budget, $700-800M annual digital revenue, 47% of sales migrated to digital",
+        "CEO Uff! Movil (2010-2015) — LatAm's first MVNO, 400K customers, sold to Bancolombia at $18M",
+        "CIO Telefonica (2004-2009) — 60M EUR IT transformation across 5 countries in 17 months",
+        "MIT Sloan MBA — Strategy, Innovation and Technology",
+    ],
+    "board_roles": ["Tuya Credit Card (Open Banking)", "Colombia Fintech (regulatory)", "Zulu (cross-border crypto)"],
+    "target_company_stage": "Series B-D FinTech or growth-stage payments/AI",
+    "geography": "Boston, MA — open to remote/hybrid",
+    "outreach_style": "Dalton method — ultra-short, specific ask, no fluff, no em dashes",
+    "daily_brief_flow": (
+        "To work through daily tasks: call sync_gmail first (catches new replies), "
+        "then call get_daily_brief to get today's annotated action list. "
+        "Each task has an mcp_tool field — call that tool with the task's existing "
+        "company_name, contact_name, followup_day, or payload_id fields as args. "
+        "Present one task at a time, call the tool, wait for confirmation, "
+        "log the action with log_outreach_sent or log_linkedin_interaction, then move on."
+    ),
+}
+
 
 # ── HTTP helpers ──────────────────────────────────────────────────────────────
 
@@ -139,8 +170,24 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="get_profile",
+            description=(
+                "Return Santiago Aldana's executive profile, target roles, sectors, positioning, and daily brief "
+                "execution flow. Call this ONCE at the start of a job search conversation to load context — "
+                "no HTTP call, instant response. After this you won't need to ask who Santiago is or what he wants."
+            ),
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        types.Tool(
             name="get_daily_brief",
-            description="Get today's priority actions: follow-ups due, hot leads, upcoming events.",
+            description=(
+                "Get today's prioritized action list across 3 sections: Positions, Outreach, Events. "
+                "Each task includes an mcp_tool hint — call that tool using the task's existing fields "
+                "(company_name, contact_name, followup_day, payload_id) as arguments. "
+                "Execution flow: call sync_gmail first to catch new replies, then get_daily_brief, "
+                "then work tasks one at a time: present the task, call its mcp_tool, wait for user "
+                "confirmation, log the action, move to next task."
+            ),
             inputSchema={"type": "object", "properties": {}},
         ),
         types.Tool(
@@ -501,7 +548,10 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
 
 async def _dispatch(name: str, args: dict) -> dict:
-    if name == "quick_add_contact":
+    if name == "get_profile":
+        return SANTIAGO_PROFILE
+
+    elif name == "quick_add_contact":
         result = await _post("/api/contacts/quick-add", {
             "name": args["name"],
             "title": args.get("title"),
@@ -730,7 +780,6 @@ async def _dispatch(name: str, args: dict) -> dict:
         })
 
     elif name == "get_contact_next_step":
-        # Find contact by name
         contacts = await _get("/api/contacts")
         name_lower = args["contact_name"].lower()
         company_filter = args.get("company_name", "").lower()
@@ -741,8 +790,22 @@ async def _dispatch(name: str, args: dict) -> dict:
         ]
         if not matches:
             return {"error": f"No contact found matching '{args['contact_name']}'"}
-        contact = matches[0]
-        return await _get(f"/api/contacts/{contact['id']}/next-step")
+        contact_summary = matches[0]
+        contact_id = contact_summary["id"]
+        # Fetch full contact detail (has relationship_notes) and next-step in parallel
+        detail, next_step_data = await asyncio.gather(
+            _get(f"/api/contacts/{contact_id}"),
+            _get(f"/api/contacts/{contact_id}/next-step"),
+        )
+        return {
+            "contact_name": detail.get("name"),
+            "title": detail.get("title"),
+            "company_name": contact_summary.get("company_name"),
+            "outreach_status": detail.get("outreach_status"),
+            "linkedin_url": detail.get("linkedin_url"),
+            "relationship_notes": detail.get("relationship_notes"),
+            "next_step": next_step_data.get("next_step"),
+        }
 
     elif name == "draft_linkedin_message":
         contacts = await _get("/api/contacts")

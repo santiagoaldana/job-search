@@ -531,9 +531,9 @@ def compute_daily_brief(session: Session) -> dict:
     def _not_dismissed(a):
         return (a["action_type"], a.get("payload_id")) not in dismissed
 
-    positions = [a for a in positions if _not_dismissed(a)]
-    outreach = [a for a in outreach if _not_dismissed(a)]
-    events_section = [a for a in events_section if _not_dismissed(a)]
+    positions = [_annotate_task(a) for a in positions if _not_dismissed(a)]
+    outreach = [_annotate_task(a) for a in outreach if _not_dismissed(a)]
+    events_section = [_annotate_task(a) for a in events_section if _not_dismissed(a)]
 
     total = len(positions) + len(outreach) + len(events_section)
     overdue = len([a for a in outreach if a["action_type"] in ("follow_up_3", "follow_up_7")])
@@ -548,6 +548,30 @@ def compute_daily_brief(session: Session) -> dict:
         "actions": positions + outreach + events_section,
         "priority_company_ids": list(priority_ids),
     }
+
+
+_MCP_TOOL_MAP = {
+    "new_reply": "get_contact_next_step",
+    "linkedin_accepted": "draft_linkedin_message",
+    "follow_up_3": "draft_followup",
+    "follow_up_7": "draft_followup",
+    "check_linkedin_acceptance": "mark_linkedin_status",
+    "email_escalation": "generate_outreach",
+    "try_linkedin_dm": "draft_linkedin_message",
+    "warm_path": "generate_outreach",
+    "email_bounce_retry": "mark_email_bounced",
+    "contact_gap": "find_contacts",
+    "start_outreach": "generate_outreach",
+    "publish_content": "schedule_linkedin_post",
+    "hot_lead": "list_hot_leads",
+}
+
+
+def _annotate_task(task: dict) -> dict:
+    tool = _MCP_TOOL_MAP.get(task.get("action_type", ""))
+    if tool:
+        task["mcp_tool"] = tool
+    return task
 
 
 def _days_diff(date_a: str, date_b: str) -> int:
