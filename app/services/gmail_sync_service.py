@@ -49,14 +49,17 @@ GENERIC_DOMAINS = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "me.c
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 def _bootstrap_token():
-    """Write token from GMAIL_TOKEN_B64 env var if present (for Render deployment)."""
-    token_b64 = os.environ.get("GMAIL_TOKEN_B64", "").strip()
-    if not token_b64:
-        return
+    """Write credentials + token from env vars if present (for Render deployment)."""
     TOKEN_DIR.mkdir(parents=True, exist_ok=True)
-    sanitized = GMAIL_ACCOUNT.replace("@", "_").replace(".", "_")
-    token_path = TOKEN_DIR / f"{sanitized}_token.json"
-    token_path.write_text(base64.b64decode(token_b64).decode())
+
+    creds_b64 = os.environ.get("GMAIL_CREDENTIALS_B64", "").strip()
+    if creds_b64:
+        (TOKEN_DIR / "credentials.json").write_text(base64.b64decode(creds_b64).decode())
+
+    token_b64 = os.environ.get("GMAIL_TOKEN_B64", "").strip()
+    if token_b64:
+        sanitized = GMAIL_ACCOUNT.replace("@", "_").replace(".", "_")
+        (TOKEN_DIR / f"{sanitized}_token.json").write_text(base64.b64decode(token_b64).decode())
 
 
 def _get_gmail_service():
