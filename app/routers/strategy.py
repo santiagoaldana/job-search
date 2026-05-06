@@ -90,6 +90,18 @@ def update_strategy(body: StrategyUpdateRequest, session: Session = Depends(get_
     }
 
 
+@router.post("/set")
+def set_strategy_by_ids(company_ids: List[int], session: Session = Depends(get_session)):
+    """Directly set the priority list by company IDs — bypasses name matching."""
+    config = _get_or_create_config(session)
+    config.priority_company_ids = json.dumps(company_ids)
+    config.updated_at = datetime.utcnow().isoformat()
+    session.add(config)
+    session.commit()
+    companies = [{"id": cid, "name": (session.get(Company, cid) or Company(name="?")).name} for cid in company_ids]
+    return {"set": companies, "count": len(company_ids)}
+
+
 @router.post("/seed")
 def seed_priority_companies(session: Session = Depends(get_session)):
     """Seed the 4 default priority companies if the list is currently empty."""
