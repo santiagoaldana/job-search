@@ -41,12 +41,15 @@ async def job_refresh_leads():
 
 
 async def job_daily_morning():
-    """Daily 7am: pre-compute brief, flag events this week needing prep."""
+    """Daily 7am: Gmail sync then pre-compute brief."""
     try:
         from app.database import engine
         from sqlmodel import Session
+        from app.services.gmail_sync_service import run_gmail_sync
         from app.services.daily_brief import compute_daily_brief
         with Session(engine) as session:
+            sync_result = run_gmail_sync(session)
+            print(f"[gmail_sync] {sync_result}")
             brief = compute_daily_brief(session)
         print(f"[7am] Daily brief ready: {brief['total_actions']} actions, {brief['overdue_count']} overdue")
     except Exception as e:
@@ -228,7 +231,7 @@ async def mcp_messages_proxy(request: Request, path: str):
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 
-from app.routers import companies, leads, outreach, cv, applications, events, content, daily_brief, contacts, reports, references
+from app.routers import companies, leads, outreach, cv, applications, events, content, daily_brief, contacts, reports, references, gmail_sync, strategy
 from app.routers.auth import router as auth_router
 
 
@@ -315,6 +318,8 @@ app.include_router(content.router, prefix="/api/content", tags=["content"])
 app.include_router(daily_brief.router, prefix="/api/daily-brief", tags=["daily-brief"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(references.router, prefix="/api/references", tags=["references"])
+app.include_router(gmail_sync.router, prefix="/api/gmail", tags=["gmail"])
+app.include_router(strategy.router, prefix="/api/strategy", tags=["strategy"])
 
 
 @app.get("/api/health")

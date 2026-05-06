@@ -58,6 +58,8 @@ def run_migrations():
         ("outreachrecord", "linkedin_accepted", "BOOLEAN"),
         ("contact", "referral_target_company_id", "INTEGER"),
         ("lead", "discard_reason", "TEXT"),
+        ("outreachrecord", "updated_at", "TEXT"),
+        ("contact", "connected_on", "TEXT"),
     ]
 
     with engine.connect() as conn:
@@ -87,7 +89,7 @@ def run_migrations():
 
         # Fix sequence drift — reset all primary key sequences to current max
         if is_postgres:
-            for table in ("contact", "company", "outreachrecord", "event", "contentdraft", "lead", "application", "interview", "offer", "reference", "aitargetsuggestion", "contentfeed"):
+            for table in ("contact", "company", "outreachrecord", "event", "contentdraft", "lead", "application", "interview", "offer", "reference", "aitargetsuggestion", "contentfeed", "gmailsyncstate", "strategyconfig"):
                 try:
                     conn.execute(__import__("sqlalchemy").text(
                         f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), COALESCE(MAX(id), 1)) FROM {table}"

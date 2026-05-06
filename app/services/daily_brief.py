@@ -3,13 +3,14 @@ Daily Brief Engine — 3-section action list: Positions | Outreach | Events
 Called by GET /api/daily-brief
 """
 
+import json
 from datetime import datetime, timedelta
 from sqlmodel import Session, select
 
 from app.models import (
     OutreachRecord, Lead, Event, Application,
     ContentDraft, AITargetSuggestion, Company, Interview, Contact,
-    DismissedBriefAction
+    DismissedBriefAction, ConversationMessage, StrategyConfig,
 )
 from app.services.email_finder import determine_next_step as _contact_next_step
 
@@ -29,6 +30,66 @@ def compute_daily_brief(session: Session) -> dict:
     # ══════════════════════════════════════════════════════════════════════════
     # OUTREACH SECTION
     # ══════════════════════════════════════════════════════════════════════════
+
+    # New replies detected via Gmail sync in last 48h — highest priority cards
+    forty_eight_hours_ago = (datetime.utcnow() - timedelta(hours=48)).isoformat()
+    recent_reply_records = session.exec(
+        select(OutreachRecord)
+        .where(OutreachRecord.response_status == "positive")
+        .where(OutreachRecord.updated_at >= forty_eight_hours_ago)
+        .order_by(OutreachRecord.updated_at.desc())  # type: ignore[arg-type]
+    ).all()
+
+    for record in recent_reply_records[:5]:
+        latest_reply_msg = session.exec(
+            select(ConversationMessage)
+            .where(ConversationMessage.outreach_record_id == record.id)
+            .where(ConversationMessage.message_type == "reply")
+            .order_by(ConversationMessage.message_date.desc())  # type: ignore[arg-type]
+        ).first()
+        if not latest_reply_msg:
+            continue
+        company = session.get(Company, record.company_id) if record.company_id else None
+        contact = session.get(Contact, record.contact_id) if record.contact_id else None
+        who = f"{contact.name} at {company.name}" if contact and company else (company.name if company else "Unknown")
+        snippet = (latest_reply_msg.body_full or "")[:120].replace("\n", " ").strip()
+        outreach.append({
+            "action_type": "new_reply",
+            "label": f"Reply received — {who}",
+            "detail": f'"{snippet}..."' if snippet else "New reply in your inbox",
+            "cta": "Draft response",
+            "company_id": record.company_id,
+            "contact_id": record.contact_id,
+            "contact_name": contact.name if contact else None,
+            "company_name": company.name if company else None,
+            "payload_id": record.id,
+            "payload_type": "outreach",
+        })
+
+    # LinkedIn acceptances detected via Gmail sync in last 48h
+    recent_accepted = session.exec(
+        select(OutreachRecord)
+        .where(OutreachRecord.linkedin_accepted == True)
+        .where(OutreachRecord.updated_at >= forty_eight_hours_ago)
+        .order_by(OutreachRecord.updated_at.desc())  # type: ignore[arg-type]
+    ).all()
+
+    for record in recent_accepted[:3]:
+        company = session.get(Company, record.company_id) if record.company_id else None
+        contact = session.get(Contact, record.contact_id) if record.contact_id else None
+        who = f"{contact.name} at {company.name}" if contact and company else (company.name if company else "Unknown")
+        outreach.append({
+            "action_type": "linkedin_accepted",
+            "label": f"LinkedIn accepted — {who}",
+            "detail": "They accepted your connection request — time to send a thank-you DM",
+            "cta": "Draft DM",
+            "company_id": record.company_id,
+            "contact_id": record.contact_id,
+            "contact_name": contact.name if contact else None,
+            "company_name": company.name if company else None,
+            "payload_id": record.id,
+            "payload_type": "outreach",
+        })
 
     # Day-3 follow-ups due (not yet sent)
     day3_records = session.exec(
@@ -448,6 +509,25 @@ def compute_daily_brief(session: Session) -> dict:
     # RETURN 3-SECTION RESPONSE
     # ══════════════════════════════════════════════════════════════════════════
 
+    # Strategy-aware sort: priority companies bubble up, urgency breaks ties within tier
+    config = session.get(StrategyConfig, 1)
+    priority_ids: set = set(json.loads(config.priority_company_ids)) if config else set()
+
+    _urgency = {
+        "new_reply": 50, "linkedin_accepted": 40,
+        "follow_up_3": 30, "follow_up_7": 20,
+        "warm_path": 15, "email_escalation": 12,
+        "try_linkedin_dm": 10, "email_bounce_retry": 8,
+        "check_linkedin_acceptance": 5, "contact_gap": 2,
+    }
+
+    def _strategic_score(card: dict) -> int:
+        score = 100 if card.get("company_id") in priority_ids else 0
+        score += _urgency.get(card.get("action_type", ""), 0)
+        return score
+
+    outreach.sort(key=_strategic_score, reverse=True)
+
     def _not_dismissed(a):
         return (a["action_type"], a.get("payload_id")) not in dismissed
 
@@ -466,6 +546,7 @@ def compute_daily_brief(session: Session) -> dict:
         "outreach": outreach,
         "events": events_section,
         "actions": positions + outreach + events_section,
+        "priority_company_ids": list(priority_ids),
     }
 
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, Flame, Calendar, Mail, BookOpen, Send, Lightbulb, RefreshCw, Briefcase, ChevronDown, ChevronUp, X, UserPlus } from 'lucide-react'
+import { AlertCircle, Flame, Calendar, Mail, BookOpen, Send, Lightbulb, RefreshCw, Briefcase, ChevronDown, ChevronUp, X, UserPlus, MessageSquare, Star } from 'lucide-react'
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
@@ -28,6 +28,8 @@ const ACTION_ICONS = {
   event: Calendar,
   check_linkedin_acceptance: UserPlus,
   email_escalation: Mail,
+  new_reply: MessageSquare,
+  linkedin_accepted: UserPlus,
 }
 
 const ACTION_COLORS = {
@@ -43,6 +45,8 @@ const ACTION_COLORS = {
   try_linkedin_dm: 'border-purple-300 bg-purple-50 dark:border-purple-700 dark:bg-purple-950/40',
   check_linkedin_acceptance: 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/40',
   email_escalation: 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/40',
+  new_reply: 'border-green-400 bg-green-50 dark:border-green-600 dark:bg-green-950/50',
+  linkedin_accepted: 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40',
 }
 
 const ACTION_ICON_COLORS = {
@@ -58,6 +62,8 @@ const ACTION_ICON_COLORS = {
   try_linkedin_dm: 'text-purple-500',
   check_linkedin_acceptance: 'text-blue-500',
   email_escalation: 'text-orange-500',
+  new_reply: 'text-green-600',
+  linkedin_accepted: 'text-sky-500',
 }
 
 function FollowUpModal({ action, onClose, onSent }) {
@@ -313,6 +319,103 @@ function FollowUpModal({ action, onClose, onSent }) {
   )
 }
 
+function NewReplyCard({ action, onDismiss, onRefresh }) {
+  const handleReply = () => {
+    if (action.contact_name) {
+      const subject = encodeURIComponent(`Re: ${action.label.replace('Reply received — ', '')}`)
+      window.open(`mailto:?subject=${subject}`, '_blank')
+    }
+    if (action.company_id) {
+      // Navigate handled by parent handleAction
+    }
+  }
+
+  return (
+    <div className="p-4 rounded-xl border border-green-400 bg-green-50 dark:border-green-600 dark:bg-green-950/50 space-y-2">
+      <div className="flex items-start gap-3">
+        <MessageSquare size={16} className="mt-0.5 flex-shrink-0 text-green-600" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-body text-sm">{action.label}</div>
+          {action.detail && (
+            <div className="text-xs text-muted mt-0.5 leading-relaxed italic">{action.detail}</div>
+          )}
+        </div>
+        {onDismiss && (
+          <button onClick={() => onDismiss(action)} className="flex-shrink-0 p-1 text-muted hover:text-body">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      <button
+        onClick={handleReply}
+        className="w-full bg-green-600 hover:bg-green-700 text-white rounded-lg py-2 text-xs font-semibold transition-colors"
+      >
+        Draft response →
+      </button>
+    </div>
+  )
+}
+
+function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
+  const [drafting, setDrafting] = useState(false)
+  const [dm, setDm] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const handleDraftDM = async () => {
+    if (!action.contact_id) return
+    setBusy(true)
+    try {
+      const res = await api.draftLinkedinMessage(action.contact_id, 'dm')
+      setDm(res.message || res.draft || '')
+      setDrafting(true)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="p-4 rounded-xl border border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40 space-y-2">
+      <div className="flex items-start gap-3">
+        <UserPlus size={16} className="mt-0.5 flex-shrink-0 text-sky-500" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-body text-sm">{action.label}</div>
+          <div className="text-xs text-muted mt-0.5">{action.detail}</div>
+        </div>
+        {onDismiss && (
+          <button onClick={() => onDismiss(action)} className="flex-shrink-0 p-1 text-muted hover:text-body">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      {drafting && dm ? (
+        <div className="space-y-2">
+          <textarea
+            defaultValue={dm}
+            rows={3}
+            className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body resize-none"
+          />
+          <button
+            onClick={() => { onDismiss && onDismiss(action); onRefresh && onRefresh() }}
+            className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-lg py-2 text-xs font-semibold"
+          >
+            Sent DM — dismiss
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleDraftDM}
+          disabled={busy}
+          className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-semibold transition-colors"
+        >
+          {busy ? 'Drafting…' : 'Draft thank-you DM →'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function LinkedInAcceptanceCard({ action, onRefresh }) {
   const [state, setState] = useState('prompt') // prompt | escalating | escalated | done
   const [nextStep, setNextStep] = useState(action.next_step || null)
@@ -505,7 +608,7 @@ function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
   )
 }
 
-function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, onRefresh, badge, badgeColor = 'blue', defaultOpen = true }) {
+function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, onRefresh, badge, badgeColor = 'blue', defaultOpen = true, priorityIds = [] }) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
@@ -540,11 +643,18 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
               if (action.action_type === 'check_linkedin_acceptance' || action.action_type === 'email_escalation') {
                 return <LinkedInAcceptanceCard key={i} action={action} onRefresh={onRefresh} />
               }
+              if (action.action_type === 'new_reply') {
+                return <NewReplyCard key={i} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
+              }
+              if (action.action_type === 'linkedin_accepted') {
+                return <LinkedInAcceptedSyncCard key={i} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
+              }
 
               const Icon = ACTION_ICONS[action.action_type] || AlertCircle
               const cardColor = ACTION_COLORS[action.action_type] || 'border-theme bg-card'
               const iconColor = ACTION_ICON_COLORS[action.action_type] || 'text-muted'
               const isFollowUp = action.action_type === 'follow_up_3' || action.action_type === 'follow_up_7'
+              const isPriority = priorityIds.includes(action.company_id)
 
               return (
                 <div
@@ -559,7 +669,10 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                       <div className="flex items-start gap-3">
                         <Icon size={16} className={`mt-0.5 flex-shrink-0 ${iconColor}`} />
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-body text-sm leading-snug">{action.label}</div>
+                          <div className="font-medium text-body text-sm leading-snug flex items-center gap-1.5">
+                            {isPriority && <Star size={11} className="text-amber-400 fill-amber-400 flex-shrink-0" />}
+                            {action.label}
+                          </div>
                           {action.detail && (
                             <div className="text-xs text-muted mt-0.5 leading-relaxed">{action.detail}</div>
                           )}
@@ -836,6 +949,7 @@ export default function DailyBrief() {
               onDismiss={handleDismiss}
               onRefresh={load}
               badgeColor="red"
+              priorityIds={brief.priority_company_ids || []}
             />
             <div className="mx-4 border-t border-theme my-1" />
             <Section

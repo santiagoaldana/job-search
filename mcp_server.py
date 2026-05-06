@@ -370,6 +370,41 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["company_name", "intel"],
             },
         ),
+        types.Tool(
+            name="sync_gmail",
+            description="Trigger a Gmail inbox sync to detect sent outreach emails and incoming replies from the last 24 hours. Call this at the start of the daily brief to ensure data is fresh. No Claude API cost.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        types.Tool(
+            name="update_strategy",
+            description=(
+                "Update which companies are marked as top priority in the Daily Brief. "
+                "Priority companies appear first and show a star badge. "
+                "Call this when Santiago signals a company is heating up or going cold, "
+                "or when adding a new company that matches his core positioning pillars "
+                "(BaaS, Agentic AI, Digital Identity, Payments, Embedded Finance)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "promote": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Company names to add to the priority list",
+                    },
+                    "demote": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Company names to remove from the priority list",
+                    },
+                },
+            },
+        ),
+        types.Tool(
+            name="get_strategy",
+            description="Return the current list of priority companies in the Daily Brief. Use this to understand Santiago's current strategic focus before making recommendations.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
     ]
 
 
@@ -862,6 +897,18 @@ async def _dispatch(name: str, args: dict) -> dict:
             return {"error": status}
         result = await _post(f"/api/companies/{cid}/find-contacts", {})
         return result
+
+    elif name == "sync_gmail":
+        return await _post("/api/gmail/sync", {})
+
+    elif name == "update_strategy":
+        return await _post("/api/strategy/update", {
+            "promote": args.get("promote", []),
+            "demote": args.get("demote", []),
+        })
+
+    elif name == "get_strategy":
+        return await _get("/api/strategy", {})
 
     return {"error": f"Unknown tool: {name}"}
 

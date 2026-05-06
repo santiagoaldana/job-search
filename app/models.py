@@ -314,3 +314,21 @@ class AITargetSuggestion(SQLModel, table=True):
     reviewed: bool = Field(default=False)
     approved: bool = Field(default=False)
     company_id: Optional[int] = Field(default=None, foreign_key="company.id")
+
+
+# ── GmailSyncState ────────────────────────────────────────────────────────────
+
+class GmailSyncState(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    account_email: str = Field(index=True, unique=True)
+    last_poll_at: Optional[str] = Field(default=None)       # ISO datetime of last sync
+    last_sync_summary: Optional[str] = Field(default=None)  # JSON: {new_outreach, new_replies, linkedin_accepted}
+    updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+
+# ── StrategyConfig (single-row priority settings) ─────────────────────────────
+
+class StrategyConfig(SQLModel, table=True):
+    id: int = Field(default=1, primary_key=True)
+    priority_company_ids: str = Field(default="[]")  # JSON list of company IDs
+    updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
