@@ -219,6 +219,18 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
     company_index = {(c.name or "").lower(): c.id for c in all_companies if c.name}
     company_id = _match_company_from_index(req.company_name or "", company_index)
 
+    # Auto-create company if a name was provided but didn't match anything
+    if req.company_name and not company_id:
+        new_company = Company(
+            name=req.company_name.strip(),
+            stage="pool",
+            created_at=datetime.utcnow().isoformat(),
+            updated_at=datetime.utcnow().isoformat(),
+        )
+        session.add(new_company)
+        session.flush()
+        company_id = new_company.id
+
     contact = Contact(
         name=req.name,
         title=req.title,
