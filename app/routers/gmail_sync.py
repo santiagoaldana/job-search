@@ -18,6 +18,15 @@ def trigger_sync(session: Session = Depends(get_session)):
     return result
 
 
+@router.post("/reset-token")
+def reset_token(session: Session = Depends(get_session)):
+    """Force re-seed the Gmail token from GMAIL_TOKEN_B64 env var into the DB."""
+    from app.services.gmail_sync_service import _bootstrap_token, _persist_token
+    _bootstrap_token(None)   # write env var token to disk (bypasses DB)
+    _persist_token(session)  # read disk → write to DB
+    return {"ok": True, "message": "Token reseeded from GMAIL_TOKEN_B64 env var"}
+
+
 @router.get("/status")
 def sync_status(session: Session = Depends(get_session)):
     """Return last sync time and summary."""
