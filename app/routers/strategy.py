@@ -50,10 +50,18 @@ def update_strategy(body: StrategyUpdateRequest, session: Session = Depends(get_
 
     promoted, demoted, not_found = [], [], []
 
+    def _find_company(name: str) -> Optional[Company]:
+        # Exact match first, then starts-with, then contains — avoids "Brex" matching "Umbrex"
+        exact = session.exec(select(Company).where(Company.name.ilike(name))).first()
+        if exact:
+            return exact
+        starts = session.exec(select(Company).where(Company.name.ilike(f"{name}%"))).first()
+        if starts:
+            return starts
+        return session.exec(select(Company).where(Company.name.ilike(f"%{name}%"))).first()
+
     for name in body.promote:
-        company = session.exec(
-            select(Company).where(Company.name.ilike(f"%{name}%"))  # type: ignore[union-attr]
-        ).first()
+        company = _find_company(name)
         if not company:
             not_found.append(name)
             continue
@@ -62,9 +70,7 @@ def update_strategy(body: StrategyUpdateRequest, session: Session = Depends(get_
             promoted.append(company.name)
 
     for name in body.demote:
-        company = session.exec(
-            select(Company).where(Company.name.ilike(f"%{name}%"))  # type: ignore[union-attr]
-        ).first()
+        company = _find_company(name)
         if company and company.id in ids:
             ids.remove(company.id)
             demoted.append(company.name)
@@ -92,12 +98,11 @@ def seed_priority_companies(session: Session = Depends(get_session)):
     if ids:
         return {"message": "already seeded", "count": len(ids)}
 
-    priority_names = ["Sardine", "Synctera", "Flywire", "Hat Trick"]
+    priority_names = ["Sardine", "Synctera", "Flywire", "Brex"]
     seeded = []
     for name in priority_names:
-        c = session.exec(
-            select(Company).where(Company.name.ilike(f"%{name}%"))  # type: ignore[union-attr]
-        ).first()
+        exact = session.exec(select(Company).where(Company.name.ilike(name))).first()
+        c = exact or session.exec(select(Company).where(Company.name.ilike(f"{name}%"))).first()
         if c and c.id not in ids:
             ids.append(c.id)
             seeded.append(c.name)
