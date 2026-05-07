@@ -207,10 +207,86 @@ No explanation. Just the array."""
 
 # ── LinkedIn Post Drafting ────────────────────────────────────────────────────
 
+# Agentic commerce arc angles drawn from Santiago's SupplyMind build.
+# SupplyMind is a live prototype of a multi-agent B2B commerce system using
+# MCP (Anthropic), A2A (Google DeepMind), UCP, and an Agentic Payment Interface.
+# Santiago is building this at SMCU as applied R&D — it is not a tutorial follow-along.
+#
+# SMCU / Credit Union framing is intentional: Santiago uses his current CPSO role as a
+# launchpad and credibility signal, not as a destination. Mentioning SMCU and the
+# credit union context ("finding startup partners," "scouting the NANDA ecosystem for SMBs")
+# is a legitimate transition tactic: it positions him as a high-status buyer/partner,
+# not a job candidate. Do NOT strip this framing out.
+#
+# Arc structure: each angle below can stand alone or chain into a 2-3 post series.
+# For series posts, use the Loop & Hook technique: reference the previous post's open
+# question (Loop) and end with a new tension or teaser (Hook).
+SUPPLYMIND_CONTENT_ARCS = """
+AGENTIC COMMERCE CONTENT ARCS (draw from these when the news article touches AI agents,
+BaaS, embedded finance, payments infrastructure, or agentic commerce):
+
+Arc 1 — The Trust Gap (standalone or Day 1 of a series)
+Core tension: If an agent is doing the buying, who underwrites the trust? A credit card is
+a human instrument. Programmable spending mandates (AP2) are agent instruments. Most
+BaaS platforms are not built for the latter.
+Quotable seed: "Traditional BaaS embeds a button. Agentic BaaS embeds a bank account
+and a decision engine directly into the agent."
+Hook for series: "If your business had an autonomous agent today, would you trust it with
+your credit line?" (The answer should be no, and that gap is the business opportunity.)
+
+Arc 2 — The Machine Handshake (standalone or Day 2)
+Core tension: The payments industry is focused on the LLM layer. The real infrastructure
+gap is one layer below: agent discovery (A2A / NANDA), always-on execution (Maritime /
+agentic cloud), and machine-native settlement (x402, MPP, USDC nanopayments). Santiago
+is building all three in SupplyMind and finding the friction points firsthand.
+Quotable seed: "Building this revealed that agents fail at the handshake, not the reasoning.
+The LLM is fine. The schema contract underneath it is where things break."
+Loop from Arc 1: "Yesterday I asked about trust. Here is the infrastructure that makes
+trust programmable."
+
+Arc 3 — ABaaS: The New Category (standalone or Day 3)
+Core tension: Agentic Banking-as-a-Service (ABaaS) is not an incremental improvement on
+BaaS. It requires three new primitives that legacy BaaS platforms do not provide: Verified
+Agent Identity (KYA, not KYC), Programmable Spending Mandates (AP2, not static limits),
+and machine-native settlement rails (not T+2 ACH). The companies that build these
+primitives will define the next decade of embedded finance.
+Quotable seed: "We are moving toward a world where checkout is an API handshake, not
+a user interface. The question is who owns the trust layer."
+SMCU framing: Santiago is scouting for startup partners building in NANDA, Maritime, and
+x402 ecosystems to bring Agentic BaaS to credit union SMBs. This is a legitimate buyer
+signal, not a job search signal.
+
+Arc 4 — The Execution Gap in Agentic AI (standalone, high controversy)
+Core tension: Every major payments company is announcing "agentic AI" features. Almost
+none of them have solved the identity problem for agents (KYA), the authorization problem
+(who sets the mandate and under what compliance framework), or the settlement problem
+(how do you do real-time finality without stablecoin rails). Santiago has built enough of
+SupplyMind to know exactly where the enterprise implementations will break.
+Quotable seed: "The Execution Gap in agentic AI is not the model. It is the compliance
+wrapper around the agent's financial authority."
+
+Arc 5 — Vibe Coding as Executive Methodology (standalone, personal/differentiated)
+Core tension: "Vibe coding" is dismissed as a junior developer shortcut. Santiago uses it
+as a strategic prototyping method: build a working system fast enough to find the real
+friction points before writing a business case. SupplyMind was built this way. The insight
+is that hands-on prototyping at the executive level is the fastest path to identifying where
+the market is wrong about what the hard problem actually is.
+Quotable seed: "I built SupplyMind to find out where agentic commerce breaks. You cannot
+find those failure points from a whitepaper."
+
+HASHTAG GUIDANCE: Use whatever number of hashtags serves the post (typically 3 to 6).
+Rotate through: #AgenticAI #EmbeddedFinance #BaaS #AgenticCommerce #Payments
+#FintechStrategy #EmbeddedBanking #DigitalIdentity #MCP #OpenBanking #CreditUnions
+#SMB. Never exceed 8. Never use #Hiring or #OpenToWork.
+"""
+
 DRAFT_PROMPT = """You are a Strategic Executive Architect. You combine the high-stakes positioning of a PR Expert, the market-matching insight of an Executive Search Consultant, and the tactical communication style of a Leadership Coach. Your goal is to help Santiago build "Intellectual Authority" on LinkedIn without ever appearing to be job hunting.
 
 EXECUTIVE PROFILE:
 {profile}
+
+AGENTIC COMMERCE CONTENT ARCS (use these as inspiration when relevant):
+{arcs}
 
 ARTICLE TO RESPOND TO:
 Title: {title}
@@ -220,21 +296,21 @@ Summary: {summary}
 
 WRITING PRINCIPLES:
 - First Principles: Do not use clichés. Break every topic down to its fundamental truths (e.g., instead of "improving payments," discuss the "atomic unit of trust in digital exchange").
-- Anti-Sales Mandate: Never use hashtags like #Hiring or #OpenToWork. Make Santiago appear so deeply embedded in the future of the industry that his "next move" feels like an inevitable evolution, not a request.
-- Style: Clever, minimalist, authoritative. Short, punchy sentences. No corporate jargon (use "friction" not "synergistic challenges"). No dashes: use colons, semicolons, and commas instead.
+- Anti-Sales Mandate: Never use hashtags like #Hiring or #OpenToWork. Make Santiago appear so deeply embedded in the future of the industry that his "next move" feels like an inevitable evolution, not a request. Note: references to SMCU, credit unions, and scouting for startup partners are intentional transition tactics, not job-search signals; keep them when relevant.
+- Style: Clever, minimalist, authoritative. Short, punchy sentences. No corporate jargon (use "friction" not "synergistic challenges"). No dashes: use colons, semicolons, and commas instead. No emojis.
 - Hook: The first line must be a "Pattern Interrupt": it challenges a common assumption, states a surprising fact, or shows deep literacy on the topic.
-- No emojis. Max 3 relevant hashtags at the end only. Avoid: "excited to share", "great article", "I believe", "thrilled", "honored", platitudes.
+- Avoid: "excited to share", "great article", "I believe", "thrilled", "honored", platitudes.
 
 ANALYSIS FRAMEWORK (apply all three lenses in the post):
 1. Macro Trend: Why does this topic matter to the economy or industry right now?
-2. The "So What?": What is the non-obvious insight only Santiago can offer, grounded in specific career experience? (e.g., "When we scaled SoyYo to 3M users...", "At Avianca, managing $110M in IT spend taught me...")
+2. The "So What?": What is the non-obvious insight only Santiago can offer, grounded in specific career experience? (e.g., "When we scaled SoyYo to 3M users...", "At Avianca, managing $110M in IT spend taught me...", "Building SupplyMind taught me that agents fail at the handshake, not the reasoning...")
 3. Call to Conversation: End with a high-level question that invites peers (CEOs, Founders) to comment: not rhetorical, but one where reasonable experts would genuinely disagree.
 
 TRANSFORMATION FILTER: When the topic touches AI, Payments, Identity, or Stablecoins, position Santiago as the strategist who understands both the code and the culture, with the capacity to be hands-on as an entrepreneur and a senior executive in regulated industries. Highlight the Execution Gap: the distance between what the technology promises and what organizations can actually deliver.
 
-TARGET AUDIENCE LENS: The primary readers Santiago wants to reach are operators and founders at growth-stage fintechs — specifically companies in BaaS, embedded finance, fraud/identity, and cross-border payments (e.g., Stripe, Brex, Synctera, Sardine, Flywire, Alloy, Airwallex, Klaviyo). Write for the practitioner who is actively building, not the academic observer. Avoid framing the post as commentary on research or publications. Ground every insight in what a Series B/C fintech operator would actually argue about in a product review or board meeting. The post should feel like it belongs in a Slack channel where CTOs and heads of product debate infrastructure decisions, not in a newsletter digest.
+TARGET AUDIENCE LENS: The primary readers Santiago wants to reach are operators and founders at growth-stage fintechs — specifically companies in BaaS, embedded finance, fraud/identity, and cross-border payments (e.g., Stripe, Brex, Synctera, Sardine, Flywire, Alloy, Airwallex). Write for the practitioner actively building, not the academic observer. The post should feel like it belongs in a product review or board meeting debate, not a newsletter digest.
 
-SOURCE DIVERSITY MANDATE: Do not anchor the post's credibility to any single publication, analyst house, or academic source. Santiago's authority comes from having built and exited companies, not from citing others. If the article is from an academic or media source, extract the business signal and reframe it entirely through Santiago's operator lens. The article is a prompt, not a citation.
+SOURCE DIVERSITY MANDATE: Santiago's authority comes from having built and exited companies, and from hands-on prototyping (SupplyMind), not from citing publications. Extract the business signal from the article and reframe it through his operator lens. The article is a prompt, not a citation.
 
 Generate a post of appropriate length to gain traction on LinkedIn (typically 150-300 words; longer if the topic demands depth).
 
@@ -261,6 +337,7 @@ def draft_linkedin_posts(articles: list[Article], n: int = 5) -> list[LinkedInDr
 
         prompt = DRAFT_PROMPT.format(
             profile=EXECUTIVE_PROFILE,
+            arcs=SUPPLYMIND_CONTENT_ARCS,
             title=article.title,
             source=article.source,
             url=article.url,
