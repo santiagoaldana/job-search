@@ -435,7 +435,7 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
   const handleNotAccepted = async () => {
     setBusy(true)
     try {
-      await api.patchOutreach(action.payload_id, { linkedin_accepted: false })
+      await api.patchOutreach(action.payload_id, { linkedin_accepted: null, follow_up_3_sent: true })
       if (action.contact_id) {
         const res = await api.getContactNextStep(action.contact_id)
         setNextStep(res.next_step)
