@@ -492,6 +492,64 @@ async def enhance_with_context(
     }
 
 
+@router.post("/{record_id}/draft-template")
+def draft_template(
+    record_id: int,
+    followup_type: str = "escalation",
+    session: Session = Depends(get_session),
+):
+    """Return a pre-filled Dalton-style email draft with no Claude API call."""
+    from app.models import OutreachRecord, Contact, Company
+    from app.services.email_finder import determine_next_step as _contact_next_step
+
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    company = session.get(Company, record.company_id) if record.company_id else None
+
+    first = (contact.name or "").split()[0] if contact else "there"
+    company_name = company.name if company else "your company"
+
+    if followup_type == "escalation":
+        subject = f"Following up — {contact.name if contact else 'our connection'}"
+        body = (
+            f"Hi {first},\n\n"
+            f"I sent you a LinkedIn request last week and wanted to follow up here directly.\n\n"
+            f"I've been following {company_name}'s work and think there's a real conversation to be had. "
+            f"Would you be open to a 20-minute call?\n\n"
+            f"Best,\nSantiago"
+        )
+    elif followup_type == "day3":
+        subject = f"Following up — {contact.name if contact else 'quick note'}"
+        body = (
+            f"Hi {first},\n\n"
+            f"Just bumping this up in case it got buried. "
+            f"Still curious about your perspective. Worth a quick call?\n\n"
+            f"Best,\nSantiago"
+        )
+    elif followup_type == "day7":
+        subject = f"Closing the loop — {contact.name if contact else ''}"
+        body = (
+            f"Hi {first},\n\n"
+            f"Wanted to close the loop on my earlier note. "
+            f"If the timing isn't right, no worries at all. Happy to reconnect down the road.\n\n"
+            f"Best,\nSantiago"
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Invalid followup_type")
+
+    guessed_email = None
+    if contact and contact.email:
+        guessed_email = contact.email
+    elif contact and company:
+        ns = _contact_next_step(contact, company)
+        guessed_email = ns.get("guessed_email")
+
+    return {"subject": subject, "body": body, "guessed_email": guessed_email}
+
+
 @router.post("/{record_id}/build-mailto")
 def build_mailto(
     record_id: int,

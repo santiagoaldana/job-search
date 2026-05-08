@@ -103,27 +103,30 @@ def compute_daily_brief(session: Session) -> dict:
     for record in day3_records:
         company = session.get(Company, record.company_id) if record.company_id else None
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
-        days_overdue = _days_diff(record.follow_up_3_due, today)
+        days_sent = _days_diff(record.sent_at, today)
         who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else 'Unknown'))
 
         if record.channel == "linkedin" and record.linkedin_accepted is None:
+            next_step = _contact_next_step(contact, company) if contact else {"action": "prompt_manual_email", "guessed_email": None}
             outreach.append({
-                "action_type": "check_linkedin_acceptance",
-                "label": f"LinkedIn connection — {who}",
-                "detail": f"Sent {days_overdue} day{'s' if days_overdue != 1 else ''} ago · did they accept?",
-                "cta": "Check acceptance",
+                "action_type": "linkedin_not_accepted",
+                "label": f"LinkedIn not accepted — {who}",
+                "detail": f"{days_sent} day{'s' if days_sent != 1 else ''} with no response · Gmail checked",
+                "cta": "Escalate to email",
                 "company_id": record.company_id,
                 "contact_id": record.contact_id,
                 "contact_name": contact.name if contact else None,
                 "company_name": company.name if company else None,
                 "payload_id": record.id,
                 "payload_type": "outreach",
+                "next_step": next_step,
+                "days_sent": days_sent,
             })
         else:
             outreach.append({
                 "action_type": "follow_up_3",
                 "label": f"Day 3 follow-up — {who}",
-                "detail": f"{days_overdue} day{'s' if days_overdue != 1 else ''} overdue",
+                "detail": f"{days_sent} day{'s' if days_sent != 1 else ''} overdue",
                 "cta": "Draft follow-up",
                 "company_id": record.company_id,
                 "payload_id": record.id,
@@ -144,36 +147,19 @@ def compute_daily_brief(session: Session) -> dict:
     for record in day7_records:
         company = session.get(Company, record.company_id) if record.company_id else None
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
-        days_overdue = _days_diff(record.follow_up_7_due, today)
+        days_sent = _days_diff(record.sent_at, today)
         who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else 'Unknown'))
 
-        if record.channel == "linkedin" and record.linkedin_accepted is None:
-            # Connection still not accepted after 7 days — escalate to email
-            next_step = _contact_next_step(contact, company) if contact else {"action": "prompt_manual_email", "guessed_email": None}
-            outreach.append({
-                "action_type": "email_escalation",
-                "label": f"LinkedIn not accepted — escalate to email · {who}",
-                "detail": "Connection request ignored · trying email instead",
-                "cta": "Send email",
-                "company_id": record.company_id,
-                "contact_id": record.contact_id,
-                "contact_name": contact.name if contact else None,
-                "company_name": company.name if company else None,
-                "payload_id": record.id,
-                "payload_type": "outreach",
-                "next_step": next_step,
-            })
-        else:
-            outreach.append({
-                "action_type": "follow_up_7",
-                "label": f"Day 7 close — {who}",
-                "detail": f"{days_overdue} day{'s' if days_overdue != 1 else ''} overdue · polite close",
-                "cta": "Draft closing note",
-                "company_id": record.company_id,
-                "payload_id": record.id,
-                "payload_type": "outreach",
-                "followup_day": 7,
-            })
+        outreach.append({
+            "action_type": "follow_up_7",
+            "label": f"Day 7 close — {who}",
+            "detail": f"{days_sent} day{'s' if days_sent != 1 else ''} overdue · polite close",
+            "cta": "Draft closing note",
+            "company_id": record.company_id,
+            "payload_id": record.id,
+            "payload_type": "outreach",
+            "followup_day": 7,
+        })
 
     # Auto-ghost: both follow-ups sent, still pending, 14+ days since Day 7 sent
     ghost_cutoff = (datetime.utcnow() - timedelta(days=14)).strftime("%Y-%m-%d")

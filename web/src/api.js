@@ -67,6 +67,7 @@ export const api = {
   updateResponse: (id, status, notes) => patch(`/outreach/${id}/response`, { response_status: status, notes }),
   draftFollowup: (id, followup_day, language = 'en') => post(`/outreach/${id}/draft-followup`, { followup_day, language }),
   buildMailto: (id, data) => post(`/outreach/${id}/build-mailto`, data),
+  draftTemplate: (id, followupType) => post(`/outreach/${id}/draft-template?followup_type=${followupType}`),
   markFollowupSent: (id, data) => post(`/outreach/${id}/mark-followup-sent`, data),
   sendFollowup: (id, data) => post(`/outreach/${id}/send-followup`, data),
   skipOutreach: (id) => post(`/outreach/${id}/skip`, {}),
