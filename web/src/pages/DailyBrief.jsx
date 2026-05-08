@@ -543,20 +543,39 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
 }
 
 function LinkedInNotAcceptedCard({ action, onRefresh }) {
-  const [state, setState] = useState('prompt') // prompt | loading | draft | sent
+  const [state, setState] = useState('loading') // loading | needs_intel | prompt | draft | sent
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [guessedEmail, setGuessedEmail] = useState(action.next_step?.guessed_email || null)
   const [busy, setBusy] = useState(false)
 
+  useEffect(() => {
+    api.draftTemplate(action.payload_id, 'escalation')
+      .then(res => {
+        if (res.needs_intel) {
+          setState('needs_intel')
+        } else {
+          setSubject(res.subject || '')
+          setBody(res.body || '')
+          if (res.guessed_email) setGuessedEmail(res.guessed_email)
+          setState('draft')
+        }
+      })
+      .catch(() => setState('prompt'))
+  }, [])
+
   const handleGetTemplate = async () => {
     setBusy(true)
     try {
       const res = await api.draftTemplate(action.payload_id, 'escalation')
-      setSubject(res.subject || '')
-      setBody(res.body || '')
-      if (res.guessed_email) setGuessedEmail(res.guessed_email)
-      setState('draft')
+      if (res.needs_intel) {
+        setState('needs_intel')
+      } else {
+        setSubject(res.subject || '')
+        setBody(res.body || '')
+        if (res.guessed_email) setGuessedEmail(res.guessed_email)
+        setState('draft')
+      }
     } catch (_) {}
     setBusy(false)
   }
@@ -601,6 +620,31 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
           )}
         </div>
       </div>
+
+      {state === 'loading' && (
+        <div className="text-xs text-muted">Preparing draft...</div>
+      )}
+
+      {state === 'needs_intel' && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted">No company intel yet — a personalized draft needs it first.</div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setState('prompt')}
+              className="flex-1 border border-theme text-body rounded-lg py-2 text-xs font-medium"
+            >
+              Use generic template
+            </button>
+            <button
+              onClick={handleRequestClaude}
+              disabled={busy}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold disabled:opacity-50"
+            >
+              {busy ? '...' : <>Request Claude draft <span className="text-orange-200 font-normal">AI · ~$0.003</span></>}
+            </button>
+          </div>
+        </div>
+      )}
 
       {state === 'prompt' && (
         <div className="flex gap-2">
