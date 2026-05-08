@@ -289,7 +289,9 @@ async def parse_contact_screenshot(file: UploadFile = File(...)):
                     "text": (
                         "Extract contact info from this LinkedIn profile screenshot. "
                         "Return JSON only — no markdown, no explanation — with these fields: "
-                        "name, title, company_name, linkedin_url (from the URL bar or profile link if visible), location. "
+                        "name, title, company_name, linkedin_url (from the URL bar or profile link if visible), location, is_mit_alum. "
+                        "is_mit_alum: true if Education section shows MIT, MIT Sloan, or Massachusetts Institute of Technology. "
+                        "false if education is visible but no MIT. null if education not visible. "
                         "Use null for any missing fields."
                     ),
                 },
@@ -299,7 +301,7 @@ async def parse_contact_screenshot(file: UploadFile = File(...)):
     try:
         return json.loads(response.content[0].text.strip())
     except Exception:
-        return {"name": None, "title": None, "company_name": None, "linkedin_url": None, "location": None}
+        return {"name": None, "title": None, "company_name": None, "linkedin_url": None, "location": None, "is_mit_alum": None}
 
 
 class LogInteractionRequest(BaseModel):

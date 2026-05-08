@@ -492,58 +492,25 @@ async def enhance_with_context(
     }
 
 
-_CREDENTIAL_MAP = [
-    (["identity", "fraud", "kyc", "verification", "authentication", "passwordless"],
-     "built SoyYo, a digital identity platform scaled to 3M users"),
-    (["payment", "card", "acquiring", "issuing", "fintech", "banking", "embedded finance", "brex", "capital one"],
-     "ran payments and digital transformation at Avianca — similar challenges at scale"),
-    (["ai", "agentic", "agent", "llm", "automation", "machine learning"],
-     "currently building agentic AI workflows at a credit union"),
-    (["credit union", "cuso", "community bank", "cooperative"],
-     "building fintech partnerships and CUSOs at St. Mary's Credit Union"),
-    (["telecom", "mobile", "mvno", "wireless"],
-     "founded Uff Móvil, LatAm's first MVNO"),
-    (["email", "marketing", "crm", "klaviyo", "retention", "lifecycle"],
-     "ran digital revenue and marketing transformation at Avianca"),
-]
-
-_TOPIC_MAP = [
-    (["identity", "fraud", "kyc", "verification"], "the identity layer in agentic transactions"),
-    (["payment", "card", "acquiring", "issuing", "embedded finance"], "the agent-driven checkout layer as AI spending takes off"),
-    (["ai", "agentic", "agent", "llm"], "where agentic AI is hitting enterprise workflows first"),
-    (["credit union", "cuso", "community bank"], "fintech partnerships for community institutions"),
-    (["email", "marketing", "crm", "retention", "lifecycle"], "AI-driven personalization at scale"),
-    (["banking", "fintech", "financial"], "where embedded finance is heading in the next 12 months"),
+EXPERTISE_MAP = [
+    (["payment", "acquiring", "issuing", "card", "transaction"], "payments"),
+    (["baas", "banking as a service", "embedded banking", "embedded finance"], "BaaS"),
+    (["identity", "fraud", "kyc", "verification", "authentication"], "digital identity and fraud prevention"),
+    (["ai", "agentic", "llm", "machine learning", "automation"], "agentic AI"),
+    (["stablecoin", "crypto", "blockchain", "web3", "defi"], "stablecoins and digital assets"),
+    (["credit union", "cuso", "community bank"], "credit union fintech partnerships"),
+    (["marketing", "crm", "lifecycle", "retention", "email"], "AI-driven marketing"),
+    (["product", "cpo", "chief product"], "product strategy in fintech"),
+    (["banking", "fintech", "financial"], "financial technology"),
 ]
 
 
-def _match_map(text: str, mapping: list) -> Optional[str]:
-    t = text.lower()
-    for keywords, value in mapping:
-        if any(k in t for k in keywords):
-            return value
-    return None
-
-
-def _extract_intel_hook(intel: Optional[str], company_name: str) -> str:
-    if not intel:
-        return None
-    import re
-    lines = [l.strip() for l in intel.splitlines() if l.strip() and not l.strip().startswith("#")]
-    candidates = []
-    for line in lines:
-        sentences = re.split(r"(?<=[.!?])\s+", line)
-        for s in sentences:
-            s = s.strip()
-            if len(s) >= 30 and len(s) <= 110 and not s.startswith("#") and not s.startswith("-"):
-                candidates.append(s if s.endswith(".") else s + ".")
-    if candidates:
-        return candidates[0]
-    return None
-
-
-def _count_words(text: str) -> int:
-    return len(text.split())
+def _derive_expertise(contact, company) -> str:
+    search = ((contact.title or "") + " " + (company.name if company else "")).lower()
+    for keywords, label in EXPERTISE_MAP:
+        if any(k in search for k in keywords):
+            return label
+    return "fintech and payments"
 
 
 @router.post("/{record_id}/draft-template")
@@ -567,51 +534,24 @@ def draft_template(
     company_name = company.name if company else "your company"
 
     if followup_type == "escalation":
-        intel = (company.intel_summary or "") + " " + (company.org_notes or "") if company else ""
-        search_text = intel or company_name
-        no_intel = not (company and company.intel_summary)
+        expertise = _derive_expertise(contact, company)
+        role = contact.title or "role"
+        is_mit = getattr(contact, "is_mit_alum", None) if contact else None
 
-        credential = _match_map(search_text, _CREDENTIAL_MAP) or "spent 20 years in FinTech and payments (MIT Sloan MBA)"
-        topic = _match_map(search_text, _TOPIC_MAP) or f"where {company_name} is headed next"
-        intel_hook = _extract_intel_hook(company.intel_summary if company else None, company_name)
+        subject = f"{company_name} — quick question"
 
-        met_via = contact.met_via if contact else None
-        is_meaningful_context = met_via and not any(
-            x in met_via.lower() for x in ["degree", "linkedin", "1st", "2nd", "3rd", "connection"]
-        )
-        warm_opener = f"Following up on {met_via}. " if is_meaningful_context else ""
-
-        subject = f"{company_name} — quick thought"
-
-        if intel_hook:
-            body_lines = [
-                f"Hi {first},",
-                "",
-                f"{warm_opener}{intel_hook} I {credential}.",
-                f"Curious how you're thinking about {topic}.",
-                "",
-                "Worth a quick note back?",
-            ]
+        if is_mit:
+            opener = "I am a fellow MIT Sloan alum."
         else:
-            body_lines = [
-                f"Hi {first},",
-                "",
-                f"{warm_opener}I {credential} and have been following {company_name} closely.",
-                f"Curious how you're thinking about {topic}.",
-                "",
-                "Worth a quick note back?",
-            ]
-        body = "\n".join(body_lines)
+            opener = f"I noticed we have a common interest in {expertise}."
 
-        if _count_words(body) > 75:
-            if intel_hook:
-                body_lines[2] = f"{warm_opener}{intel_hook}"
-            else:
-                body_lines[2] = f"{warm_opener}Been following {company_name} closely."
-            body = "\n".join(body_lines)
-
-        if no_intel:
-            return {"needs_intel": True, "company_id": record.company_id, "company_name": company_name, "subject": subject, "body": body, "guessed_email": None}
+        body = (
+            f"Hi {first},\n\n"
+            f"{opener} I was wondering if you have some time to tell me about your "
+            f"{role} role at {company_name}? Your insights would be greatly appreciated "
+            f"because I'm trying to learn more about {expertise}. "
+            f"Worth exchanging notes?"
+        )
 
     elif followup_type == "day3":
         subject = f"{company_name} — still curious"

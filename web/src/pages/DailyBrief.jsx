@@ -543,7 +543,7 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
 }
 
 function LinkedInNotAcceptedCard({ action, onRefresh }) {
-  const [state, setState] = useState('loading') // loading | needs_intel | prompt | draft | sent
+  const [state, setState] = useState('loading') // loading | draft | sent
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [guessedEmail, setGuessedEmail] = useState(action.next_step?.guessed_email || null)
@@ -552,46 +552,13 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
   useEffect(() => {
     api.draftTemplate(action.payload_id, 'escalation')
       .then(res => {
-        if (res.needs_intel) {
-          setState('needs_intel')
-        } else {
-          setSubject(res.subject || '')
-          setBody(res.body || '')
-          if (res.guessed_email) setGuessedEmail(res.guessed_email)
-          setState('draft')
-        }
-      })
-      .catch(() => setState('prompt'))
-  }, [])
-
-  const handleGetTemplate = async () => {
-    setBusy(true)
-    try {
-      const res = await api.draftTemplate(action.payload_id, 'escalation')
-      if (res.needs_intel) {
-        setState('needs_intel')
-      } else {
         setSubject(res.subject || '')
         setBody(res.body || '')
         if (res.guessed_email) setGuessedEmail(res.guessed_email)
         setState('draft')
-      }
-    } catch (_) {}
-    setBusy(false)
-  }
-
-  const handleRequestClaude = async () => {
-    setBusy(true)
-    try {
-      const contact = action.contact_name || ''
-      const company = action.company_name || ''
-      const res = await api.generateOutreach({ contact_name: contact, company_name: company, email_type: 'cold', company_id: action.company_id, contact_id: action.contact_id })
-      setSubject(res.subject || '')
-      setBody(res.body || '')
-      setState('draft')
-    } catch (_) {}
-    setBusy(false)
-  }
+      })
+      .catch(() => setState('draft'))
+  }, [])
 
   const handleSendViaGmail = () => {
     const mailto = `mailto:${guessedEmail || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
@@ -615,54 +582,11 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
         <div className="flex-1 min-w-0">
           <div className="font-medium text-body text-sm">{action.label}</div>
           <div className="text-xs text-muted mt-0.5">{action.detail}</div>
-          {guessedEmail && state === 'prompt' && (
-            <div className="text-xs text-muted mt-0.5">Guessed email: <span className="font-mono text-body">{guessedEmail}</span></div>
-          )}
         </div>
       </div>
 
       {state === 'loading' && (
         <div className="text-xs text-muted">Preparing draft...</div>
-      )}
-
-      {state === 'needs_intel' && (
-        <div className="space-y-2">
-          <div className="text-xs text-muted">No company intel yet — a personalized draft needs it first.</div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setState('prompt')}
-              className="flex-1 border border-theme text-body rounded-lg py-2 text-xs font-medium"
-            >
-              Use generic template
-            </button>
-            <button
-              onClick={handleRequestClaude}
-              disabled={busy}
-              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold disabled:opacity-50"
-            >
-              {busy ? '...' : <>Request Claude draft <span className="text-orange-200 font-normal">AI · ~$0.003</span></>}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {state === 'prompt' && (
-        <div className="flex gap-2">
-          <button
-            onClick={handleGetTemplate}
-            disabled={busy}
-            className="flex-1 border border-orange-400 text-orange-700 dark:text-orange-300 rounded-lg py-2 text-xs font-medium disabled:opacity-50"
-          >
-            {busy ? '...' : 'Get template draft'}
-          </button>
-          <button
-            onClick={handleRequestClaude}
-            disabled={busy}
-            className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-1.5"
-          >
-            {busy ? '...' : <>Request Claude draft <span className="text-orange-200 font-normal">AI · ~$0.003</span></>}
-          </button>
-        </div>
       )}
 
       {state === 'draft' && (
