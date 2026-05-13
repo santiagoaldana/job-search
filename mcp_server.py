@@ -452,6 +452,24 @@ async def list_tools() -> list[types.Tool]:
             description="Return the current list of priority companies in the Daily Brief. Use this to understand Santiago's current strategic focus before making recommendations.",
             inputSchema={"type": "object", "properties": {}},
         ),
+        types.Tool(
+            name="get_interview_prep",
+            description=(
+                "Generate a strategic pre-meeting brief about a company before a call or interview. "
+                "Returns 6 sections: what is happening now, strategic challenges, competitive landscape, "
+                "leadership needs, history with this contact, and sharp questions to ask. "
+                "Uses Claude Opus - takes 10-15 seconds. Use before any meeting with a company in the funnel."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "contact_name": {"type": "string", "description": "Name of the person you are meeting"},
+                    "role_title": {"type": "string", "description": "Role being discussed, optional"},
+                },
+                "required": ["company_name"],
+            },
+        ),
     ]
 
 
@@ -978,6 +996,40 @@ async def _dispatch(name: str, args: dict) -> dict:
 
     elif name == "get_strategy":
         return await _get("/api/strategy", {})
+
+    elif name == "get_interview_prep":
+        cid, _, status = await _resolve(args["company_name"], args.get("contact_name"))
+        if cid is None:
+            return {"error": status}
+
+        detail = await _get(f"/api/companies/{cid}")
+        contact_title = ""
+        if args.get("contact_name"):
+            for c in detail.get("contacts", []):
+                if args["contact_name"].lower() in (c.get("name") or "").lower():
+                    contact_title = c.get("title") or ""
+                    break
+
+        async with httpx.AsyncClient(timeout=90) as long_client:
+            r = await long_client.post(
+                f"{API_BASE}/api/companies/{cid}/interview-prep",
+                headers=HEADERS,
+                json={
+                    "contact_name": args.get("contact_name") or "",
+                    "contact_title": contact_title,
+                    "role_title": args.get("role_title") or "",
+                },
+            )
+            r.raise_for_status()
+            data = r.json()
+
+        sections = data.get("sections", [])
+        lines = [f"INTERVIEW PREP BRIEF - {args['company_name'].upper()}", f"Generated: {data.get('generated_at', '')[:16]}", ""]
+        for s in sections:
+            lines.append(f"## {s['title']}")
+            lines.append(s["content"])
+            lines.append("")
+        return {"type": "text", "text": "\n".join(lines), "sections": sections}
 
     return {"error": f"Unknown tool: {name}"}
 

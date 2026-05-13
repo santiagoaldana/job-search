@@ -38,6 +38,12 @@ class CompanyCreate(BaseModel):
     suggested_by_ai: bool = False
 
 
+class PrepRequest(BaseModel):
+    contact_name: Optional[str] = None
+    contact_title: Optional[str] = None
+    role_title: Optional[str] = None
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -530,5 +536,68 @@ async def refresh_intel(company_id: int, session: Session = Depends(get_session)
         session.add(company)
         session.commit()
         return {"intel_summary": brief}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{company_id}/interview-prep")
+async def interview_prep(
+    company_id: int,
+    req: PrepRequest,
+    session: Session = Depends(get_session),
+):
+    company = session.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    contacts = session.exec(select(Contact).where(Contact.company_id == company_id)).all()
+    outreach_records = session.exec(
+        select(OutreachRecord)
+        .where(OutreachRecord.company_id == company_id)
+        .order_by(OutreachRecord.sent_at.desc())
+    ).all()
+
+    history_lines = []
+    for o in outreach_records:
+        contact_obj = next((c for c in contacts if c.id == o.contact_id), None)
+        contact_label = contact_obj.name if contact_obj else "unknown contact"
+        date_str = (o.sent_at or "")[:10]
+        status_str = f" ({o.response_status})" if o.response_status != "pending" else ""
+        history_lines.append(
+            f"[{date_str}] {o.channel} to {contact_label}{status_str}: {(o.subject or '').strip()}"
+        )
+        if o.notes:
+            history_lines.append(f"  Notes: {o.notes}")
+    for c in contacts:
+        if c.relationship_notes:
+            history_lines.append(f"[contact note] {c.name}: {c.relationship_notes}")
+
+    import json as _json
+    recent_news_str = ""
+    if company.recent_news:
+        try:
+            items = _json.loads(company.recent_news)
+            recent_news_str = "\n".join(items) if isinstance(items, list) else str(items)
+        except Exception:
+            recent_news_str = company.recent_news
+
+    leads = session.exec(
+        select(Lead).where(Lead.company_id == company_id, Lead.status == "active")
+    ).all()
+    open_roles = [l.title + (f" ({l.location})" if l.location else "") for l in leads]
+
+    from app.services.outreach_generator import generate_interview_prep
+    try:
+        return await generate_interview_prep(
+            company=company,
+            contact_name=req.contact_name or "",
+            contact_title=req.contact_title or "",
+            role_title=req.role_title or "",
+            intel_summary=company.intel_summary or "",
+            org_notes=company.org_notes or "",
+            recent_news=recent_news_str,
+            open_roles=open_roles,
+            conversation_history="\n".join(history_lines),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

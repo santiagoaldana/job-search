@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy, Users, Network, Plus, X, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy, Users, Network, Plus, X, ChevronDown, ChevronUp, Pencil, BookOpen } from 'lucide-react'
 import { api } from '../api'
 import Badge from '../components/Badge'
 import FitBar from '../components/FitBar'
@@ -40,6 +40,9 @@ export default function CompanyCard() {
   const [outreachDraft, setOutreachDraft] = useState(null)
   const [findingContacts, setFindingContacts] = useState(false)
   const [contactModal, setContactModal] = useState(null) // null=closed | 'new' | contact-object
+  const [prepModal, setPrepModal] = useState(false)
+  const [prepBrief, setPrepBrief] = useState(null)
+  const [generatingPrep, setGeneratingPrep] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -90,6 +93,24 @@ export default function CompanyCard() {
       alert(typeof e.message === 'string' ? e.message : JSON.stringify(e))
     } finally {
       setFindingContacts(false)
+    }
+  }
+
+  const handleGeneratePrep = async () => {
+    setGeneratingPrep(true)
+    setPrepBrief(null)
+    setPrepModal(true)
+    try {
+      const result = await api.getInterviewPrep(id, {
+        contact_name: company.contacts?.[0]?.name || '',
+        contact_title: company.contacts?.[0]?.title || '',
+        role_title: '',
+      })
+      setPrepBrief(result)
+    } catch (e) {
+      setPrepBrief({ error: e.message })
+    } finally {
+      setGeneratingPrep(false)
     }
   }
 
@@ -179,6 +200,11 @@ export default function CompanyCard() {
                   <Pencil size={13} /> Edit
                 </button>
               )}
+              <button onClick={handleGeneratePrep} disabled={generatingPrep}
+                className="flex items-center gap-2 text-sm text-purple-500 disabled:opacity-50">
+                <BookOpen size={14} className={generatingPrep ? 'animate-pulse' : ''} />
+                {generatingPrep ? 'Generating...' : 'Meeting Prep'}
+              </button>
             </div>
 
             {editingIntel ? (
@@ -391,6 +417,15 @@ export default function CompanyCard() {
           contact={contactModal === 'new' ? null : contactModal}
           onClose={() => setContactModal(null)}
           onSaved={() => { setContactModal(null); load() }}
+        />
+      )}
+
+      {prepModal && (
+        <PrepBriefModal
+          company={company}
+          brief={prepBrief}
+          loading={generatingPrep}
+          onClose={() => { setPrepModal(false); setPrepBrief(null) }}
         />
       )}
     </div>
@@ -858,6 +893,69 @@ function ContactModal({ company, contact, onClose, onSaved }) {
               {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add contact'}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PrepBriefModal({ company, brief, loading, onClose }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    if (!brief?.sections) return
+    const text = brief.sections.map(s => `## ${s.title}\n\n${s.content}`).join('\n\n---\n\n')
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50">
+      <div className="bg-white dark:bg-slate-900 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col" style={{maxHeight: '90dvh'}}>
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-theme flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <BookOpen size={15} className="text-purple-500" />
+            <span className="text-sm font-semibold text-body">Meeting Prep - {company.name}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            {brief?.sections && (
+              <button onClick={handleCopy} className="flex items-center gap-1 text-xs text-muted hover:text-body">
+                {copied ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
+                {copied ? 'Copied' : 'Copy all'}
+              </button>
+            )}
+            <button onClick={onClose} className="p-1 text-muted hover:text-body"><X size={18} /></button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Spinner size={6} />
+              <span className="text-sm text-muted">Generating brief - this takes about 15 seconds...</span>
+            </div>
+          )}
+          {!loading && brief?.error && (
+            <div className="text-sm text-red-500 py-4">{brief.error}</div>
+          )}
+          {!loading && brief?.sections && (
+            <div className="space-y-5">
+              {brief.sections.map((section, i) => (
+                <div key={i}>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-400 mb-2">
+                    {section.title}
+                  </div>
+                  <div className="text-sm text-body leading-relaxed whitespace-pre-wrap">
+                    {section.content}
+                  </div>
+                </div>
+              ))}
+              <div className="text-xs text-muted pt-2 border-t border-theme">
+                Generated {brief.generated_at ? brief.generated_at.slice(0, 16).replace('T', ' ') + ' UTC' : ''}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

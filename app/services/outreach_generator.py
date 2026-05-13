@@ -301,6 +301,113 @@ Return JSON:
         }
 
 
+async def generate_interview_prep(
+    company,
+    contact_name: str = "",
+    contact_title: str = "",
+    role_title: str = "",
+    intel_summary: str = "",
+    org_notes: str = "",
+    recent_news: str = "",
+    open_roles: list = [],
+    conversation_history: str = "",
+) -> dict:
+    from datetime import datetime as _dt
+    import json as _json, re as _re
+
+    client = anthropic.Anthropic()
+    profile = _get_profile()
+
+    context_block = f"""COMPANY: {company.name}
+INTEL SUMMARY:
+{intel_summary or 'Not available.'}
+
+ORG NOTES:
+{org_notes or 'Not available.'}
+
+RECENT NEWS HEADLINES:
+{recent_news or 'Not available.'}
+
+OPEN ROLES:
+{chr(10).join(f'- {r}' for r in open_roles) if open_roles else 'None on file.'}
+
+CONVERSATION HISTORY WITH THIS COMPANY/CONTACT:
+{conversation_history or 'No prior contact on record.'}
+
+CONTEXT FOR THIS MEETING:
+Contact: {contact_name or 'Not specified'}
+Contact title: {contact_title or 'Not specified'}
+Role being explored: {role_title or 'Not specified'}"""
+
+    prompt = f"""You are preparing a confidential pre-meeting brief for the reader about {company.name}. This brief is for internal use only and will never be shared with the company.
+
+{context_block}
+
+READER CONTEXT (use only to calibrate tone and depth - do not reference in output):
+{profile}
+
+Generate a strategic company brief with exactly these 6 sections. Return valid JSON only - no markdown, no preamble.
+
+RULES:
+- Every sentence must be about the company, not about the reader.
+- Never say "your background", "your experience", "you fit", or anything framing the reader.
+- Write in plain English. Spell out jargon on first use.
+- No em dashes. Use plain dashes or rewrite.
+- Be specific and concrete. Avoid generic consulting language.
+- Section 5 must accurately reflect the conversation history provided. If there is no history, say so plainly.
+- Section 6 questions must be peer-level and show genuine strategic curiosity. Not interview prep questions - conversation questions. Do NOT ask about career advice, what they look for in candidates, or what they would do in your position.
+
+{{
+  "sections": [
+    {{
+      "title": "What is Actually Happening Right Now",
+      "content": "2-3 paragraphs. Recent moves, funding, acquisitions, leadership changes. Explain any industry jargon in plain English."
+    }},
+    {{
+      "title": "Their Biggest Strategic Challenges",
+      "content": "Numbered list. 2-3 challenges, each in 2-3 sentences. Be honest about friction, not just upside."
+    }},
+    {{
+      "title": "Competitive Landscape",
+      "content": "1-2 paragraphs. Who they are actually competing against, how they are positioned, where the market is moving."
+    }},
+    {{
+      "title": "What They Likely Need at the Leadership Level",
+      "content": "2-3 bullet points. Frame as company needs, not reader qualifications."
+    }},
+    {{
+      "title": "Our History with This Company",
+      "content": "Plain summary of prior contact - dates, channel, what was said, any replies. If none: No prior outreach on record."
+    }},
+    {{
+      "title": "Questions Worth Asking",
+      "content": "3-4 questions. Sharp, specific, peer-level. Show strategic thinking about their situation."
+    }}
+  ]
+}}"""
+
+    response = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=2000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw = response.content[0].text.strip()
+    raw = _re.sub(r'^```(?:json)?\n?', '', raw)
+    raw = _re.sub(r'\n?```$', '', raw)
+
+    try:
+        data = _json.loads(raw)
+        data["generated_at"] = _dt.utcnow().isoformat()
+        return data
+    except Exception:
+        return {
+            "sections": [{"title": "Raw Output", "content": raw[:3000]}],
+            "generated_at": _dt.utcnow().isoformat(),
+            "parse_error": True,
+        }
+
+
 async def generate_tiara_prep(company, role_title: str = "") -> dict:
     """
     Generate TIARA informational meeting prep questions.

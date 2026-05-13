@@ -37,6 +37,7 @@ export const api = {
   setCompanyStage: (id, stage) => post(`/companies/${id}/stage`, { stage }),
   archiveCompany: (id) => post(`/companies/${id}/archive`),
   refreshIntel: (id) => post(`/companies/${id}/intel/refresh`),
+  getInterviewPrep: (id, data) => post(`/companies/${id}/interview-prep`, data),
   findContacts: (id) => post(`/companies/${id}/find-contacts`),
   enrichCompany: (id) => post(`/companies/${id}/enrich`),
   enrichAllCompanies: () => post('/companies/enrich-all'),
