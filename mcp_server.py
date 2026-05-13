@@ -120,6 +120,10 @@ async def list_tools() -> list[types.Tool]:
                         "enum": ["none", "connection_requested", "linkedin_dm", "emailed", "drafted"],
                         "description": "Current outreach state. Use 'connection_requested' if Santiago just clicked Connect on LinkedIn.",
                     },
+                    "is_mit_alum": {
+                        "type": "boolean",
+                        "description": "True if the contact's education shows MIT, MIT Sloan, or Massachusetts Institute of Technology.",
+                    },
                 },
                 "required": ["name"],
             },
@@ -578,6 +582,7 @@ async def _dispatch(name: str, args: dict) -> dict:
             "linkedin_url": args.get("linkedin_url"),
             "relationship_notes": args.get("relationship_notes"),
             "outreach_status": args.get("outreach_status"),
+            "is_mit_alum": args.get("is_mit_alum"),
         })
         contact_id = result.get("contact_id")
         name_str = args["name"]

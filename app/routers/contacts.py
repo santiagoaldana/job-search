@@ -44,6 +44,7 @@ class QuickAddRequest(BaseModel):
     relationship_notes: Optional[str] = None
     introduced_by_contact_id: Optional[int] = None
     outreach_status: Optional[str] = None  # none|connection_requested|linkedin_dm|emailed|drafted
+    is_mit_alum: Optional[bool] = None
 
 
 class ContactUpdateRequest(BaseModel):
@@ -247,6 +248,8 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
     contact.introduced_by_contact_id = req.introduced_by_contact_id
     if req.outreach_status:
         contact.outreach_status = req.outreach_status
+    if req.is_mit_alum is not None:
+        contact.is_mit_alum = req.is_mit_alum
 
     session.add(contact)
     if company_id:
