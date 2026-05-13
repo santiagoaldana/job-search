@@ -550,7 +550,7 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    api.draftTemplate(action.payload_id, 'escalation')
+    api.draftTemplate(action.payload_id, 'escalation', action.contact_id)
       .then(res => {
         setSubject(res.subject || '')
         setBody(res.body || '')

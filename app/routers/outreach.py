@@ -547,6 +547,7 @@ def _derive_expertise(contact, company) -> str:
 def draft_template(
     record_id: int,
     followup_type: str = "escalation",
+    contact_id: Optional[int] = None,
     session: Session = Depends(get_session),
 ):
     """Return a Dalton-compliant personalized email draft with no Claude API call."""
@@ -557,7 +558,9 @@ def draft_template(
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
 
-    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    # contact_id param overrides record.contact_id to handle stale/wrong associations
+    resolved_contact_id = contact_id if contact_id is not None else record.contact_id
+    contact = session.get(Contact, resolved_contact_id) if resolved_contact_id else None
     company = session.get(Company, record.company_id) if record.company_id else None
 
     first = (contact.name or "").split()[0] if contact else "there"
