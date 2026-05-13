@@ -358,13 +358,14 @@ def log_interaction(req: LogInteractionRequest, session: Session = Depends(get_s
     follow_up_3 = _add_business_days(today, 3).isoformat()
     follow_up_7 = _add_business_days(today, 7).isoformat()
 
+    session.commit()
+
     try:
-        # Carry forward prior canonical message if this note is just a log annotation
         prior_message = req.note
         prior = session.exec(
             select(OutreachRecord)
             .where(OutreachRecord.contact_id == contact.id)
-            .where(OutreachRecord.outreach_message != None)
+            .where(OutreachRecord.outreach_message.is_not(None))  # type: ignore[union-attr]
             .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
         ).first()
         if prior and prior.outreach_message:

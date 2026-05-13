@@ -32,6 +32,7 @@ class OutreachCreate(BaseModel):
     channel: str = "email"
     subject: Optional[str] = None
     body: Optional[str] = None
+    outreach_message: Optional[str] = None
     sent_at: Optional[str] = None  # ISO datetime; defaults to now
     contact_name_raw: Optional[str] = None  # fallback when contact not yet in DB
 
@@ -195,7 +196,7 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
         sent_at=sent_at,
         subject=data.subject,
         body=data.body,
-        outreach_message=data.body or prior_message,
+        outreach_message=data.outreach_message or data.body or prior_message,
         response_status="pending",
         follow_up_3_due=follow_up_3,
         follow_up_7_due=follow_up_7,

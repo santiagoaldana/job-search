@@ -155,6 +155,7 @@ async def list_tools() -> list[types.Tool]:
                     "channel": {"type": "string", "enum": ["linkedin", "email", "referral"], "description": "How outreach was sent"},
                     "sent_date": {"type": "string", "description": "ISO date when outreach was sent, e.g. 2026-05-01. Defaults to today if not specified."},
                     "notes": {"type": "string", "description": "Optional notes about the outreach"},
+                    "outreach_message": {"type": "string", "description": "The exact message text sent — used to track conversation continuity across channels"},
                 },
                 "required": ["contact_id", "channel"],
             },
@@ -265,6 +266,7 @@ async def list_tools() -> list[types.Tool]:
                     "subject": {"type": "string"},
                     "body": {"type": "string", "description": "Email body text (optional but recommended for follow-up context)"},
                     "channel": {"type": "string", "enum": ["email", "linkedin"], "description": "Default: email"},
+                    "outreach_message": {"type": "string", "description": "The exact message text sent — used to track conversation continuity across channels"},
                 },
                 "required": ["company_name", "subject"],
             },
@@ -612,6 +614,7 @@ async def _dispatch(name: str, args: dict) -> dict:
             "sent_at": sent_at,
             "subject": f"{'LinkedIn connection request' if channel == 'linkedin' else 'Email outreach'} — logged via MCP",
             "body": args.get("notes", f"Outreach via {channel} logged from Claude desktop."),
+            "outreach_message": args.get("outreach_message"),
         })
 
     elif name == "generate_outreach":
@@ -788,6 +791,7 @@ async def _dispatch(name: str, args: dict) -> dict:
             "channel": args.get("channel", "email"),
             "subject": args["subject"],
             "body": args.get("body"),
+            "outreach_message": args.get("outreach_message") or args.get("body"),
         })
 
     elif name == "draft_followup":
