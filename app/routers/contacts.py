@@ -59,6 +59,7 @@ class ContactUpdateRequest(BaseModel):
     email_invalid: Optional[bool] = None
     email_patterns_tried: Optional[str] = None
     connection_request_variant: Optional[str] = None
+    is_mit_alum: Optional[bool] = None
     connection_degree: Optional[int] = None
     referral_target_company_id: Optional[int] = None
     connected_on: Optional[str] = None

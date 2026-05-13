@@ -62,6 +62,7 @@ def run_migrations():
         ("contact", "connected_on", "TEXT"),
         ("gmailsyncstate", "gmail_token_json", "TEXT"),
         ("outreachrecord", "outreach_message", "TEXT"),
+        ("contact", "is_mit_alum", "BOOLEAN"),
     ]
 
     with engine.connect() as conn:
