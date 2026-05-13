@@ -83,6 +83,7 @@ class Contact(SQLModel, table=True):
     email_invalid: bool = Field(default=False)              # bounce confirmed
     email_patterns_tried: Optional[str] = Field(default=None)  # JSON list of tried patterns
     connection_request_variant: Optional[str] = Field(default=None)  # "A" or "B"
+    is_mit_alum: Optional[bool] = Field(default=None)
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
     company: Optional[Company] = Relationship(back_populates="contacts")

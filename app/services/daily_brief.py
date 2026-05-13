@@ -107,6 +107,17 @@ def compute_daily_brief(session: Session) -> dict:
         who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else 'Unknown'))
 
         if record.channel == "linkedin" and record.linkedin_accepted is None:
+            # Skip if an email escalation was already sent for this contact
+            if record.contact_id:
+                email_escalation = session.exec(
+                    select(OutreachRecord).where(
+                        OutreachRecord.contact_id == record.contact_id,
+                        OutreachRecord.channel == "email",
+                        OutreachRecord.sent_at > (record.sent_at or ""),
+                    )
+                ).first()
+                if email_escalation:
+                    continue
             next_step = _contact_next_step(contact, company) if contact else {"action": "prompt_manual_email", "guessed_email": None}
             outreach.append({
                 "action_type": "linkedin_not_accepted",

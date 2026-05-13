@@ -338,7 +338,6 @@ def log_interaction(req: LogInteractionRequest, session: Session = Depends(get_s
     if contact.outreach_status in ("none", "drafted"):
         contact.outreach_status = req.channel if req.channel in ("linkedin_dm", "emailed") else "linkedin_dm"
 
-    contact.updated_at = datetime.utcnow().isoformat()
     session.add(contact)
 
     today = datetime.utcnow().date()

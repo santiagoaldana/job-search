@@ -182,8 +182,34 @@ def determine_next_step(contact, company) -> dict:
     }
 
 
+_WELL_KNOWN_DOMAINS = {
+    "stripe": "stripe.com",
+    "brex": "brex.com",
+    "plaid": "plaid.com",
+    "ripple": "ripple.com",
+    "coinbase": "coinbase.com",
+    "marqeta": "marqeta.com",
+    "flywire": "flywire.com",
+    "synctera": "synctera.com",
+    "sardine": "sardine.ai",
+    "alloy": "alloy.com",
+    "socure": "socure.com",
+    "finix": "finixpayments.com",
+    "unit": "unit.co",
+    "column": "column.com",
+    "mercury": "mercury.com",
+    "ramp": "ramp.com",
+    "modern treasury": "moderntreasury.com",
+    "modern-treasury": "moderntreasury.com",
+    "airwallex": "airwallex.com",
+    "payoneer": "payoneer.com",
+    "nuvei": "nuvei.com",
+    "checkout.com": "checkout.com",
+}
+
+
 def _extract_domain(company) -> Optional[str]:
-    """Extract email domain from company career_page_url or try to derive from name."""
+    """Extract email domain from company career_page_url, then fall back to name-derived domain."""
     url = getattr(company, "career_page_url", None)
     if url:
         try:
@@ -191,12 +217,24 @@ def _extract_domain(company) -> Optional[str]:
             parsed = urlparse(url)
             host = parsed.netloc or parsed.path
             host = host.lstrip("www.")
-            # Strip path segments
             domain = host.split("/")[0]
             if "." in domain:
                 return domain
         except Exception:
             pass
+
+    # Well-known domain lookup by company name
+    name = (getattr(company, "name", "") or "").lower().strip()
+    for key, domain in _WELL_KNOWN_DOMAINS.items():
+        if key in name or name in key:
+            return domain
+
+    # Derive <slug>.com from company name as last resort
+    import re
+    slug = re.sub(r"[^a-z0-9]", "", name)
+    if slug:
+        return f"{slug}.com"
+
     return None
 
 
