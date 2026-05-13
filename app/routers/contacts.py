@@ -105,6 +105,23 @@ def _refresh_advocacy_scores(company_ids: list, session: Session):
             session.add(company)
 
 
+@router.post("/backfill-mit-alums")
+def backfill_mit_alums(session: Session = Depends(get_session)):
+    """One-time: set is_mit_alum=True for contacts whose relationship_notes mention MIT."""
+    from sqlmodel import col
+    contacts = session.exec(
+        select(Contact).where(col(Contact.relationship_notes).ilike("%MIT%"))
+    ).all()
+    updated = []
+    for c in contacts:
+        if not c.is_mit_alum:
+            c.is_mit_alum = True
+            session.add(c)
+            updated.append({"id": c.id, "name": c.name})
+    session.commit()
+    return {"updated": len(updated), "contacts": updated}
+
+
 @router.post("/import-linkedin")
 async def import_linkedin_csv(
     file: UploadFile = File(...),
