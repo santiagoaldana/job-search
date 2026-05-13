@@ -24,6 +24,7 @@ async def generate_6point_email(
     hook: Optional[str] = None,
     ask: Optional[str] = None,
     email_type: str = "cold",
+    prior_message: Optional[str] = None,
 ) -> dict:
     """
     Generate a 6-point ≤75-word outreach email (Dalton rules).
@@ -58,8 +59,14 @@ async def generate_6point_email(
         "followup": "This is a follow-up to a previous email with no reply. Acknowledge briefly, add new value, re-ask.",
         "linkedin_dm": (
             "This is a LinkedIn DIRECT MESSAGE, not an email. Keep it under 75 words. "
-            "Casual, warm tone. If prior email context is available, briefly reference it "
-            "('Sent you a note last week — wanted to try here too'). End with 'Open to a quick call?'"
+            "Casual, warm tone. "
+            + (
+                "A prior email was sent to this contact (see PRIOR MESSAGE below) — briefly reference it "
+                "('Sent you a note last week — wanted to try here too') and adapt the core ask. "
+                if prior_message else
+                "If prior email context is available, briefly reference it. "
+            )
+            + "End with 'Open to a quick call?'"
         ),
         "connection_request_a": (
             "This is a LinkedIn CONNECTION REQUEST NOTE. HARD LIMIT: 300 characters total (not words). "
@@ -75,6 +82,7 @@ async def generate_6point_email(
 
     hook_instruction = f"\nLEAD WITH THIS SPECIFIC HOOK: {hook}" if hook else ""
     ask_instruction = f"\nTHE ASK: {ask}" if ask else "Ask for their perspective or advice on a specific topic — never ask for a job."
+    prior_message_block = f"\nPRIOR MESSAGE (sent on a previous channel — adapt this, don't repeat it verbatim):\n{prior_message}" if prior_message else ""
 
     is_connection_request = email_type in ("connection_request_a", "connection_request_b")
     is_linkedin_dm = email_type == "linkedin_dm"
@@ -101,6 +109,7 @@ SENDER PROFILE:
 MESSAGE TYPE: {type_instruction}
 {hook_instruction}
 {ask_instruction}
+{prior_message_block}
 Additional context: {context or 'None provided'}
 
 STRICT DALTON RULES:

@@ -355,12 +355,24 @@ def log_interaction(req: LogInteractionRequest, session: Session = Depends(get_s
     follow_up_7 = _add_business_days(today, 7).isoformat()
 
     try:
+        # Carry forward prior canonical message if this note is just a log annotation
+        prior_message = req.note
+        prior = session.exec(
+            select(OutreachRecord)
+            .where(OutreachRecord.contact_id == contact.id)
+            .where(OutreachRecord.outreach_message != None)
+            .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
+        ).first()
+        if prior and prior.outreach_message:
+            prior_message = prior.outreach_message
+
         record = OutreachRecord(
             company_id=contact.company_id,
             contact_id=contact.id,
             channel=req.channel,
             sent_at=datetime.utcnow().isoformat(),
             body=req.note,
+            outreach_message=prior_message,
             response_status="positive" if req.had_reply else "pending",
             follow_up_3_due=follow_up_3,
             follow_up_7_due=follow_up_7,

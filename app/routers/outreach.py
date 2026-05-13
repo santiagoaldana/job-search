@@ -44,6 +44,7 @@ class OutreachGenerateRequest(BaseModel):
     hook: Optional[str] = None             # specific angle or topic to lead with
     ask: Optional[str] = None              # what you want from this email
     email_type: str = "cold"               # cold | followup | event_met
+    prior_message: Optional[str] = None    # canonical prior message for escalation continuity
 
 
 @router.get("")
@@ -174,6 +175,18 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
         if linked_contact and linked_contact.company_id:
             company_id = linked_contact.company_id
 
+    # If an earlier outreach exists for this contact, carry its canonical message forward
+    prior_message = None
+    if data.contact_id:
+        prior = session.exec(
+            select(OutreachRecord)
+            .where(OutreachRecord.contact_id == data.contact_id)
+            .where(OutreachRecord.outreach_message != None)
+            .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
+        ).first()
+        if prior:
+            prior_message = prior.outreach_message
+
     record = OutreachRecord(
         company_id=company_id,
         contact_id=data.contact_id,
@@ -182,6 +195,7 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
         sent_at=sent_at,
         subject=data.subject,
         body=data.body,
+        outreach_message=data.body or prior_message,
         response_status="pending",
         follow_up_3_due=follow_up_3,
         follow_up_7_due=follow_up_7,
@@ -244,6 +258,19 @@ async def generate_outreach(
 
     try:
         from app.services.outreach_generator import generate_6point_email
+
+        # Auto-fetch prior message from DB if not explicitly provided
+        prior_message = req.prior_message
+        if not prior_message and req.contact_id:
+            prior = session.exec(
+                select(OutreachRecord)
+                .where(OutreachRecord.contact_id == req.contact_id)
+                .where(OutreachRecord.outreach_message != None)
+                .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
+            ).first()
+            if prior:
+                prior_message = prior.outreach_message
+
         result = await generate_6point_email(
             company=company,
             contact=contact,
@@ -251,6 +278,7 @@ async def generate_outreach(
             hook=req.hook,
             ask=req.ask,
             email_type=req.email_type,
+            prior_message=prior_message,
         )
         if contact and contact.outreach_status == "none":
             contact.outreach_status = "drafted"
@@ -280,6 +308,7 @@ class OutreachUpdate(BaseModel):
     notes: Optional[str] = None
     linkedin_accepted: Optional[bool] = None
     contact_id: Optional[int] = None
+    outreach_message: Optional[str] = None
 
 
 @router.patch("/{record_id}")
@@ -302,6 +331,8 @@ def patch_outreach(record_id: int, data: OutreachUpdate, session: Session = Depe
         record.linkedin_accepted = data.linkedin_accepted
     if data.contact_id is not None:
         record.contact_id = data.contact_id
+    if data.outreach_message is not None:
+        record.outreach_message = data.outreach_message
     record.updated_at = datetime.utcnow().isoformat()
     session.add(record)
     session.commit()
@@ -578,7 +609,21 @@ def draft_template(
         ns = _contact_next_step(contact, company)
         guessed_email = ns.get("guessed_email")
 
-    return {"subject": subject, "body": body, "guessed_email": guessed_email}
+    # Fetch prior canonical message so UI can show it as "sent before" reference
+    prior_message = None
+    if record.outreach_message:
+        prior_message = record.outreach_message
+    elif record.contact_id:
+        prior = session.exec(
+            select(OutreachRecord)
+            .where(OutreachRecord.contact_id == record.contact_id)
+            .where(OutreachRecord.outreach_message != None)
+            .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
+        ).first()
+        if prior:
+            prior_message = prior.outreach_message
+
+    return {"subject": subject, "body": body, "guessed_email": guessed_email, "prior_message": prior_message}
 
 
 @router.post("/{record_id}/build-mailto")

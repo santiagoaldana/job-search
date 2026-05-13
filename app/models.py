@@ -137,6 +137,7 @@ class OutreachRecord(SQLModel, table=True):
     sent_at: Optional[str] = Field(default=None)    # ISO datetime string
     subject: Optional[str] = Field(default=None)
     body: Optional[str] = Field(default=None)
+    outreach_message: Optional[str] = Field(default=None)  # canonical sent message — reused across escalation channels
 
     # pending|positive|negative|ghosted
     response_status: str = Field(default="pending")
