@@ -5,6 +5,85 @@ import PageHeader from '../components/PageHeader'
 import Badge from '../components/Badge'
 import Spinner from '../components/Spinner'
 
+function OutreachStats() {
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.getOutreachStats()
+      .then(setStats)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return (
+    <div className="px-4 mb-4">
+      <div className="bg-card border border-theme rounded-xl p-4 flex justify-center">
+        <Spinner size={5} />
+      </div>
+    </div>
+  )
+
+  if (!stats) return null
+
+  const fmtPct = v => `${Math.round((v || 0) * 100)}%`
+  const channelLabel = { email: 'Email', linkedin: 'LinkedIn', referral: 'Referral' }
+
+  return (
+    <div className="px-4 mb-4">
+      <div className="bg-card border border-theme rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-theme">
+          <div className="text-sm font-medium text-body">Outreach Effectiveness</div>
+          <div className="text-xs text-muted">All-time performance by channel</div>
+        </div>
+
+        <div className="grid grid-cols-3 divide-x divide-theme border-b border-theme">
+          <div className="px-3 py-3 text-center">
+            <div className="text-xl font-semibold text-body">{stats.total_sent}</div>
+            <div className="text-xs text-muted mt-0.5">Total sent</div>
+          </div>
+          <div className="px-3 py-3 text-center">
+            <div className="text-xl font-semibold text-body">{fmtPct(stats.overall_response_rate)}</div>
+            <div className="text-xs text-muted mt-0.5">Response rate</div>
+          </div>
+          <div className="px-3 py-3 text-center">
+            <div className="text-xl font-semibold text-body">
+              {stats.avg_days_to_positive != null ? `${stats.avg_days_to_positive}d` : '—'}
+            </div>
+            <div className="text-xs text-muted mt-0.5">Avg reply time</div>
+          </div>
+        </div>
+
+        <div className="divide-y divide-theme">
+          {['email', 'linkedin', 'referral'].map(ch => {
+            const d = stats.by_channel?.[ch]
+            if (!d || d.sent === 0) return null
+            const isBest = stats.best_channel === ch
+            return (
+              <div key={ch} className="flex items-center px-4 py-2.5">
+                <div className="flex-1 text-sm text-body flex items-center gap-2">
+                  {channelLabel[ch]}
+                  {isBest && <span className="text-xs bg-green-500/15 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded-full font-medium">best</span>}
+                </div>
+                <div className="flex items-center gap-4 text-xs text-muted">
+                  <span>{d.sent} sent</span>
+                  <span className="font-medium text-body">{fmtPct(d.response_rate)}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {stats.sent_last_30d > 0 && (
+          <div className="px-4 py-2.5 border-t border-theme text-xs text-muted">
+            {stats.sent_last_30d} sent in the last 30 days
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const CATEGORY_COLORS = { thought_leader: 'purple', publication: 'blue', news: 'slate' }
 const CATEGORY_LABELS = { thought_leader: 'Thought Leader', publication: 'Publication', news: 'News' }
 
@@ -535,6 +614,8 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col">
       <PageHeader title="Settings & Targets" />
+
+      <OutreachStats />
 
       <BulkReview />
 
