@@ -35,18 +35,42 @@ data/
   pipeline_summary.md
 ```
 
+## Runtime Architecture — Read This First
+
+### Source of Truth: Render (not local)
+
+The live system runs on **Render** at `https://jobsearch.aidatasolutions.co` backed by a **PostgreSQL** database. This is the only authoritative data store.
+
+- **Local `data/*.json` files** are legacy outputs from the old CLI modules (`orchestrate.py`). The web app does not read or write them. They are stale and not a mirror of anything.
+- **Local `jobsearch.db`** (SQLite) is only used when running the app locally without a `DATABASE_URL` env var. It is not synced with Render's Postgres.
+- When checking contacts, leads, outreach status, or any pipeline data, always query the Render API or database — not local files.
+
+### Render Cold Starts
+
+Render's free tier shuts the service down after 15 minutes of inactivity. A slow first response (~30 seconds) after idle time is **normal and expected — not a bug or error**. Just wait for it to wake up.
+
+### Local CLI
+
+`orchestrate.py` is a legacy CLI for the old pipeline modules. Run it with the system Python to avoid the `.mcp-venv` conflict:
+
+```bash
+/usr/bin/python3 orchestrate.py status
+```
+
+The project directory activates `.mcp-venv` (Python 3.12, MCP-only packages) so plain `python3` will fail with missing module errors. Always use `/usr/bin/python3` for the CLI.
+
 ## CLI Usage
 
 ```bash
-python3 orchestrate.py status
-python3 orchestrate.py content [--days 7] [--drafts 5] [--no-enrich]
-python3 orchestrate.py events [--no-enrich] [--add-url <URL>]
-python3 orchestrate.py leads [--contacts cv/contacts_export.csv] [--no-enrich]
-python3 orchestrate.py network --target "Company" [--contacts ...] [--context ...] [--jd ...] [--person] [--company ...]
-python3 orchestrate.py cv [--jd <url>] [--company <name>] [--role <title>] [--format pdf|html|both]
-python3 orchestrate.py all [--no-enrich] [--contacts ...] [--target ...] [--jd ...] [--company ...] [--role ...]
-python3 orchestrate.py digest
-python3 orchestrate.py schedule install|uninstall|status
+/usr/bin/python3 orchestrate.py status
+/usr/bin/python3 orchestrate.py content [--days 7] [--drafts 5] [--no-enrich]
+/usr/bin/python3 orchestrate.py events [--no-enrich] [--add-url <URL>]
+/usr/bin/python3 orchestrate.py leads [--contacts cv/contacts_export.csv] [--no-enrich]
+/usr/bin/python3 orchestrate.py network --target "Company" [--contacts ...] [--context ...] [--jd ...] [--person] [--company ...]
+/usr/bin/python3 orchestrate.py cv [--jd <url>] [--company <name>] [--role <title>] [--format pdf|html|both]
+/usr/bin/python3 orchestrate.py all [--no-enrich] [--contacts ...] [--target ...] [--jd ...] [--company ...] [--role ...]
+/usr/bin/python3 orchestrate.py digest
+/usr/bin/python3 orchestrate.py schedule install|uninstall|status
 ```
 
 ## Key Conventions
