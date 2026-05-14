@@ -456,12 +456,18 @@ async def draft_followup(
 
     # Build outreach record dict for template function
     from datetime import datetime, date
+    import re as _re
+    raw_subject = record.subject or ""
+    # Strip em/en dashes and hyphens; drop subjects that are contact-lookup artifacts
+    clean_subject = _re.sub(r"[–—\-]+", " ", raw_subject).strip()
+    if not clean_subject or "LinkedIn connection" in clean_subject:
+        clean_subject = f"{company.name} quick question" if company else "our conversation"
     outreach_dict = {
         "company": company.name if company else "Unknown",
         "contact_name": contact.name if contact else "there",
         "contact_role": contact.title if contact else "Professional",
         "sent_date": record.sent_at or datetime.utcnow().isoformat(),
-        "generated_subject": record.subject or "our conversation",
+        "generated_subject": clean_subject,
         "notes": record.notes or "",
     }
 
