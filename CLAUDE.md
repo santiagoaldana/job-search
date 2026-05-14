@@ -45,9 +45,9 @@ The live system runs on **Render** at `https://jobsearch.aidatasolutions.co` bac
 - **Local `jobsearch.db`** (SQLite) is only used when running the app locally without a `DATABASE_URL` env var. It is not synced with Render's Postgres.
 - When checking contacts, leads, outreach status, or any pipeline data, always query the Render API or database — not local files.
 
-### Render Cold Starts
+### Cold Starts — Render + Neon
 
-Render's free tier shuts the service down after 15 minutes of inactivity. A slow first response (~30 seconds) after idle time is **normal and expected — not a bug or error**. Just wait for it to wake up.
+Both the app server (Render free tier) and the database (Neon free tier) scale to zero after inactivity. A slow first response of **30-60 seconds** after idle time is **normal and expected — not a bug or error**. Both wake up automatically on the first request; just wait it out.
 
 ### Local CLI
 
