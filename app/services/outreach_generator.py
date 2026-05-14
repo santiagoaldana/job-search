@@ -159,7 +159,7 @@ FOLLOW_UP_TEMPLATES = {
     },
     "day_7": {
         "subject": "Re: {original_subject}",
-        "body": "Hi {first_name},\n\nNo worries if the timing isn't right. I'll leave it here and hope our paths cross down the road.\n\nSantiago",
+        "body": "Hi {first_name},\n\nI don't mean to be a bother. If I don't hear back, I'll take that as a no and won't follow up again. I genuinely appreciated the chance to reach out.\n\nSantiago",
     },
     "harvest": {
         "subject": "Re: {original_subject}",
