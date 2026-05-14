@@ -1065,8 +1065,12 @@ def main():
         sse = SseServerTransport(messages_path)
 
         async def handle_sse(request):
-            async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
+            from starlette.responses import Response
+            async with sse.connect_sse(
+                request.scope, request.receive, request._send
+            ) as streams:
                 await server.run(streams[0], streams[1], server.create_initialization_options())
+            return Response()
 
         async def health(request):
             return JSONResponse({"status": "ok"})
