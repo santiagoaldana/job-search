@@ -155,15 +155,15 @@ Return JSON (no markdown):
 FOLLOW_UP_TEMPLATES = {
     "day_3": {
         "subject": "Re: {original_subject}",
-        "body": "",
+        "body": "Hi {first_name},\n\nJust wanted to make sure my note didn't get buried. Would love to hear your perspective whenever you have a few minutes.\n\nSantiago",
     },
     "day_7": {
         "subject": "Re: {original_subject}",
-        "body": "",
+        "body": "Hi {first_name},\n\nNo worries if the timing isn't right. I'll leave it here and hope our paths cross down the road.\n\nSantiago",
     },
     "harvest": {
         "subject": "Re: {original_subject}",
-        "body": "",
+        "body": "Hi {first_name},\n\nCircling back one last time. If there's ever a moment to connect, I'd welcome it.\n\nSantiago",
     },
 }
 

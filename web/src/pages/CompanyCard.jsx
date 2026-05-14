@@ -5,7 +5,6 @@ import { api } from '../api'
 import Badge from '../components/Badge'
 import FitBar from '../components/FitBar'
 import Spinner from '../components/Spinner'
-import AICostBadge from '../components/AICostBadge'
 
 const TABS = ['Intel', 'Contacts', 'Leads', 'Outreach', 'References']
 const STAGES = [
@@ -190,7 +189,6 @@ export default function CompanyCard() {
                 className="flex items-center gap-2 text-sm text-blue-500 disabled:opacity-50">
                 <RefreshCw size={14} className={refreshingIntel ? 'animate-spin' : ''} />
                 {refreshingIntel ? 'Generating…' : 'Refresh intel'}
-                <AICostBadge model="opus" cost="$0.04" />
               </button>
               {!editingIntel && (
                 <button
@@ -287,7 +285,6 @@ export default function CompanyCard() {
                 >
                   <Users size={15} />
                   {findingContacts ? 'Searching…' : 'Find Contacts'}
-                  <AICostBadge model="haiku" cost="$0.003" />
                 </button>
               </div>
             ) : (
@@ -989,7 +986,6 @@ function NetworkPath({ companyId }) {
         </div>
         <button onClick={() => load(true)} disabled={loading} className="text-xs text-blue-500 disabled:opacity-50 flex items-center gap-1.5">
           {loading ? 'Analyzing…' : path ? 'Re-analyze' : 'Analyze'}
-          <AICostBadge model="haiku" cost="$0.002" />
         </button>
       </div>
 
@@ -1290,7 +1286,6 @@ function OutreachTab({ company, onReload, defaultContactId }) {
               className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
             >
               {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : `AI draft →`}
-              {!generating && <AICostBadge model="opus" cost="$0.05" />}
             </button>
           </div>
           <div className="text-xs text-green-700 dark:text-green-400 text-center mt-2">Or fill in context below for a more tailored AI draft</div>
@@ -1395,7 +1390,6 @@ function OutreachTab({ company, onReload, defaultContactId }) {
           className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
         >
           {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : <><Send size={14} /> AI draft</>}
-          {!generating && <AICostBadge model="opus" cost="$0.05" />}
         </button>
       </div>
 
