@@ -161,6 +161,10 @@ def compute_daily_brief(session: Session) -> dict:
         days_sent = _days_diff(record.sent_at, today)
         who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else 'Unknown'))
 
+        # LinkedIn-only outreach with no acceptance: not an email close, skip
+        if record.channel == "linkedin" and record.linkedin_accepted is None:
+            continue
+
         outreach.append({
             "action_type": "follow_up_7",
             "label": f"Day 7 close — {who}",
