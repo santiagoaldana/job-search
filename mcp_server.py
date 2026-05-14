@@ -727,17 +727,21 @@ async def _dispatch(name: str, args: dict) -> dict:
             "ask": args.get("ask"),
             "type_instructions": type_instructions,
             "generation_instructions": (
-                "Write a Dalton 6-point outreach message using the data above.\n"
-                "Rules:\n"
-                "- Body ≤75 words (300 chars for connection requests)\n"
-                "- Subject line: focus on THEIR experience at the company, not your ask\n"
-                "- Open with the connection point or affinity\n"
-                "- At least half the words should be about THEM\n"
-                "- End with a question, not a statement\n"
-                "- Ask for advice or insight, NOT a job\n"
-                "- No em dashes, en dashes, or hyphens anywhere\n"
-                "- Forbidden: 'hope this finds you', 'I am reaching out', 'opportunity', 'resume', 'job search'\n"
-                "- Include one specific credential of Santiago's that is relevant to this contact\n"
+                "Write a Dalton 6-point outreach message using ALL of the data above. This must feel like it was written specifically for this person — not a template.\n\n"
+                "PERSONALIZATION (do all of these):\n"
+                "- Read the company intel_summary carefully. Find one specific, current detail about what this company is doing or facing right now — use that as the hook, not a generic industry observation.\n"
+                "- Look at the contact's title and role. What is the hardest part of their job right now given the company's situation? Orient the message around their world, not Santiago's.\n"
+                "- Pick the one credential from Santiago's profile that is most directly relevant to THIS person's specific challenges — not the most impressive credential in general.\n"
+                "- If relationship_notes or met_via is present, reference it concretely.\n"
+                "- If a prior_message exists, this is a follow-up — acknowledge it briefly without being apologetic.\n\n"
+                "DALTON RULES (non-negotiable):\n"
+                "- Body ≤75 words (300 chars max for connection requests)\n"
+                "- Subject line: their experience or role at this company, not Santiago's ask\n"
+                "- At least half the words are about THEM\n"
+                "- End with an open question, not a statement\n"
+                "- Ask for advice or insight, never a job or introduction\n"
+                "- No em dashes, en dashes, or hyphens anywhere in the text\n"
+                "- Forbidden phrases: 'hope this finds you', 'I am reaching out', 'opportunity', 'resume', 'job search', 'excited to', 'would love to'\n\n"
                 "After generating, show the draft to Santiago, then call save_outreach_draft with the result."
             ),
             "santiago_profile": SANTIAGO_PROFILE,
