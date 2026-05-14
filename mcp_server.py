@@ -476,6 +476,50 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["company_name"],
             },
         ),
+        types.Tool(
+            name="get_outreach_context",
+            description=(
+                "Fetch all data needed to write an outreach email or LinkedIn message for a contact. "
+                "Returns company intel, contact details, Santiago's profile, Dalton method instructions, "
+                "and the prior outreach message if one exists. "
+                "After calling this tool, generate the draft text and then call save_outreach_draft to persist it."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "contact_name": {"type": "string"},
+                    "email_type": {
+                        "type": "string",
+                        "enum": ["cold", "event_met", "followup", "linkedin_dm", "connection_request"],
+                    },
+                    "context": {"type": "string", "description": "How you met or any relevant context"},
+                    "hook": {"type": "string", "description": "Specific angle to lead with"},
+                    "ask": {"type": "string", "description": "What you want from this outreach"},
+                },
+                "required": ["company_name", "email_type"],
+            },
+        ),
+        types.Tool(
+            name="save_outreach_draft",
+            description=(
+                "Save a generated outreach draft to the database. "
+                "Call this after generating email text using context from get_outreach_context. "
+                "Updates the contact status to 'drafted'."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "contact_name": {"type": "string"},
+                    "subject": {"type": "string"},
+                    "body": {"type": "string"},
+                    "email_type": {"type": "string"},
+                    "rationale": {"type": "string", "description": "One sentence on the hook used"},
+                },
+                "required": ["company_name", "subject", "body", "email_type"],
+            },
+        ),
     ]
 
 
@@ -618,16 +662,99 @@ async def _dispatch(name: str, args: dict) -> dict:
         })
 
     elif name == "generate_outreach":
-        cid, contact_id, status = await _resolve(args["company_name"], args.get("contact_name"))
-        if cid is None:
-            return {"error": status}
-        return await _post("/api/outreach/generate", {
-            "company_id": cid,
-            "contact_id": contact_id,
+        # Delegate to get_outreach_context — Claude generates the text, then calls save_outreach_draft
+        return await _dispatch("get_outreach_context", {
+            "company_name": args["company_name"],
+            "contact_name": args.get("contact_name"),
+            "email_type": args.get("email_type", "cold"),
             "context": args.get("context"),
             "hook": args.get("hook"),
             "ask": args.get("ask"),
-            "email_type": args.get("email_type", "cold"),
+        })
+
+    elif name == "get_outreach_context":
+        cid, contact_id, status = await _resolve(args["company_name"], args.get("contact_name"))
+        if cid is None:
+            return {"error": status}
+
+        company = await _get(f"/api/companies/{cid}")
+        contact = await _get(f"/api/contacts/{contact_id}") if contact_id else None
+
+        # Fetch prior message for escalation continuity
+        prior_message = None
+        if contact_id:
+            records = await _get("/api/outreach", {"company_id": cid})
+            for r in sorted(records, key=lambda x: x.get("sent_at", ""), reverse=True):
+                if r.get("contact_id") == contact_id and r.get("outreach_message"):
+                    prior_message = r["outreach_message"]
+                    break
+
+        # Handle connection_request A/B split
+        import random as _random
+        email_type = args.get("email_type", "cold")
+        if email_type == "connection_request":
+            email_type = _random.choice(["connection_request_a", "connection_request_b"])
+
+        type_instructions = {
+            "cold": "Open with a genuine, specific connection point. Do not fabricate shared history.",
+            "event_met": "Reference the in-person meeting specifically — where, when, what you discussed.",
+            "followup": "Acknowledge briefly that you reached out before, add new value, re-ask.",
+            "linkedin_dm": "Casual, warm tone. ≤75 words. End with an open question.",
+            "connection_request_a": "Reference shared context about their work or company. 300 chars max.",
+            "connection_request_b": "Brief Dalton style, light ask. 300 chars max.",
+        }.get(email_type, "")
+
+        return {
+            "company_id": cid,
+            "contact_id": contact_id,
+            "email_type": email_type,
+            "company": {
+                "name": company.get("name"),
+                "intel_summary": (company.get("intel_summary") or "")[:1500],
+                "stage": company.get("stage"),
+            },
+            "contact": {
+                "name": contact.get("name") if contact else None,
+                "title": contact.get("title") if contact else None,
+                "connection_degree": contact.get("connection_degree") if contact else "unknown",
+                "warmth": contact.get("warmth") if contact else "cold",
+                "met_via": contact.get("met_via") if contact else None,
+                "relationship_notes": contact.get("relationship_notes") if contact else None,
+            } if contact else None,
+            "prior_message": prior_message,
+            "context": args.get("context"),
+            "hook": args.get("hook"),
+            "ask": args.get("ask"),
+            "type_instructions": type_instructions,
+            "generation_instructions": (
+                "Write a Dalton 6-point outreach message using the data above.\n"
+                "Rules:\n"
+                "- Body ≤75 words (300 chars for connection requests)\n"
+                "- Subject line: focus on THEIR experience at the company, not your ask\n"
+                "- Open with the connection point or affinity\n"
+                "- At least half the words should be about THEM\n"
+                "- End with a question, not a statement\n"
+                "- Ask for advice or insight, NOT a job\n"
+                "- No em dashes, en dashes, or hyphens anywhere\n"
+                "- Forbidden: 'hope this finds you', 'I am reaching out', 'opportunity', 'resume', 'job search'\n"
+                "- Include one specific credential of Santiago's that is relevant to this contact\n"
+                "After generating, show the draft to Santiago, then call save_outreach_draft with the result."
+            ),
+            "santiago_profile": SANTIAGO_PROFILE,
+        }
+
+    elif name == "save_outreach_draft":
+        cid, contact_id, status = await _resolve(args["company_name"], args.get("contact_name"))
+        if cid is None:
+            return {"error": status}
+        return await _post("/api/outreach/save-draft", {
+            "company_id": cid,
+            "contact_id": contact_id,
+            "subject": args["subject"],
+            "body": args["body"],
+            "email_type": args["email_type"],
+            "rationale": args.get("rationale"),
+            "word_count": len(args["body"].split()),
         })
 
     elif name == "log_linkedin_interaction":
@@ -867,13 +994,6 @@ async def _dispatch(name: str, args: dict) -> dict:
         else:
             email_type = "linkedin_dm"
 
-        result = await _post("/api/outreach/generate", {
-            "company_id": cid,
-            "contact_id": contact_id,
-            "context": args.get("context"),
-            "email_type": email_type,
-        })
-
         # Store the variant on the contact if it was a connection request
         if msg_type == "connection_request":
             variant = "A" if email_type == "connection_request_a" else "B"
@@ -881,11 +1001,17 @@ async def _dispatch(name: str, args: dict) -> dict:
                 await _patch(f"/api/contacts/{contact_row['id']}", {"connection_request_variant": variant})
             except Exception:
                 pass
-            result["variant"] = variant
-            result["message_type"] = "connection_request"
-        else:
-            result["message_type"] = "linkedin_dm"
 
+        # Delegate to get_outreach_context — Claude generates text, then calls save_outreach_draft
+        result = await _dispatch("get_outreach_context", {
+            "company_name": company_name,
+            "contact_name": args["contact_name"],
+            "email_type": email_type,
+            "context": args.get("context"),
+        })
+        result["message_type"] = msg_type
+        if msg_type == "connection_request":
+            result["variant"] = variant
         return result
 
     elif name == "mark_linkedin_status":

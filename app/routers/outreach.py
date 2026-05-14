@@ -289,6 +289,38 @@ async def generate_outreach(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class OutreachSaveDraftRequest(BaseModel):
+    company_id: int
+    contact_id: Optional[int] = None
+    subject: str
+    body: str
+    email_type: str = "cold"
+    rationale: Optional[str] = None
+    word_count: Optional[int] = None
+
+
+@router.post("/save-draft")
+def save_outreach_draft(req: OutreachSaveDraftRequest, session: Session = Depends(get_session)):
+    """Persist a pre-generated outreach draft from the MCP layer. No OutreachRecord created yet."""
+    company = session.get(Company, req.company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    contact = session.get(Contact, req.contact_id) if req.contact_id else None
+    if contact and contact.outreach_status == "none":
+        contact.outreach_status = "drafted"
+        session.add(contact)
+        session.commit()
+    return {
+        "subject": req.subject,
+        "body": req.body,
+        "email_type": req.email_type,
+        "word_count": req.word_count or len(req.body.split()),
+        "rationale": req.rationale,
+        "company_id": req.company_id,
+        "contact_id": req.contact_id,
+    }
+
+
 @router.delete("/{record_id}")
 def delete_outreach(record_id: int, session: Session = Depends(get_session)):
     record = session.get(OutreachRecord, record_id)
