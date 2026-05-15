@@ -346,27 +346,53 @@ async def find_contacts(company_id: int, session: Session = Depends(get_session)
 
         contacts_data = await _find_contacts(company.name, company_id, domain)
 
-        # Persist new contacts, skip duplicates by name
-        existing_names = {c.name.lower() for c in session.exec(
+        # Persist new contacts, skip duplicates by email, linkedin_url, or name+title
+        existing_contacts = session.exec(
             select(Contact).where(Contact.company_id == company_id)
-        ).all()}
+        ).all()
+        existing_emails = {c.email.lower().strip() for c in existing_contacts if c.email}
+        existing_urls = {c.linkedin_url.strip() for c in existing_contacts if c.linkedin_url}
+        existing_name_titles = {
+            (c.name.lower().strip(), c.title.lower().strip())
+            for c in existing_contacts if c.name and c.title
+        }
+        existing_names = {c.name.lower() for c in existing_contacts}
 
         new_contacts = []
         for cd in contacts_data:
-            if cd["name"].lower() in existing_names:
+            name = (cd.get("name") or "").strip()
+            title = (cd.get("title") or "").strip()
+            email = (cd.get("email") or "").strip()
+            linkedin_url = (cd.get("linkedin_url") or "").strip()
+
+            # Skip if any dedup key matches
+            if email and email.lower() in existing_emails:
                 continue
+            if linkedin_url and linkedin_url in existing_urls:
+                continue
+            if name and title and (name.lower(), title.lower()) in existing_name_titles:
+                continue
+            if name.lower() in existing_names:
+                continue
+
             contact = Contact(
                 company_id=company_id,
-                name=cd["name"],
-                title=cd.get("title") or "",
-                email=cd.get("email") or "",
-                linkedin_url=cd.get("linkedin_url") or "",
+                name=name,
+                title=title or "",
+                email=email or "",
+                linkedin_url=linkedin_url or "",
                 connection_degree=3,
                 warmth="cold",
             )
             session.add(contact)
             new_contacts.append(cd)
-            existing_names.add(cd["name"].lower())
+            existing_names.add(name.lower())
+            if email:
+                existing_emails.add(email.lower())
+            if linkedin_url:
+                existing_urls.add(linkedin_url)
+            if name and title:
+                existing_name_titles.add((name.lower(), title.lower()))
 
         session.commit()
 

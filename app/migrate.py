@@ -335,6 +335,125 @@ SEED_FEEDS = [
 ]
 
 
+def deduplicate_contacts(session: Session) -> None:
+    """
+    Find and merge duplicate Contact rows.
+    Two contacts are considered duplicates if they share the same company AND any of:
+      - Same email (non-null)
+      - Same linkedin_url (non-null)
+      - Same name + same title (both non-empty)
+    Keeps the record with the most populated fields; reassigns OutreachRecord.contact_id
+    from deleted duplicates to the kept record before deleting.
+    """
+    all_contacts = session.exec(select(Contact)).all()
+
+    # Group contacts by company_id, then find duplicates within each group
+    from collections import defaultdict
+    by_company: dict = defaultdict(list)
+    for c in all_contacts:
+        by_company[c.company_id].append(c)
+
+    def _score(c: Contact) -> int:
+        """Higher = more data = prefer to keep."""
+        return sum([
+            bool(c.email), bool(c.linkedin_url), bool(c.title),
+            bool(c.met_via), bool(c.relationship_notes), bool(c.connected_on),
+        ])
+
+    merged = 0
+    deleted = 0
+    for company_id, contacts in by_company.items():
+        # Union-find: map each contact.id -> canonical contact.id
+        canonical: dict[int, int] = {c.id: c.id for c in contacts}
+
+        def _find(cid: int) -> int:
+            while canonical[cid] != cid:
+                canonical[cid] = canonical[canonical[cid]]
+                cid = canonical[cid]
+            return cid
+
+        def _union(a: int, b: int):
+            ra, rb = _find(a), _find(b)
+            if ra == rb:
+                return
+            # Keep the one with more data (higher score), prefer lower id as tiebreak
+            ca = next(c for c in contacts if c.id == ra)
+            cb = next(c for c in contacts if c.id == rb)
+            if _score(ca) >= _score(cb):
+                canonical[rb] = ra
+            else:
+                canonical[ra] = rb
+
+        # Build lookup maps
+        email_map: dict[str, int] = {}
+        url_map: dict[str, int] = {}
+        name_title_map: dict[tuple, int] = {}
+        for c in contacts:
+            if c.email:
+                key = c.email.lower().strip()
+                if key in email_map:
+                    _union(c.id, email_map[key])
+                else:
+                    email_map[key] = c.id
+            if c.linkedin_url:
+                key = c.linkedin_url.strip()
+                if key in url_map:
+                    _union(c.id, url_map[key])
+                else:
+                    url_map[key] = c.id
+            if c.name and c.title:
+                key = (c.name.lower().strip(), c.title.lower().strip())
+                if key in name_title_map:
+                    _union(c.id, name_title_map[key])
+                else:
+                    name_title_map[key] = c.id
+
+        # Collect groups
+        groups: dict[int, list[Contact]] = defaultdict(list)
+        for c in contacts:
+            groups[_find(c.id)].append(c)
+
+        for root_id, group in groups.items():
+            if len(group) <= 1:
+                continue
+            # Keep the canonical (root) record, delete the rest
+            keep = next(c for c in group if c.id == root_id)
+            dupes = [c for c in group if c.id != root_id]
+
+            # Merge missing fields into kept record
+            for d in dupes:
+                if not keep.email and d.email:
+                    keep.email = d.email
+                if not keep.linkedin_url and d.linkedin_url:
+                    keep.linkedin_url = d.linkedin_url
+                if not keep.title and d.title:
+                    keep.title = d.title
+                if not keep.met_via and d.met_via:
+                    keep.met_via = d.met_via
+                if not keep.relationship_notes and d.relationship_notes:
+                    keep.relationship_notes = d.relationship_notes
+                if not keep.connected_on and d.connected_on:
+                    keep.connected_on = d.connected_on
+
+            session.add(keep)
+
+            for d in dupes:
+                # Reassign outreach records to kept contact
+                orphaned = session.exec(
+                    select(OutreachRecord).where(OutreachRecord.contact_id == d.id)
+                ).all()
+                for rec in orphaned:
+                    rec.contact_id = keep.id
+                    session.add(rec)
+
+                session.delete(d)
+                deleted += 1
+            merged += 1
+
+    session.commit()
+    print(f"✓ Contact deduplication: {merged} groups merged, {deleted} duplicates removed")
+
+
 def seed_feeds(session: Session) -> None:
     """Seed default thought leader and publication RSS feeds (idempotent)."""
     created = 0
@@ -346,6 +465,16 @@ def seed_feeds(session: Session) -> None:
         created += 1
     session.commit()
     print(f"✓ Content feeds seeded: {created} added ({len(SEED_FEEDS)} total)")
+
+
+def dedup_only():
+    """Run only the contact deduplication step against the current database."""
+    print("Job Search System — Contact Deduplication")
+    print("=" * 45)
+    with Session(engine) as session:
+        print("\nDeduplicating contacts…")
+        deduplicate_contacts(session)
+    print("\n✓ Done.")
 
 
 def main():
@@ -381,4 +510,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "dedup":
+        dedup_only()
+    else:
+        main()

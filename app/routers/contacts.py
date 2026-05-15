@@ -215,6 +215,22 @@ async def import_linkedin_csv(
     }
 
 
+def _find_duplicate_contact(session, company_id, name: str, title: Optional[str], email: Optional[str], linkedin_url: Optional[str]) -> Optional[Contact]:
+    """Return an existing Contact that is likely the same person, or None."""
+    if not company_id:
+        return None
+    existing = session.exec(select(Contact).where(Contact.company_id == company_id)).all()
+    for c in existing:
+        if email and c.email and c.email.lower().strip() == email.lower().strip():
+            return c
+        if linkedin_url and c.linkedin_url and c.linkedin_url.strip() == linkedin_url.strip():
+            return c
+        if name and title and c.name and c.title:
+            if c.name.lower().strip() == name.lower().strip() and c.title.lower().strip() == title.lower().strip():
+                return c
+    return None
+
+
 @router.post("/quick-add")
 def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_session)):
     all_companies = session.exec(select(Company).where(Company.is_archived == False)).all()
@@ -233,29 +249,53 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
         session.flush()
         company_id = new_company.id
 
-    contact = Contact(
-        name=req.name,
-        title=req.title,
-        linkedin_url=req.linkedin_url,
-        email=req.email,
-        company_id=company_id,
-        connection_degree=1,
-        warmth="warm" if company_id else "cold",
-    )
+    # Check for existing contact that matches on email, LinkedIn URL, or name+title
+    existing = _find_duplicate_contact(session, company_id, req.name, req.title, req.email, req.linkedin_url)
+    if existing:
+        # Fill in any missing fields from the new request
+        changed = False
+        if req.email and not existing.email:
+            existing.email = req.email; changed = True
+        if req.linkedin_url and not existing.linkedin_url:
+            existing.linkedin_url = req.linkedin_url; changed = True
+        if req.title and not existing.title:
+            existing.title = req.title; changed = True
+        if req.met_via and not existing.met_via:
+            existing.met_via = req.met_via; changed = True
+        if req.relationship_notes and not existing.relationship_notes:
+            existing.relationship_notes = req.relationship_notes; changed = True
+        if req.outreach_status and existing.outreach_status == "none":
+            existing.outreach_status = req.outreach_status; changed = True
+        if req.is_mit_alum is not None and existing.is_mit_alum is None:
+            existing.is_mit_alum = req.is_mit_alum; changed = True
+        if changed:
+            session.add(existing)
+            session.commit()
+            session.refresh(existing)
+        contact = existing
+    else:
+        contact = Contact(
+            name=req.name,
+            title=req.title,
+            linkedin_url=req.linkedin_url,
+            email=req.email,
+            company_id=company_id,
+            connection_degree=1,
+            warmth="warm" if company_id else "cold",
+        )
+        contact.met_via = req.met_via
+        contact.relationship_notes = req.relationship_notes
+        contact.introduced_by_contact_id = req.introduced_by_contact_id
+        if req.outreach_status:
+            contact.outreach_status = req.outreach_status
+        if req.is_mit_alum is not None:
+            contact.is_mit_alum = req.is_mit_alum
 
-    contact.met_via = req.met_via
-    contact.relationship_notes = req.relationship_notes
-    contact.introduced_by_contact_id = req.introduced_by_contact_id
-    if req.outreach_status:
-        contact.outreach_status = req.outreach_status
-    if req.is_mit_alum is not None:
-        contact.is_mit_alum = req.is_mit_alum
-
-    session.add(contact)
-    if company_id:
-        _refresh_advocacy_scores([company_id], session)
-    session.commit()
-    session.refresh(contact)
+        session.add(contact)
+        if company_id:
+            _refresh_advocacy_scores([company_id], session)
+        session.commit()
+        session.refresh(contact)
 
     matched_company_obj = session.get(Company, company_id) if company_id else None
     matched_company = matched_company_obj.name if matched_company_obj else None

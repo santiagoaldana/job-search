@@ -275,24 +275,35 @@ def compute_daily_brief(session: Session) -> dict:
             })
 
     # LinkedIn DM follow-up — Day 7 passed, still pending, no DM record yet
-    day7_passed_cutoff = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
-    needs_dm = session.exec(
+    # Use only the most recent qualifying record per contact to avoid surfacing
+    # stale records from duplicate contacts.
+    needs_dm_all = session.exec(
         select(OutreachRecord).where(
             OutreachRecord.response_status == "pending",
             OutreachRecord.follow_up_7_sent == True,
             OutreachRecord.channel == "email",
             OutreachRecord.follow_up_7_due <= today,
-        )
+        ).order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
     ).all()
-    seen_dm_contacts = set()
+    # Dedup: keep only the most recent record per (company_id, contact_id) pair
+    seen_dm_keys: set = set()
+    needs_dm = []
+    for r in needs_dm_all:
+        key = (r.company_id, r.contact_id)
+        if key not in seen_dm_keys:
+            seen_dm_keys.add(key)
+            needs_dm.append(r)
+
+    seen_dm_companies: set = set()
     for record in needs_dm[:3]:
-        if record.contact_id in seen_dm_contacts:
+        # Skip if we've already added a DM card for this company (handles duplicate contacts)
+        if record.company_id in seen_dm_companies:
             continue
-        seen_dm_contacts.add(record.contact_id)
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
         company = session.get(Company, record.company_id) if record.company_id else None
         # Only surface if contact is 1st-degree (can DM them)
         if contact and contact.connection_degree == 1:
+            seen_dm_companies.add(record.company_id)
             who = f"{contact.name} at {company.name}" if company else (contact.name if contact else 'Unknown')
             outreach.append({
                 "action_type": "try_linkedin_dm",

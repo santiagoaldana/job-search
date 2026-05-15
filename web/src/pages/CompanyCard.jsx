@@ -1125,7 +1125,9 @@ function OutreachHistoryCard({ o, onResponseUpdate, onUseAsContext, onDatesUpdat
       )}
 
       {!hasBody && (
-        <div className="text-xs text-faint italic">No email body stored</div>
+        <div className="text-xs text-faint italic">
+          {o.channel === 'linkedin' ? 'LinkedIn outreach — no message body' : 'No message body stored'}
+        </div>
       )}
 
       {o.response_status === 'pending' && (
@@ -1288,7 +1290,6 @@ function OutreachTab({ company, onReload, defaultContactId }) {
               {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : `AI draft →`}
             </button>
           </div>
-          <div className="text-xs text-green-700 dark:text-green-400 text-center mt-2">Or fill in context below for a more tailored AI draft</div>
         </div>
       )}
 
@@ -1376,22 +1377,24 @@ function OutreachTab({ company, onReload, defaultContactId }) {
         />
       </div>
 
-      <div className="flex gap-2">
-        <button
-          onClick={handleWriteMyself}
-          disabled={generating}
-          className="flex-1 border border-theme text-body rounded-xl py-3 text-sm font-medium transition-colors"
-        >
-          Write myself
-        </button>
-        <button
-          onClick={handleGenerate}
-          disabled={generating}
-          className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
-        >
-          {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : <><Send size={14} /> AI draft</>}
-        </button>
-      </div>
+      {!(warmContact && !draft && !warmAlreadySent) && (
+        <div className="flex gap-2">
+          <button
+            onClick={handleWriteMyself}
+            disabled={generating}
+            className="flex-1 border border-theme text-body rounded-xl py-3 text-sm font-medium transition-colors"
+          >
+            Write myself
+          </button>
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : <><Send size={14} /> AI draft</>}
+          </button>
+        </div>
+      )}
 
       {/* Draft result */}
       {draft && (
