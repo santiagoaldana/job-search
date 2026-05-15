@@ -154,21 +154,39 @@ Return JSON (no markdown):
 
 FOLLOW_UP_TEMPLATES = {
     "day_3": {
-        "subject": "Re: {original_subject}",
-        "body": "Hi {first_name},\n\nJust wanted to make sure my note didn't get buried. Would love to hear your perspective whenever you have a few minutes.\n\nSantiago",
+        "en": {
+            "subject": "Re: {original_subject}",
+            "body": "Hi {first_name},\n\nJust wanted to make sure my note didn't get buried. Would love to hear your perspective whenever you have a few minutes.\n\nSantiago",
+        },
+        "es": {
+            "subject": "Re: {original_subject}",
+            "body": "Hola {first_name},\n\nQuería asegurarme de que mi mensaje no se perdiera. Me encantaría escuchar tu perspectiva cuando tengas unos minutos.\n\nSantiago",
+        },
     },
     "day_7": {
-        "subject": "Re: {original_subject}",
-        "body": "Hi {first_name},\n\nI don't mean to be a bother. If I don't hear back, I'll take that as a no and won't follow up again. I genuinely appreciated the chance to reach out.\n\nSantiago",
+        "en": {
+            "subject": "Re: {original_subject}",
+            "body": "Hi {first_name},\n\nI don't mean to be a bother. If I don't hear back, I'll take that as a no and won't follow up again. I genuinely appreciated the chance to reach out.\n\nSantiago",
+        },
+        "es": {
+            "subject": "Re: {original_subject}",
+            "body": "Hola {first_name},\n\nNo quiero ser un inconveniente. Si no recibo respuesta, lo tomaré como un no y no volveré a escribir. Genuinamente aprecié la oportunidad de contactarte.\n\nSantiago",
+        },
     },
     "harvest": {
-        "subject": "Re: {original_subject}",
-        "body": "Hi {first_name},\n\nCircling back one last time. If there's ever a moment to connect, I'd welcome it.\n\nSantiago",
+        "en": {
+            "subject": "Re: {original_subject}",
+            "body": "Hi {first_name},\n\nCircling back one last time. If there's ever a moment to connect, I'd welcome it.\n\nSantiago",
+        },
+        "es": {
+            "subject": "Re: {original_subject}",
+            "body": "Hola {first_name},\n\nVuelvo a escribirte una última vez. Si en algún momento hay oportunidad de conversar, lo agradecería mucho.\n\nSantiago",
+        },
     },
 }
 
 
-def draft_followup_from_template(stage: str, outreach_record: dict) -> dict:
+def draft_followup_from_template(stage: str, outreach_record: dict, language: str = "en") -> dict:
     """
     Generate follow-up email from template based on conversation stage.
     No API call — uses predefined templates for standard follow-ups.
@@ -176,6 +194,7 @@ def draft_followup_from_template(stage: str, outreach_record: dict) -> dict:
     Args:
         stage: "day_3" | "day_7" | "harvest"
         outreach_record: Dict with company, contact_name, contact_role, sent_date, notes, etc.
+        language: "en" or "es"
 
     Returns:
         {subject, body, stage, template_used: True}
@@ -183,7 +202,8 @@ def draft_followup_from_template(stage: str, outreach_record: dict) -> dict:
     if stage not in FOLLOW_UP_TEMPLATES:
         return {"error": f"Unknown stage: {stage}"}
 
-    template = FOLLOW_UP_TEMPLATES[stage]
+    lang = language if language in ("en", "es") else "en"
+    template = FOLLOW_UP_TEMPLATES[stage][lang]
     subject_template = template["subject"]
     body_template = template["body"]
 
