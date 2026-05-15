@@ -211,7 +211,7 @@ def compute_daily_brief(session: Session) -> dict:
     if stale_records:
         session.commit()
 
-    # Warm path alerts — new 1st-degree contacts at funnel companies (last 14 days, motivation >= 5)
+    # Warm path alerts — new 1st-degree contacts at funnel companies (last 14 days, motivation >= 7)
     # snooze_until overrides created_at as the surface date when set
     today_date = datetime.utcnow().date()
     fourteen_days_ago_date = today_date - timedelta(days=14)
@@ -233,7 +233,7 @@ def compute_daily_brief(session: Session) -> dict:
     recent_warm = [c for c in recent_warm if fourteen_days_ago_date <= _surface_date(c) <= today_date]
 
     high_motivation_ids = {
-        c.id for c in session.exec(select(Company).where(Company.motivation >= 5, Company.is_archived == False)).all()
+        c.id for c in session.exec(select(Company).where(Company.motivation >= 7, Company.is_archived == False)).all()
     }
     contacted_contact_ids = {
         r.contact_id for r in session.exec(select(OutreachRecord).where(OutreachRecord.contact_id != None)).all()
