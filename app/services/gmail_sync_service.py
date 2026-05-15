@@ -110,15 +110,15 @@ def _get_gmail_service(session: Session = None):
 
 # ── Gmail fetch helpers ───────────────────────────────────────────────────────
 
-def _yesterday_query() -> str:
-    """Gmail search date string for messages since yesterday."""
-    yesterday = (datetime.utcnow() - timedelta(hours=24)).strftime("%Y/%m/%d")
-    return f"after:{yesterday}"
+def _yesterday_query(hours: int = 24) -> str:
+    """Gmail search date string for messages since N hours ago."""
+    since = (datetime.utcnow() - timedelta(hours=hours)).strftime("%Y/%m/%d")
+    return f"after:{since}"
 
 
-def _fetch_messages(service, label: str, extra_query: str = "") -> list[dict]:
-    """Return list of parsed message dicts for a label in the last 24h."""
-    query = _yesterday_query()
+def _fetch_messages(service, label: str, extra_query: str = "", hours: int = 24) -> list[dict]:
+    """Return list of parsed message dicts for a label in the last N hours."""
+    query = _yesterday_query(hours)
     if extra_query:
         query = f"{query} {extra_query}"
     try:
@@ -350,7 +350,7 @@ def handle_linkedin_acceptance(session: Session, subject: str, body_text: str) -
         if full_name:
             acceptor_name = full_name.group(1).strip()
 
-    print(f"[linkedin_acceptance] subject={repr(subject[:80])} extracted_name={repr(acceptor_name)}")
+    print(f"[linkedin_acceptance] subject={repr(subject[:80])} extracted_name={repr(acceptor_name)} body_sample={repr(body_text[200:400])}")
     name_tokens = set(acceptor_name.lower().split())
 
     contacts = session.exec(select(Contact)).all()
@@ -613,8 +613,8 @@ def run_gmail_sync(session: Session) -> dict:
 
     results: dict = {"new_outreach": [], "new_replies": [], "linkedin_accepted": [], "bounces": [], "errors": []}
 
-    # Stream 3: LinkedIn acceptance emails (INBOX from notifications@linkedin.com)
-    inbox_msgs = _fetch_messages(service, "INBOX")
+    # Stream 3: LinkedIn acceptance emails — look back 48h to catch any missed by previous runs
+    inbox_msgs = _fetch_messages(service, "INBOX", extra_query="", hours=48)
     for msg in inbox_msgs:
         email_type = classify_email_type(msg["from_email"], msg["subject"], msg["body_text"])
 
