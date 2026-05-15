@@ -987,17 +987,18 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
             <div className="py-4 text-center text-muted text-xs">Nothing to do here ✓</div>
           ) : (
             items.map((action, i) => {
+              const stableKey = `${action.action_type}-${action.payload_id ?? i}`
               if (action.action_type === 'check_linkedin_acceptance' || action.action_type === 'email_escalation') {
-                return <LinkedInAcceptanceCard key={i} action={action} onRefresh={onRefresh} />
+                return <LinkedInAcceptanceCard key={stableKey} action={action} onRefresh={onRefresh} />
               }
               if (action.action_type === 'linkedin_not_accepted') {
-                return <LinkedInNotAcceptedCard key={i} action={action} onRefresh={onRefresh} />
+                return <LinkedInNotAcceptedCard key={stableKey} action={action} onRefresh={onRefresh} />
               }
               if (action.action_type === 'new_reply') {
-                return <NewReplyCard key={i} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
+                return <NewReplyCard key={stableKey} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
               }
               if (action.action_type === 'linkedin_accepted') {
-                return <LinkedInAcceptedSyncCard key={action.payload_id ?? i} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
+                return <LinkedInAcceptedSyncCard key={stableKey} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
               }
 
               const Icon = ACTION_ICONS[action.action_type] || AlertCircle
@@ -1008,7 +1009,7 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
 
               return (
                 <div
-                  key={i}
+                  key={stableKey}
                   className={`w-full text-left p-4 rounded-xl border ${cardColor}`}
                 >
                   <div className="flex items-start gap-2">
