@@ -324,12 +324,17 @@ def handle_linkedin_acceptance(session: Session, subject: str, body_text: str) -
 
     acceptor_name = m.group(1).strip()
 
-    # If subject only gave a first name, try to get the full name from the body
-    # LinkedIn email bodies contain the full name on its own line near the top
+    # If subject only gave a first name, try to get the full name from the body.
+    # LinkedIn email bodies contain the full name near the top, followed by title/company.
     if " " not in acceptor_name:
-        body_name = re.search(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*$", body_text, re.MULTILINE)
+        body_name = re.search(
+            r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*(?:\n|\r|Co-founder|CEO|President|VP|Director|Founder|Chief|Head|CTO|COO|CFO|at\s+[A-Z])",
+            body_text
+        )
         if body_name:
             acceptor_name = body_name.group(1).strip()
+
+    print(f"[linkedin_acceptance] subject={repr(subject[:80])} extracted_name={repr(acceptor_name)} body_preview={repr(body_text[:200])}")
     name_tokens = set(acceptor_name.lower().split())
 
     contacts = session.exec(select(Contact)).all()
