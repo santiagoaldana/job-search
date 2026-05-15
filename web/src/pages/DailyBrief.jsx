@@ -941,7 +941,7 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                 return <NewReplyCard key={i} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
               }
               if (action.action_type === 'linkedin_accepted') {
-                return <LinkedInAcceptedSyncCard key={i} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
+                return <LinkedInAcceptedSyncCard key={action.payload_id ?? i} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
               }
 
               const Icon = ACTION_ICONS[action.action_type] || AlertCircle
