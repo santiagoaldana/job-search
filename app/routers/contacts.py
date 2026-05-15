@@ -435,6 +435,48 @@ def delete_contact(contact_id: int, session: Session = Depends(get_session)):
     return {"ok": True}
 
 
+@router.post("/{contact_id}/draft-dm")
+def draft_linkedin_dm(contact_id: int, session: Session = Depends(get_session)):
+    """Draft a thank-you LinkedIn DM for a contact who accepted a connection request."""
+    contact = session.get(Contact, contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    company = session.get(Company, contact.company_id) if contact.company_id else None
+
+    prior_outreach = session.exec(
+        select(OutreachRecord)
+        .where(OutreachRecord.contact_id == contact_id)
+        .where(OutreachRecord.outreach_message.is_not(None))  # type: ignore[union-attr]
+        .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
+    ).first()
+    prior_context = f"\n\nOriginal outreach message:\n{prior_outreach.outreach_message}" if prior_outreach and prior_outreach.outreach_message else ""
+
+    profile = (
+        "Santiago Aldana — MIT Sloan MBA, 20+ years in FinTech, payments, embedded banking, "
+        "and Agentic AI in Latin America. Currently based in Boston. Looking for C-suite or SVP roles "
+        "in payments, embedded banking, digital identity, and Agentic AI."
+    )
+
+    prompt = (
+        f"Draft a short LinkedIn thank-you DM (3 sentences max) from Santiago to {contact.name}"
+        + (f" ({contact.title} at {company.name})" if contact.title and company else "")
+        + ", who just accepted his LinkedIn connection request."
+        + f"{prior_context}\n\n"
+        + f"Santiago's profile: {profile}\n\n"
+        + "Rules: warm and genuine, not sycophantic. Reference their role or company briefly if relevant. "
+        + "End with a light, specific reason to stay in touch — no hard ask. No em dashes. No hyphens in compound adjectives. "
+        + "Return only the DM text, no subject line, no preamble."
+    )
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=200,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return {"message": response.content[0].text.strip()}
+
+
 @router.post("/{contact_id}/bounce")
 def mark_email_bounce(contact_id: int, session: Session = Depends(get_session)):
     """Mark contact email as bounced, advance to next pattern, return updated next_step."""

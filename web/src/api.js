@@ -144,6 +144,7 @@ export const api = {
   },
   updateContact: (id, data) => patch(`/contacts/${id}`, data),
   markEmailBounced: (id) => post(`/contacts/${id}/bounce`),
+  draftLinkedinMessage: (id) => post(`/contacts/${id}/draft-dm`),
   getContactNextStep: (id) => get(`/contacts/${id}/next-step`),
   getNetworkPath: (companyId, refresh = false) => get(`/companies/${companyId}/network-path${refresh ? '?refresh=true' : ''}`),
 
