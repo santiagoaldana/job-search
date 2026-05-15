@@ -30,7 +30,7 @@ TOKEN_DIR = Path.home() / ".job-search-gmail"
 
 GMAIL_ACCOUNT = os.environ.get("GMAIL_ACCOUNT_1", "aldana.santiago@gmail.com")
 
-LINKEDIN_SENDER = "notifications@linkedin.com"
+LINKEDIN_SENDERS = {"notifications@linkedin.com", "invitations@linkedin.com"}
 LINKEDIN_ACCEPT_PATTERNS = [
     r"accepted your invitation",
     r"accepted your connection",
@@ -205,7 +205,7 @@ def classify_email_type(from_email: str, subject: str, body_text: str) -> str:
     subject_lower = subject.lower()
     body_lower = body_text.lower()[:500]
 
-    if LINKEDIN_SENDER in from_lower:
+    if any(s in from_lower for s in LINKEDIN_SENDERS):
         combined = subject_lower + " " + body_lower
         if any(re.search(p, combined) for p in LINKEDIN_ACCEPT_PATTERNS):
             return "linkedin_acceptance"
