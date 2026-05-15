@@ -1172,13 +1172,8 @@ export default function DailyBrief() {
     }, 1500)
   }
 
-  const handleMarkSent = async (action) => {
-    try {
-      await api.markFollowupSent(action.payload_id, { followup_day: action.followup_day })
-      load()
-    } catch (e) {
-      console.error('markFollowupSent error', e)
-    }
+  const handleMarkSent = (action) => {
+    setFollowUpModal(action)
   }
 
   const handleDismiss = async (action) => {
