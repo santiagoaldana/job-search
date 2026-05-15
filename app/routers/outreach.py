@@ -170,23 +170,33 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
     follow_up_3 = add_business_days(sent_date, 3).isoformat()
     follow_up_7 = add_business_days(sent_date, 7).isoformat()
 
+    # Auto-resolve contact_id by name when not explicitly provided
+    resolved_contact_id = data.contact_id
+    if not resolved_contact_id and data.contact_name_raw:
+        q = select(Contact).where(Contact.name == data.contact_name_raw)
+        if data.company_id:
+            q = q.where(Contact.company_id == data.company_id)
+        matched = session.exec(q).first()
+        if matched:
+            resolved_contact_id = matched.id
+
     notes = None
-    if not data.contact_id and data.contact_name_raw:
+    if not resolved_contact_id and data.contact_name_raw:
         notes = f"contact:{data.contact_name_raw}"
 
     # Inherit company from contact if not explicitly provided
     company_id = data.company_id
-    if not company_id and data.contact_id:
-        linked_contact = session.get(Contact, data.contact_id)
+    if not company_id and resolved_contact_id:
+        linked_contact = session.get(Contact, resolved_contact_id)
         if linked_contact and linked_contact.company_id:
             company_id = linked_contact.company_id
 
     # If an earlier outreach exists for this contact, carry its canonical message forward
     prior_message = None
-    if data.contact_id:
+    if resolved_contact_id:
         prior = session.exec(
             select(OutreachRecord)
-            .where(OutreachRecord.contact_id == data.contact_id)
+            .where(OutreachRecord.contact_id == resolved_contact_id)
             .where(OutreachRecord.outreach_message != None)
             .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
         ).first()
@@ -195,7 +205,7 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
 
     record = OutreachRecord(
         company_id=company_id,
-        contact_id=data.contact_id,
+        contact_id=resolved_contact_id,
         lead_id=data.lead_id,
         channel=data.channel,
         sent_at=sent_at,
