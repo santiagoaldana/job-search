@@ -1,13 +1,19 @@
 """Gmail sync endpoints — manual trigger and status check."""
 
 import json
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlmodel import Session, select
 
-from app.database import get_session
+from app.database import get_session, engine
 from app.models import GmailSyncState
 
 router = APIRouter()
+
+
+def _run_sync_background():
+    with Session(engine) as session:
+        from app.services.gmail_sync_service import run_gmail_sync
+        run_gmail_sync(session)
 
 
 @router.post("/sync")
@@ -16,6 +22,13 @@ def trigger_sync(session: Session = Depends(get_session)):
     from app.services.gmail_sync_service import run_gmail_sync
     result = run_gmail_sync(session)
     return result
+
+
+@router.post("/sync-async")
+def trigger_sync_async(background_tasks: BackgroundTasks):
+    """Fire-and-forget Gmail sync — returns immediately, runs in background."""
+    background_tasks.add_task(_run_sync_background)
+    return {"queued": True, "message": "Sync started in background — check /status in 30s"}
 
 
 @router.post("/reset-token")
