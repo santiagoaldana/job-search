@@ -287,7 +287,10 @@ async def generate_outreach(
             "rationale": req.rationale,
         }
 
-    # Context-only path: assemble context for Claude to generate from
+    # Context-only path: call Claude inline to generate the draft
+    import anthropic as _anthropic
+    import json as _json
+    import re as _re
     from app.services.outreach_generator import build_outreach_context
 
     prior_message = req.prior_message
@@ -301,7 +304,7 @@ async def generate_outreach(
         if prior:
             prior_message = prior.outreach_message
 
-    return build_outreach_context(
+    ctx = build_outreach_context(
         company=company,
         contact=contact,
         email_type=req.email_type,
@@ -310,6 +313,58 @@ async def generate_outreach(
         ask=req.ask,
         prior_message=prior_message,
     )
+
+    intel_line = f"Intel: {ctx['company']['intel_summary']}" if ctx['company'].get('intel_summary') else ""
+    context_line = f"CONTEXT PROVIDED: {ctx['context']}" if ctx.get('context') else ""
+    hook_line = f"HOOK TO USE: {ctx['hook']}" if ctx.get('hook') else ""
+    ask_line = f"ASK: {ctx['ask']}" if ctx.get('ask') else ""
+    prior_line = f"PRIOR MESSAGE: {ctx['prior_message']}" if ctx.get('prior_message') else ""
+
+    prompt = f"""You are drafting an outreach message for Santiago Aldana, an MIT Sloan MBA executive (20+ yrs FinTech/AI/payments/LATAM leadership).
+
+COMPANY: {ctx['company']['name']}
+{intel_line}
+
+CONTACT: {_json.dumps(ctx['contact'], indent=2)}
+
+EMAIL TYPE: {ctx['email_type']}
+INSTRUCTION: {ctx['type_instruction']}
+
+{context_line}
+{hook_line}
+{ask_line}
+{prior_line}
+
+{ctx['dalton_rules']}
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{ctx['return_format']}"""
+
+    try:
+        client = _anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = _re.sub(r'^```(?:json)?\n?', '', raw)
+        raw = _re.sub(r'\n?```$', '', raw)
+        result = _json.loads(raw)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Draft generation failed: {e}")
+
+    if contact and contact.outreach_status == "none":
+        contact.outreach_status = "drafted"
+        session.add(contact)
+        session.commit()
+
+    return {
+        "subject": result.get("subject", ""),
+        "body": result.get("body", ""),
+        "word_count": result.get("word_count") or len(result.get("body", "").split()),
+        "rationale": result.get("rationale"),
+    }
 
 
 class OutreachSaveDraftRequest(BaseModel):
