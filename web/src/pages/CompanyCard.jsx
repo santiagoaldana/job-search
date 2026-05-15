@@ -1263,8 +1263,11 @@ function OutreachTab({ company, onReload, defaultContactId }) {
     if (!draft) return
     const contactName = selectedContactObj?.name || 'the contact'
     const contactTitle = selectedContactObj?.title || ''
+    const channelLabel = emailType === 'linkedin_dm' ? 'LinkedIn DM' : 'email'
     const prompt = [
-      `You are helping Santiago Aldana (MIT Sloan MBA, 20+ yrs FinTech/AI/payments, LATAM) refine an outreach ${emailType === 'linkedin_dm' ? 'LinkedIn DM' : 'email'}.`,
+      `You are helping Santiago Aldana refine an outreach ${channelLabel}. Here is his full context:`,
+      ``,
+      `SANTIAGO'S PROFILE: MIT Sloan MBA, 20+ years in FinTech/AI/payments/LATAM leadership. Serial founder. Core expertise: BaaS, Embedded Finance, Agentic AI for Financial Services, Digital Identity, Cross-border Payments. Currently based in Boston. Target roles: C-suite or SVP at growth-stage fintechs. Key credentials: built SoyYo (Colombia's national biometric identity layer), scaled Avianca LifeMiles, Uff Movil (MVNO in complex regulatory markets).`,
       ``,
       `CONTACT: ${contactName}${contactTitle ? `, ${contactTitle}` : ''} at ${company.name}`,
       context ? `CONTEXT: ${context}` : '',
@@ -1273,22 +1276,24 @@ function OutreachTab({ company, onReload, defaultContactId }) {
       draft.subject ? `Subject: ${draft.subject}` : '',
       draft.body,
       ``,
-      `## Rules`,
-      `- Body 75 words max`,
-      `- First-person, direct — no corporate speak`,
-      `- At least half the words about the contact or their work, not Santiago`,
-      `- One specific Santiago credential woven in naturally (SoyYo, Avianca, Uff Movil, MIT Sloan)`,
-      `- No em dashes, no hyphens`,
+      `## Style rules (non-negotiable)`,
+      `- 75 words max in the body`,
+      `- At least half the words must be about the contact or their company's situation, not Santiago`,
+      `- Open with something specific and verifiable about their work, not a generic compliment`,
+      `- One Santiago credential woven in naturally as evidence, not as the pitch (SoyYo, Avianca, Uff Movil, MIT Sloan)`,
+      `- End with a light ask about their perspective, not Santiago's needs ("15 min to hear how you see X evolving")`,
+      `- No em dashes, no hyphens, no en dashes`,
       `- No signature block`,
-      `- No forbidden phrases: "hope this finds you", "excited to", "pick your brain", "circle back", "touch base"`,
+      `- No forbidden phrases: "hope this finds you", "excited to", "pick your brain", "circle back", "touch base", "synergy", "leverage"`,
+      `- LATAM experience is proof of complexity, not the hook — only mention if directly relevant to their work`,
       ``,
-      `Return the improved draft only — subject line first (if email), then body. No explanation.`,
+      `Return the improved draft only — subject line first (if email), then body. No explanation, no commentary.`,
     ].filter(l => l !== null).join('\n')
 
     await navigator.clipboard.writeText(prompt)
     window.open('https://claude.ai/new', '_blank')
     setRefineCopied(true)
-    setTimeout(() => setRefineCopied(false), 4000)
+    setTimeout(() => setRefineCopied(false), 6000)
   }
 
   const handleResponseUpdate = async (outreachId, status) => {
