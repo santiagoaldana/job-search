@@ -892,8 +892,13 @@ function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
     e.stopPropagation()
     if (closing) return
     setClosing(true)
-    await api.updateOutreachResponse(action.payload_id, 'negative')
-    onRescheduled && onRescheduled()
+    try {
+      await api.updateOutreachResponse(action.payload_id, 'negative')
+      onRescheduled && onRescheduled()
+    } catch (err) {
+      alert(err.message)
+      setClosing(false)
+    }
   }
 
   return (

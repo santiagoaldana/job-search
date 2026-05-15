@@ -138,6 +138,27 @@ function OutreachCard({ record, companyMap, contactMap, onStatusChange, onSkip, 
   const [due3, setDue3] = useState(record.follow_up_3_due || '')
   const [due7, setDue7] = useState(record.follow_up_7_due || '')
   const [savingDates, setSavingDates] = useState(false)
+  const [changingStatus, setChangingStatus] = useState(false)
+
+  const handleStatusChange = async (id, status) => {
+    if (changingStatus) return
+    setChangingStatus(true)
+    try {
+      await onStatusChange(id, status)
+    } finally {
+      setChangingStatus(false)
+    }
+  }
+
+  const handleSkip = async (id) => {
+    if (changingStatus) return
+    setChangingStatus(true)
+    try {
+      await onSkip(id)
+    } finally {
+      setChangingStatus(false)
+    }
+  }
 
   const handleSaveDates = async () => {
     setSavingDates(true)
@@ -227,26 +248,30 @@ function OutreachCard({ record, companyMap, contactMap, onStatusChange, onSkip, 
       {record.response_status !== 'ghosted' ? (
         <div className="flex gap-2 mt-3 flex-wrap items-center">
           <button
-            onClick={() => onSkip(record.id)}
-            className="text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-500 dark:text-slate-400 hover:text-body transition-colors"
-          >Skip follow-ups</button>
+            onClick={() => handleSkip(record.id)}
+            disabled={changingStatus}
+            className="text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-500 dark:text-slate-400 hover:text-body transition-colors disabled:opacity-40"
+          >{changingStatus ? 'Saving…' : 'Skip follow-ups'}</button>
           {['positive', 'negative', 'ghosted'].map(s => (
             <button
               key={s}
-              onClick={() => onStatusChange(record.id, s)}
-              className="text-xs px-2 py-1 border border-theme rounded-lg text-muted hover:text-body transition-colors capitalize"
+              onClick={() => handleStatusChange(record.id, s)}
+              disabled={changingStatus}
+              className="text-xs px-2 py-1 border border-theme rounded-lg text-muted hover:text-body transition-colors capitalize disabled:opacity-40"
             >{s}</button>
           ))}
         </div>
       ) : (
         <div className="flex gap-2 mt-3">
           <button
-            onClick={() => onStatusChange(record.id, 'pending')}
-            className="text-xs px-2 py-1 border border-blue-300 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+            onClick={() => handleStatusChange(record.id, 'pending')}
+            disabled={changingStatus}
+            className="text-xs px-2 py-1 border border-blue-300 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors disabled:opacity-40"
           >Re-engage</button>
           <button
-            onClick={() => onStatusChange(record.id, 'negative')}
-            className="text-xs px-2 py-1 border border-theme rounded-lg text-muted hover:text-body transition-colors"
+            onClick={() => handleStatusChange(record.id, 'negative')}
+            disabled={changingStatus}
+            className="text-xs px-2 py-1 border border-theme rounded-lg text-muted hover:text-body transition-colors disabled:opacity-40"
           >Close out</button>
         </div>
       )}
@@ -291,8 +316,12 @@ export default function OutreachPage() {
   useEffect(() => { load() }, [])
 
   const handleStatusChange = async (id, status) => {
-    await api.updateOutreachResponse(id, status)
-    load()
+    try {
+      await api.updateOutreachResponse(id, status)
+      load()
+    } catch (e) {
+      alert(e.message)
+    }
   }
 
   const handleSkip = async (id) => {
