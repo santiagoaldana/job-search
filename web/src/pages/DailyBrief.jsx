@@ -591,6 +591,9 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
         <UserPlus size={16} className="mt-0.5 flex-shrink-0 text-orange-500" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-body text-sm">{action.label}</div>
+          {action.contact_title && (
+            <div className="text-xs text-muted mt-0.5">{action.contact_title} · {action.company_name}</div>
+          )}
           <div className="text-xs text-muted mt-0.5">{action.detail}</div>
         </div>
       </div>

@@ -480,7 +480,7 @@ async def draft_followup(
 
     # Generate template-based draft (no API call)
     from app.services.outreach_generator import draft_followup_from_template
-    draft = draft_followup_from_template(stage, outreach_dict)
+    draft = draft_followup_from_template(stage, outreach_dict, language=req.language)
 
     if "error" in draft:
         raise HTTPException(status_code=400, detail=draft["error"])
@@ -575,7 +575,8 @@ EXPERTISE_MAP = [
     (["stablecoin", "crypto", "blockchain", "web3", "defi"], "stablecoins and digital assets"),
     (["credit union", "cuso", "community bank"], "credit union fintech partnerships"),
     (["marketing", "crm", "lifecycle", "retention", "email"], "AI-driven marketing"),
-    (["product", "cpo", "chief product"], "product strategy in fintech"),
+    (["people", "hr", "human resources", "talent", "recruiting", "culture", "chief people", "chro", "workforce"], "building high-performance teams in fintech"),
+    (["product", "chief product", "head of product", "vp product"], "product strategy in fintech"),
     (["banking", "fintech", "financial"], "financial technology"),
 ]
 
@@ -616,7 +617,7 @@ def draft_template(
         role = contact.title or "role"
         is_mit = getattr(contact, "is_mit_alum", None) if contact else None
 
-        subject = f"{company_name} — quick question"
+        subject = f"Quick question about {company_name}"
 
         if is_mit:
             opener = "I am a fellow MIT Sloan alum."
