@@ -570,7 +570,17 @@ def run_gmail_sync(session: Session) -> dict:
         service = _get_gmail_service(session)
         _persist_token(session)  # save refreshed token back to DB immediately
     except Exception as e:
-        return {"error": f"Gmail auth failed: {e}", "new_outreach": [], "new_replies": [], "linkedin_accepted": []}
+        error_msg = f"Gmail auth failed: {e}"
+        try:
+            state = get_or_create_sync_state(session)
+            state.last_poll_at = datetime.utcnow().isoformat()
+            state.last_sync_summary = json.dumps({"error": error_msg})
+            state.updated_at = datetime.utcnow().isoformat()
+            session.add(state)
+            session.commit()
+        except Exception:
+            pass
+        return {"error": error_msg, "new_outreach": [], "new_replies": [], "linkedin_accepted": []}
 
     results: dict = {"new_outreach": [], "new_replies": [], "linkedin_accepted": [], "bounces": [], "errors": []}
 
@@ -613,6 +623,7 @@ def run_gmail_sync(session: Session) -> dict:
         "new_replies": len(results["new_replies"]),
         "linkedin_accepted": len(results["linkedin_accepted"]),
         "bounces": len(results["bounces"]),
+        "error": None,
     })
     state.updated_at = datetime.utcnow().isoformat()
     session.add(state)

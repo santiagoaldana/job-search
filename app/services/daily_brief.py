@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 from app.models import (
     OutreachRecord, Lead, Event, Application,
     ContentDraft, AITargetSuggestion, Company, Interview, Contact,
-    DismissedBriefAction, ConversationMessage, StrategyConfig,
+    DismissedBriefAction, ConversationMessage, StrategyConfig, GmailSyncState,
 )
 from app.services.email_finder import determine_next_step as _contact_next_step
 
@@ -26,6 +26,23 @@ def compute_daily_brief(session: Session) -> dict:
         (d.action_type, d.payload_id)
         for d in session.exec(select(DismissedBriefAction)).all()
     }
+
+    # Gmail sync health check — warn if last sync failed or is stale (>25h)
+    sync_state = session.exec(select(GmailSyncState)).first()
+    if sync_state:
+        sync_summary = json.loads(sync_state.last_sync_summary or "{}")
+        sync_error = sync_summary.get("error")
+        hours_since_sync = (datetime.utcnow() - datetime.fromisoformat(sync_state.last_poll_at)).total_seconds() / 3600 if sync_state.last_poll_at else 999
+        if sync_error or hours_since_sync > 25:
+            detail = sync_error if sync_error else f"Last successful sync {int(hours_since_sync)}h ago — emails may be missed"
+            outreach.append({
+                "action_type": "sync_warning",
+                "label": "Gmail sync issue — data may be stale",
+                "detail": detail,
+                "cta": "Re-sync",
+                "payload_id": None,
+                "payload_type": None,
+            })
 
     # ══════════════════════════════════════════════════════════════════════════
     # OUTREACH SECTION
