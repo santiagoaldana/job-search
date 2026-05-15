@@ -480,22 +480,32 @@ function NewReplyCard({ action, onDismiss, onRefresh }) {
 }
 
 function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
-  const [drafting, setDrafting] = useState(false)
   const [dm, setDm] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState(null)
 
   const handleDraftDM = async () => {
-    if (!action.contact_id) return
+    if (!action.contact_id) {
+      setError('No contact ID — cannot draft DM')
+      return
+    }
     setBusy(true)
+    setError(null)
     try {
-      const res = await api.draftLinkedinMessage(action.contact_id, 'dm')
+      const res = await api.draftLinkedinMessage(action.contact_id)
       setDm(res.message || res.draft || '')
-      setDrafting(true)
     } catch (e) {
-      console.error(e)
+      setError(e.message || 'Failed to draft DM')
     } finally {
       setBusy(false)
     }
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(dm)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -512,19 +522,29 @@ function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
           </button>
         )}
       </div>
-      {drafting && dm ? (
+      {error && <div className="text-xs text-red-500">{error}</div>}
+      {dm ? (
         <div className="space-y-2">
           <textarea
-            defaultValue={dm}
-            rows={3}
+            value={dm}
+            onChange={e => setDm(e.target.value)}
+            rows={5}
             className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body resize-none"
           />
-          <button
-            onClick={() => { onDismiss && onDismiss(action); onRefresh && onRefresh() }}
-            className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-lg py-2 text-xs font-semibold"
-          >
-            Sent DM — dismiss
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCopy}
+              className="flex-1 border border-sky-400 text-sky-600 rounded-lg py-2 text-xs font-semibold"
+            >
+              {copied ? 'Copied!' : 'Copy to clipboard'}
+            </button>
+            <button
+              onClick={() => { onDismiss && onDismiss(action); onRefresh && onRefresh() }}
+              className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-lg py-2 text-xs font-semibold"
+            >
+              Sent DM — dismiss
+            </button>
+          </div>
         </div>
       ) : (
         <button
