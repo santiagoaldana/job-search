@@ -92,10 +92,32 @@ function FollowUpModal({ action, onClose, onSent }) {
     api.draftFollowup(action.payload_id, action.followup_day, language)
       .then(d => {
         console.log('[FollowUpModal] API response:', { conversation_text_length: d.conversation_text?.length, has_conversation_context: d.has_conversation_context, conversation_history_count: d.conversation_history?.length })
-        setSubject(d.subject || '')
-        setBody(d.body || '')
+        const draftSubject = d.subject || ''
+        const draftBody = d.body || ''
+        setSubject(draftSubject)
+        setBody(draftBody)
         setConversation(d.conversation_text || '')
         setDrafting(false)
+        const stage = action.followup_day === 3 ? 'day_3' : 'day_7'
+        api.getConversationContext(action.payload_id, { subject: draftSubject, body: draftBody, stage })
+          .then(ctx => {
+            const historyText = (ctx.conversation_history || [])
+              .slice(-5)
+              .map(m => `From: ${m.from_name || m.from_email}\nDate: ${m.date}\n---\n${m.body_preview}`)
+              .join('\n\n')
+            setRefinePanel([
+              '## Conversation history',
+              historyText || '(no prior messages found)',
+              '',
+              '## My current draft',
+              `Subject: ${draftSubject}`,
+              draftBody,
+              '',
+              '## Instructions',
+              ctx.generation_instructions,
+            ].join('\n'))
+          })
+          .catch(() => {})
       })
       .catch(e => {
         setError(e.message)
@@ -120,6 +142,7 @@ function FollowUpModal({ action, onClose, onSent }) {
 
   const handleConfirmSent = async () => {
     setSending(true)
+    setError(null)
     try {
       await api.markFollowupSent(action.payload_id, { followup_day: action.followup_day })
       setDone(true)
@@ -332,7 +355,7 @@ function FollowUpModal({ action, onClose, onSent }) {
                   disabled={refining || !body}
                   className="text-xs text-purple-600 dark:text-purple-400 hover:underline disabled:opacity-40 flex items-center gap-1"
                 >
-                  {refining ? 'Loading context…' : '✨ Refine with AI'}
+                  {refining ? 'Loading context…' : refinePanel ? '↻ Refresh context' : '✨ Refine with AI'}
                 </button>
               </div>
               {refinePanel && (
@@ -428,6 +451,9 @@ function FollowUpModal({ action, onClose, onSent }) {
         {!drafting && !done && awaitingConfirm && (
           <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
             <div className="text-sm font-medium text-body text-center mb-3">Did you send the email?</div>
+            {error && (
+              <div className="mb-3 text-xs text-red-500 bg-red-50 dark:bg-red-950/40 rounded-lg p-2 text-center">{error}</div>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={handleDidNotSend}

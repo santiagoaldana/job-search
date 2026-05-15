@@ -102,31 +102,31 @@ FOLLOW_UP_TEMPLATES = {
     "day_3": {
         "en": {
             "subject": "Re: {original_subject}",
-            "body": "Hi {first_name},\n\nJust wanted to make sure my note didn't get buried. Would love to hear your perspective whenever you have a few minutes.\n\nSantiago",
+            "body": "Hi {first_name},\n\nJust wanted to make sure my note didn't get buried. Would love to hear your perspective whenever you have a few minutes.",
         },
         "es": {
             "subject": "Re: {original_subject}",
-            "body": "Hola {first_name},\n\nQuería asegurarme de que mi mensaje no se perdiera. Me encantaría escuchar tu perspectiva cuando tengas unos minutos.\n\nSantiago",
+            "body": "Hola {first_name},\n\nQuería asegurarme de que mi mensaje no se perdiera. Me encantaría escuchar tu perspectiva cuando tengas unos minutos.",
         },
     },
     "day_7": {
         "en": {
             "subject": "Re: {original_subject}",
-            "body": "Hi {first_name},\n\nI don't mean to be a bother. If I don't hear back, I'll take that as a no and won't follow up again. I genuinely appreciated the chance to reach out.\n\nSantiago",
+            "body": "Hi {first_name},\n\nI don't mean to be a bother. If I don't hear back, I'll take that as a no and won't follow up again. I genuinely appreciated the chance to reach out.",
         },
         "es": {
             "subject": "Re: {original_subject}",
-            "body": "Hola {first_name},\n\nNo quiero ser un inconveniente. Si no recibo respuesta, lo tomaré como un no y no volveré a escribir. Genuinamente aprecié la oportunidad de contactarte.\n\nSantiago",
+            "body": "Hola {first_name},\n\nNo quiero ser un inconveniente. Si no recibo respuesta, lo tomaré como un no y no volveré a escribir. Genuinamente aprecié la oportunidad de contactarte.",
         },
     },
     "harvest": {
         "en": {
             "subject": "Re: {original_subject}",
-            "body": "Hi {first_name},\n\nCircling back one last time. If there's ever a moment to connect, I'd welcome it.\n\nSantiago",
+            "body": "Hi {first_name},\n\nCircling back one last time. If there's ever a moment to connect, I'd welcome it.",
         },
         "es": {
             "subject": "Re: {original_subject}",
-            "body": "Hola {first_name},\n\nVuelvo a escribirte una última vez. Si en algún momento hay oportunidad de conversar, lo agradecería mucho.\n\nSantiago",
+            "body": "Hola {first_name},\n\nVuelvo a escribirte una última vez. Si en algún momento hay oportunidad de conversar, lo agradecería mucho.",
         },
     },
 }
