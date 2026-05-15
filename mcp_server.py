@@ -461,10 +461,11 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="get_interview_prep",
             description=(
-                "Generate a strategic pre-meeting brief about a company before a call or interview. "
-                "Returns 6 sections: what is happening now, strategic challenges, competitive landscape, "
-                "leadership needs, history with this contact, and sharp questions to ask. "
-                "Uses Claude Opus - takes 10-15 seconds. Use before any meeting with a company in the funnel."
+                "Fetch context for a strategic pre-meeting brief about a company. "
+                "Returns company intel, org notes, recent news, open roles, and conversation history. "
+                "After calling this tool, generate the 6-section brief (what is happening now, strategic challenges, "
+                "competitive landscape, leadership needs, history with contact, sharp questions) and call "
+                "save_interview_prep to persist it."
             ),
             inputSchema={
                 "type": "object",
@@ -474,6 +475,31 @@ async def list_tools() -> list[types.Tool]:
                     "role_title": {"type": "string", "description": "Role being discussed, optional"},
                 },
                 "required": ["company_name"],
+            },
+        ),
+        types.Tool(
+            name="save_interview_prep",
+            description=(
+                "Persist a Claude-generated interview prep brief to the company record. "
+                "Call this after generating the 6-section brief from get_interview_prep context."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "sections": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string"},
+                                "content": {"type": "string"},
+                            },
+                        },
+                        "description": "Array of {title, content} section objects",
+                    },
+                },
+                "required": ["company_name", "sections"],
             },
         ),
         types.Tool(
@@ -1136,6 +1162,14 @@ async def _dispatch(name: str, args: dict) -> dict:
     elif name == "get_strategy":
         return await _get("/api/strategy", {})
 
+    elif name == "save_interview_prep":
+        cid, _, status = await _resolve(args["company_name"])
+        if cid is None:
+            return {"error": status}
+        return await _post(f"/api/companies/{cid}/interview-prep/save", {
+            "sections": args["sections"],
+        })
+
     elif name == "get_interview_prep":
         cid, _, status = await _resolve(args["company_name"], args.get("contact_name"))
         if cid is None:
@@ -1149,26 +1183,21 @@ async def _dispatch(name: str, args: dict) -> dict:
                     contact_title = c.get("title") or ""
                     break
 
-        async with httpx.AsyncClient(timeout=90) as long_client:
-            r = await long_client.post(
-                f"{API_BASE}/api/companies/{cid}/interview-prep",
-                headers=HEADERS,
-                json={
-                    "contact_name": args.get("contact_name") or "",
-                    "contact_title": contact_title,
-                    "role_title": args.get("role_title") or "",
-                },
-            )
-            r.raise_for_status()
-            data = r.json()
+        data = await _post(f"/api/companies/{cid}/interview-prep", {
+            "contact_name": args.get("contact_name") or "",
+            "contact_title": contact_title,
+            "role_title": args.get("role_title") or "",
+        })
 
-        sections = data.get("sections", [])
-        lines = [f"INTERVIEW PREP BRIEF - {args['company_name'].upper()}", f"Generated: {data.get('generated_at', '')[:16]}", ""]
-        for s in sections:
-            lines.append(f"## {s['title']}")
-            lines.append(s["content"])
-            lines.append("")
-        return {"type": "text", "text": "\n".join(lines), "sections": sections}
+        return {
+            **data,
+            "company_id": cid,
+            "save_endpoint": f"/api/companies/{cid}/interview-prep/save",
+            "instructions": (
+                "Generate the 6-section interview prep brief using the context above. "
+                "Then call save_interview_prep with company_name and the sections array to persist it."
+            ),
+        }
 
     return {"error": f"Unknown tool: {name}"}
 

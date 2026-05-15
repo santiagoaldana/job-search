@@ -667,6 +667,7 @@ function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
   const [rescheduling, setRescheduling] = useState(false)
   const [newDate, setNewDate] = useState('')
   const [saving, setSaving] = useState(false)
+  const [marking, setMarking] = useState(false)
 
   const handleSave = async () => {
     if (!newDate) return
@@ -681,6 +682,21 @@ function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleMarkSent = async (e) => {
+    e.stopPropagation()
+    if (marking) return
+    setMarking(true)
+    await onMarkSent(action)
+  }
+
+  const handleCloseOut = async (e) => {
+    e.stopPropagation()
+    if (marking) return
+    setMarking(true)
+    await api.updateOutreachResponse(action.payload_id, 'negative')
+    onRescheduled && onRescheduled()
   }
 
   return (
@@ -709,19 +725,29 @@ function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-3 justify-center">
+        <div className="flex items-center gap-3 justify-center flex-wrap">
           <button
-            onClick={e => { e.stopPropagation(); onMarkSent(action) }}
-            className="text-xs text-muted"
+            onClick={handleMarkSent}
+            disabled={marking}
+            className="text-xs text-muted disabled:opacity-40"
           >
-            Already sent? Mark done
+            {marking ? 'Saving…' : 'Already sent? Mark done'}
           </button>
           <span className="text-theme/30">·</span>
           <button
             onClick={e => { e.stopPropagation(); setRescheduling(true) }}
-            className="text-xs text-muted"
+            disabled={marking}
+            className="text-xs text-muted disabled:opacity-40"
           >
             Reschedule
+          </button>
+          <span className="text-theme/30">·</span>
+          <button
+            onClick={handleCloseOut}
+            disabled={marking}
+            className="text-xs text-red-400 hover:text-red-500 disabled:opacity-40"
+          >
+            Close out
           </button>
         </div>
       )}

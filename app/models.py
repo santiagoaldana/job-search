@@ -48,6 +48,7 @@ class Company(SQLModel, table=True):
     org_notes: Optional[str] = Field(default=None)
     last_intel_refresh: Optional[str] = Field(default=None)  # ISO datetime string
     network_path_json: Optional[str] = Field(default=None)  # JSON cache of last network path analysis
+    interview_prep_cache: Optional[str] = Field(default=None)  # JSON: last generated interview prep sections
 
     # Timestamps
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())

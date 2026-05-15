@@ -546,6 +546,10 @@ async def interview_prep(
     req: PrepRequest,
     session: Session = Depends(get_session),
 ):
+    """
+    Assemble and return interview prep context for Claude to generate the 6-section brief.
+    No AI call — data only.
+    """
     company = session.get(Company, company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -586,18 +590,43 @@ async def interview_prep(
     ).all()
     open_roles = [l.title + (f" ({l.location})" if l.location else "") for l in leads]
 
-    from app.services.outreach_generator import generate_interview_prep
-    try:
-        return await generate_interview_prep(
-            company=company,
-            contact_name=req.contact_name or "",
-            contact_title=req.contact_title or "",
-            role_title=req.role_title or "",
-            intel_summary=company.intel_summary or "",
-            org_notes=company.org_notes or "",
-            recent_news=recent_news_str,
-            open_roles=open_roles,
-            conversation_history="\n".join(history_lines),
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    from app.services.outreach_generator import build_interview_prep_context
+    return build_interview_prep_context(
+        company=company,
+        contact_name=req.contact_name or "",
+        contact_title=req.contact_title or "",
+        role_title=req.role_title or "",
+        intel_summary=company.intel_summary or "",
+        org_notes=company.org_notes or "",
+        recent_news=recent_news_str,
+        open_roles=open_roles,
+        conversation_history="\n".join(history_lines),
+    )
+
+
+class InterviewPrepSaveRequest(BaseModel):
+    sections: list
+    generated_at: Optional[str] = None
+
+
+@router.post("/{company_id}/interview-prep/save")
+def save_interview_prep(
+    company_id: int,
+    req: InterviewPrepSaveRequest,
+    session: Session = Depends(get_session),
+):
+    """Persist Claude-generated interview prep sections to the company record."""
+    company = session.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    import json as _json
+    from datetime import datetime as _dt
+    company.interview_prep_cache = _json.dumps({
+        "sections": req.sections,
+        "generated_at": req.generated_at or _dt.utcnow().isoformat(),
+    })
+    company.updated_at = _dt.utcnow().isoformat()
+    session.add(company)
+    session.commit()
+    return {"saved": True, "section_count": len(req.sections)}
