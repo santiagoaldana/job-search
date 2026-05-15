@@ -184,30 +184,38 @@ def _parse_address(raw: str) -> tuple[str, str]:
 
 
 def _extract_body(payload: dict) -> str:
-    """Recursively extract plain-text body from Gmail payload. Falls back to HTML → text."""
+    """Recursively extract body from Gmail payload. Prefers HTML when it has meaningful content."""
+    plain, html = _collect_parts(payload)
+    if html:
+        # Strip <style> blocks first so CSS doesn't count as content
+        html_clean = re.sub(r"<style[^>]*>.*?</style>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+        html_text = re.sub(r"<[^>]+>", " ", html_clean)
+        html_text = re.sub(r"&nbsp;", " ", html_text)
+        html_text = re.sub(r"&amp;", "&", html_text)
+        html_text = re.sub(r"&#8203;|&#x200B;|​|\xa0", " ", html_text)
+        html_text = re.sub(r"\s{2,}", "\n", html_text).strip()
+        if html_text:
+            return html_text
+    return plain
+
+
+def _collect_parts(payload: dict) -> tuple:
+    """Return (plain_text, html_text) from a Gmail message payload."""
     mime = payload.get("mimeType", "")
+    plain, html = "", ""
     if mime == "text/plain":
         data = payload.get("body", {}).get("data", "")
         if data:
-            return base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
-    # Collect HTML fallback in case no plain-text part exists
-    html_fallback = ""
-    if mime == "text/html":
+            plain = base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+    elif mime == "text/html":
         data = payload.get("body", {}).get("data", "")
         if data:
-            html_fallback = base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+            html = base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
     for part in payload.get("parts", []):
-        text = _extract_body(part)
-        if text:
-            return text
-    if html_fallback:
-        # Strip HTML tags to get readable text
-        text = re.sub(r"<[^>]+>", " ", html_fallback)
-        text = re.sub(r"&nbsp;", " ", text)
-        text = re.sub(r"&amp;", "&", text)
-        text = re.sub(r"\s{2,}", "\n", text).strip()
-        return text
-    return ""
+        p, h = _collect_parts(part)
+        plain = plain or p
+        html = html or h
+    return plain, html
 
 
 # ── Classification ────────────────────────────────────────────────────────────
