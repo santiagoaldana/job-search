@@ -605,6 +605,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
   const [isReferral, setIsReferral] = useState(contact?.referral_target_company_id === company.id)
   const [due3, setDue3] = useState(linkedOutreach?.follow_up_3_due || '')
   const [due7, setDue7] = useState(linkedOutreach?.follow_up_7_due || '')
+  const [snoozeUntil, setSnoozeUntil] = useState(contact?.snooze_until?.slice(0, 10) || '')
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
 
@@ -653,6 +654,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           relationship_notes: form.relationship_notes || undefined,
           introduced_by_contact_id: introducedById,
           referral_target_company_id: isReferral ? company.id : null,
+          snooze_until: snoozeUntil || null,
         })
         if (linkedOutreach) {
           const datesChanged = due3 !== (linkedOutreach.follow_up_3_due || '') || due7 !== (linkedOutreach.follow_up_7_due || '')
@@ -836,6 +838,15 @@ function ContactModal({ company, contact, onClose, onSaved }) {
                     className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted block mb-1">Snooze — resurface on brief</label>
+                <input
+                  type="date"
+                  value={snoozeUntil}
+                  onChange={e => setSnoozeUntil(e.target.value)}
+                  className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body"
+                />
               </div>
             </div>
           )}

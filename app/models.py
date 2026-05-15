@@ -75,6 +75,7 @@ class Contact(SQLModel, table=True):
     is_hiring_manager: bool = Field(default=False)
     outreach_status: str = Field(default="none")  # none|drafted|emailed|linkedin_dm|connection_requested|met
     connected_on: Optional[str] = Field(default=None)  # ISO date string
+    snooze_until: Optional[str] = Field(default=None)  # ISO date — hide from brief until this date
     met_via: Optional[str] = Field(default=None)
     relationship_notes: Optional[str] = Field(default=None)
     met_at_event_id: Optional[int] = Field(default=None)

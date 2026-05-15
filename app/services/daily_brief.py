@@ -212,15 +212,25 @@ def compute_daily_brief(session: Session) -> dict:
         session.commit()
 
     # Warm path alerts — new 1st-degree contacts at funnel companies (last 14 days, motivation >= 5)
-    fourteen_days_ago = (datetime.utcnow() - timedelta(days=14)).isoformat()
+    # snooze_until overrides created_at as the surface date when set
+    today_date = datetime.utcnow().date()
+    fourteen_days_ago_date = today_date - timedelta(days=14)
+
+    def _surface_date(c):
+        raw = c.snooze_until or c.created_at
+        try:
+            return datetime.fromisoformat(raw[:10]).date()
+        except Exception:
+            return today_date
+
     recent_warm = session.exec(
         select(Contact).where(
             Contact.connection_degree == 1,
             Contact.company_id != None,
-            Contact.created_at >= fourteen_days_ago,
             Contact.outreach_status == "none",
         )
     ).all()
+    recent_warm = [c for c in recent_warm if fourteen_days_ago_date <= _surface_date(c) <= today_date]
 
     high_motivation_ids = {
         c.id for c in session.exec(select(Company).where(Company.motivation >= 5, Company.is_archived == False)).all()

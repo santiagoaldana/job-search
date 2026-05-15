@@ -64,6 +64,7 @@ class ContactUpdateRequest(BaseModel):
     connection_degree: Optional[int] = None
     referral_target_company_id: Optional[int] = None
     connected_on: Optional[str] = None
+    snooze_until: Optional[str] = None
 
 
 def _match_company_from_index(company_name: str, company_index: dict) -> Optional[int]:
