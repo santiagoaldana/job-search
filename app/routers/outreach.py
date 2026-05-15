@@ -699,21 +699,34 @@ def confirm_escalation(
             contact.email_guessed = True
             session.add(contact)
 
-    # Create new email OutreachRecord — starts 3B7 clock from today
-    email_record = OutreachRecord(
-        company_id=linkedin_record.company_id,
-        contact_id=linkedin_record.contact_id,
-        channel="email",
-        subject=req.subject,
-        body=req.body,
-        sent_at=today.isoformat(),
-        response_status="pending",
-        follow_up_3_due=_add_business_days(today.date(), 3).isoformat(),
-        follow_up_7_due=_add_business_days(today.date(), 7).isoformat(),
-        follow_up_3_sent=False,
-        follow_up_7_sent=False,
-    )
-    session.add(email_record)
+    # Only create a new email OutreachRecord if one doesn't already exist for this contact
+    # (prevents duplicates when email was already logged via MCP before clicking "Yes, sent")
+    existing_email = None
+    if linkedin_record.contact_id:
+        existing_email = session.exec(
+            select(OutreachRecord).where(
+                OutreachRecord.contact_id == linkedin_record.contact_id,
+                OutreachRecord.channel == "email",
+            )
+        ).first()
+
+    if not existing_email:
+        email_record = OutreachRecord(
+            company_id=linkedin_record.company_id,
+            contact_id=linkedin_record.contact_id,
+            channel="email",
+            subject=req.subject,
+            body=req.body,
+            sent_at=today.isoformat(),
+            response_status="pending",
+            follow_up_3_due=_add_business_days(today.date(), 3).isoformat(),
+            follow_up_7_due=_add_business_days(today.date(), 7).isoformat(),
+            follow_up_3_sent=False,
+            follow_up_7_sent=False,
+        )
+        session.add(email_record)
+    else:
+        email_record = existing_email
 
     # Mark LinkedIn record so it stops showing in Daily Brief
     linkedin_record.follow_up_3_sent = True

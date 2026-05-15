@@ -576,9 +576,13 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
         subject,
         body,
       })
-    } catch (_) {}
-    setBusy(false)
-    setTimeout(onRefresh, 800)
+      setBusy(false)
+      setState('done')
+      setTimeout(onRefresh, 800)
+    } catch (err) {
+      setBusy(false)
+      alert('Failed to confirm: ' + (err.message || 'unknown error'))
+    }
   }
 
   return (
@@ -647,6 +651,10 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
         <div className="text-xs text-muted">
           All email patterns tried. Add their email manually in the Contacts tab, or reach out via LinkedIn DM.
         </div>
+      )}
+
+      {state === 'done' && (
+        <div className="text-xs text-green-600 font-medium">Email logged. Follow-up clock started.</div>
       )}
     </div>
   )
