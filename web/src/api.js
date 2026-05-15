@@ -71,6 +71,7 @@ export const api = {
   draftTemplate: (id, followupType, contactId) => post(`/outreach/${id}/draft-template?followup_type=${followupType}${contactId ? `&contact_id=${contactId}` : ''}`),
   confirmEscalation: (id, data) => post(`/outreach/${id}/confirm-escalation`, data),
   markFollowupSent: (id, data) => post(`/outreach/${id}/mark-followup-sent`, data),
+  getConversationContext: (id, data) => post(`/outreach/${id}/conversation-context`, data),
   sendFollowup: (id, data) => post(`/outreach/${id}/send-followup`, data),
   skipOutreach: (id) => post(`/outreach/${id}/skip`, {}),
   patchOutreach: (id, data) => patch(`/outreach/${id}`, data),

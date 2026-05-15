@@ -78,6 +78,12 @@ function FollowUpModal({ action, onClose, onSent }) {
   const [language, setLanguage] = useState('en')
   const [snoozing, setSnoozing] = useState(false)
   const [snoozeDays, setSnoozeDays] = useState(3)
+  const [refining, setRefining] = useState(false)
+  const [refinePanel, setRefinePanel] = useState(null)
+  const [keepwarm, setKeepwarm] = useState(false)
+  const [keepwarmDays, setKeepwarmDays] = useState(30)
+  const [keepwarmDate, setKeepwarmDate] = useState('')
+  const [keepwarmDone, setKeepwarmDone] = useState(false)
 
   useEffect(() => {
     setDrafting(true)
@@ -148,6 +154,53 @@ function FollowUpModal({ action, onClose, onSent }) {
     }
   }
 
+  const handleRefine = async () => {
+    setRefining(true)
+    setRefinePanel(null)
+    try {
+      const stage = action.followup_day === 3 ? 'day_3' : 'day_7'
+      const ctx = await api.getConversationContext(action.payload_id, { subject, body, stage })
+      const historyText = (ctx.conversation_history || [])
+        .slice(-5)
+        .map(m => `From: ${m.from_name || m.from_email}\nDate: ${m.date}\n---\n${m.body_preview}`)
+        .join('\n\n')
+      const prompt = [
+        '## Conversation history',
+        historyText || '(no prior messages found)',
+        '',
+        '## My current draft',
+        `Subject: ${subject}`,
+        body,
+        '',
+        '## Instructions',
+        ctx.generation_instructions,
+      ].join('\n')
+      setRefinePanel(prompt)
+    } catch (e) {
+      setError('Could not load context: ' + e.message)
+    } finally {
+      setRefining(false)
+    }
+  }
+
+  const handleKeepwarm = async () => {
+    setSending(true)
+    try {
+      let chosenDate = keepwarmDate
+      if (!chosenDate) {
+        const d = new Date()
+        d.setDate(d.getDate() + keepwarmDays)
+        chosenDate = d.toISOString().split('T')[0]
+      }
+      await api.patchOutreach(action.payload_id, { follow_up_7_sent: false, follow_up_7_due: chosenDate })
+      setKeepwarmDone(true)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
   const title = action.followup_day === 3 ? 'Day 3 Bump' : 'Day 7 Close'
   const companyName = action.label?.replace(/Day \d+ (?:follow-up|close) — /, '') || ''
 
@@ -192,10 +245,57 @@ function FollowUpModal({ action, onClose, onSent }) {
               <div className="text-xs text-muted">Drafting with AI…</div>
             </div>
           ) : done ? (
-            <div className="flex flex-col items-center py-8 gap-2 text-green-600 dark:text-green-400">
+            <div className="flex flex-col items-center py-6 gap-2 text-green-600 dark:text-green-400">
               <div className="text-3xl">✓</div>
-              <div className="text-sm font-medium">Draft logged</div>
-              <div className="text-xs text-muted text-center">Your email client should have opened with the pre-filled message.</div>
+              <div className="text-sm font-medium">Sent!</div>
+              {keepwarmDone ? (
+                <div className="text-xs text-muted text-center mt-1">
+                  Keepwarm reminder set. See you then.
+                </div>
+              ) : keepwarm ? (
+                <div className="w-full mt-3 text-body">
+                  <div className="text-sm font-medium mb-3 text-center text-body">Schedule a keepwarm reminder?</div>
+                  <div className="flex gap-2 mb-2">
+                    {[14, 30, 60].map(d => (
+                      <button
+                        key={d}
+                        onClick={() => { setKeepwarmDays(d); setKeepwarmDate(''); }}
+                        className={`flex-1 rounded-lg py-2 text-xs font-medium border transition-colors ${keepwarmDays === d && !keepwarmDate ? 'bg-blue-500 text-white border-blue-500' : 'border-theme text-body'}`}
+                      >
+                        +{d}d
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="date"
+                    value={keepwarmDate}
+                    onChange={e => { setKeepwarmDate(e.target.value); setKeepwarmDays(0); }}
+                    className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body mb-3"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setKeepwarm(false)}
+                      className="flex-1 border border-theme text-body rounded-xl py-2.5 text-sm font-medium"
+                    >
+                      Skip
+                    </button>
+                    <button
+                      onClick={handleKeepwarm}
+                      disabled={sending || (!keepwarmDate && !keepwarmDays)}
+                      className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
+                    >
+                      {sending ? 'Saving…' : 'Set reminder'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setKeepwarm(true)}
+                  className="mt-1 text-xs text-blue-500 hover:underline"
+                >
+                  Schedule a keepwarm reminder?
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -225,6 +325,30 @@ function FollowUpModal({ action, onClose, onSent }) {
                   className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none"
                 />
               </div>
+              <div className="mt-2 flex justify-end">
+                <button
+                  onClick={handleRefine}
+                  disabled={refining || !body}
+                  className="text-xs text-purple-600 dark:text-purple-400 hover:underline disabled:opacity-40 flex items-center gap-1"
+                >
+                  {refining ? 'Loading context…' : '✨ Refine with AI'}
+                </button>
+              </div>
+              {refinePanel && (
+                <div className="mt-2 p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">Paste this into Claude to refine your draft</span>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(refinePanel); }}
+                      className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                    >Copy</button>
+                  </div>
+                  <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-32 overflow-y-auto font-mono leading-relaxed">
+                    {refinePanel}
+                  </pre>
+                  <p className="text-xs text-muted mt-2">Paste Claude's suggested body back into the field above.</p>
+                </div>
+              )}
               {/* Snooze — always visible in scroll area */}
               {!snoozing && (
                 <div className="mt-3 pt-3 border-t border-theme flex gap-3 justify-center">
