@@ -820,7 +820,7 @@ function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
   const [rescheduling, setRescheduling] = useState(false)
   const [newDate, setNewDate] = useState('')
   const [saving, setSaving] = useState(false)
-  const [marking, setMarking] = useState(false)
+  const [closing, setClosing] = useState(false)
 
   const handleSave = async () => {
     if (!newDate) return
@@ -837,17 +837,15 @@ function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
     }
   }
 
-  const handleMarkSent = async (e) => {
+  const handleMarkSent = (e) => {
     e.stopPropagation()
-    if (marking) return
-    setMarking(true)
-    await onMarkSent(action)
+    onMarkSent(action)
   }
 
   const handleCloseOut = async (e) => {
     e.stopPropagation()
-    if (marking) return
-    setMarking(true)
+    if (closing) return
+    setClosing(true)
     await api.updateOutreachResponse(action.payload_id, 'negative')
     onRescheduled && onRescheduled()
   }
@@ -881,26 +879,24 @@ function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
         <div className="flex items-center gap-3 justify-center flex-wrap">
           <button
             onClick={handleMarkSent}
-            disabled={marking}
-            className="text-xs text-muted disabled:opacity-40"
+            className="text-xs text-muted"
           >
-            {marking ? 'Saving…' : 'Already sent? Mark done'}
+            Already sent? Mark done
           </button>
           <span className="text-theme/30">·</span>
           <button
             onClick={e => { e.stopPropagation(); setRescheduling(true) }}
-            disabled={marking}
-            className="text-xs text-muted disabled:opacity-40"
+            className="text-xs text-muted"
           >
             Reschedule
           </button>
           <span className="text-theme/30">·</span>
           <button
             onClick={handleCloseOut}
-            disabled={marking}
+            disabled={closing}
             className="text-xs text-red-400 hover:text-red-500 disabled:opacity-40"
           >
-            Close out
+            {closing ? 'Closing…' : 'Close out'}
           </button>
         </div>
       )}
