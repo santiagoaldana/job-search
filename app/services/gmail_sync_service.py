@@ -314,14 +314,22 @@ def match_email_to_outreach(
 
 def handle_linkedin_acceptance(session: Session, subject: str, body_text: str) -> dict:
     """Update Contact + OutreachRecord when LinkedIn acceptance email is detected."""
-    m = re.search(r"^(.+?)\s+accepted your", subject, re.IGNORECASE)
+    # LinkedIn subjects use first name only: "John has accepted your invitation"
+    # Try subject first (handles "John Bruce accepted" and "John has accepted")
+    m = re.search(r"^(.+?)\s+(?:has\s+)?accepted your", subject, re.IGNORECASE)
     if not m:
-        # Try body
-        m = re.search(r"^(.+?)\s+accepted your", body_text, re.IGNORECASE | re.MULTILINE)
+        m = re.search(r"^(.+?)\s+(?:has\s+)?accepted your", body_text, re.IGNORECASE | re.MULTILINE)
     if not m:
         return {"updated": False, "reason": "could not parse name from subject"}
 
     acceptor_name = m.group(1).strip()
+
+    # If subject only gave a first name, try to get the full name from the body
+    # LinkedIn email bodies contain the full name on its own line near the top
+    if " " not in acceptor_name:
+        body_name = re.search(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*$", body_text, re.MULTILINE)
+        if body_name:
+            acceptor_name = body_name.group(1).strip()
     name_tokens = set(acceptor_name.lower().split())
 
     contacts = session.exec(select(Contact)).all()
