@@ -80,6 +80,7 @@ function FollowUpModal({ action, onClose, onSent }) {
   const [snoozeDays, setSnoozeDays] = useState(3)
   const [refining, setRefining] = useState(false)
   const [refinePanel, setRefinePanel] = useState(null)
+  const [refineCopied, setRefineCopied] = useState(false)
   const [keepwarm, setKeepwarm] = useState(false)
   const [keepwarmDays, setKeepwarmDays] = useState(30)
   const [keepwarmDate, setKeepwarmDate] = useState('')
@@ -339,9 +340,28 @@ function FollowUpModal({ action, onClose, onSent }) {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">Paste this into Claude to refine your draft</span>
                     <button
-                      onClick={() => { navigator.clipboard.writeText(refinePanel); }}
+                      onClick={() => {
+                        const fallback = () => {
+                          const ta = document.createElement('textarea')
+                          ta.value = refinePanel
+                          ta.style.position = 'fixed'
+                          ta.style.opacity = '0'
+                          document.body.appendChild(ta)
+                          ta.focus()
+                          ta.select()
+                          document.execCommand('copy')
+                          document.body.removeChild(ta)
+                        }
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                          navigator.clipboard.writeText(refinePanel).catch(fallback)
+                        } else {
+                          fallback()
+                        }
+                        setRefineCopied(true)
+                        setTimeout(() => setRefineCopied(false), 2000)
+                      }}
                       className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
-                    >Copy</button>
+                    >{refineCopied ? 'Copied!' : 'Copy'}</button>
                   </div>
                   <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-32 overflow-y-auto font-mono leading-relaxed">
                     {refinePanel}
