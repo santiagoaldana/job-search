@@ -54,11 +54,11 @@ def list_companies(
     q: Optional[str] = Query(None, description="Search by company name"),
     session: Session = Depends(get_session),
 ):
-    stmt = select(Company).where(Company.is_archived == False)
+    stmt = select(Company)
     if q:
         stmt = stmt.where(Company.name.ilike(f"%{q}%"))
     elif active_only:
-        stmt = stmt.where(Company.motivation >= 7)
+        stmt = stmt.where(Company.is_archived == False, Company.motivation >= 7)
     if stage:
         stmt = stmt.where(Company.stage == stage)
     if motivation_min > 1:
