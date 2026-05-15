@@ -482,6 +482,7 @@ function NewReplyCard({ action, onDismiss, onRefresh }) {
 function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
   const [dm, setDm] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [sending, setSending] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState(null)
 
@@ -546,10 +547,11 @@ function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
               {copied ? 'Copied!' : 'Copy to clipboard'}
             </button>
             <button
-              onClick={() => { onDismiss && onDismiss(action); onRefresh && onRefresh() }}
-              className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-lg py-2 text-xs font-semibold"
+              onClick={() => { if (sending) return; setSending(true); onDismiss && onDismiss(action); onRefresh && onRefresh() }}
+              disabled={sending}
+              className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-semibold"
             >
-              Sent DM — dismiss
+              {sending ? 'Dismissing…' : 'Sent DM — dismiss'}
             </button>
           </div>
         </div>
