@@ -69,6 +69,7 @@ export const api = {
   draftFollowup: (id, followup_day, language = 'en') => post(`/outreach/${id}/draft-followup`, { followup_day, language }),
   buildMailto: (id, data) => post(`/outreach/${id}/build-mailto`, data),
   draftTemplate: (id, followupType, contactId) => post(`/outreach/${id}/draft-template?followup_type=${followupType}${contactId ? `&contact_id=${contactId}` : ''}`),
+  confirmEscalation: (id, data) => post(`/outreach/${id}/confirm-escalation`, data),
   markFollowupSent: (id, data) => post(`/outreach/${id}/mark-followup-sent`, data),
   sendFollowup: (id, data) => post(`/outreach/${id}/send-followup`, data),
   skipOutreach: (id) => post(`/outreach/${id}/skip`, {}),

@@ -417,6 +417,13 @@ def update_response(
     return record
 
 
+class ConfirmEscalationRequest(BaseModel):
+    contact_id: Optional[int] = None
+    guessed_email: Optional[str] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+
+
 class FollowUpDraftRequest(BaseModel):
     followup_day: int  # 3 or 7
     language: str = "en"  # "en" or "es"
@@ -664,6 +671,58 @@ def draft_template(
             prior_message = prior.outreach_message
 
     return {"subject": subject, "body": body, "guessed_email": guessed_email, "prior_message": prior_message}
+
+
+@router.post("/{record_id}/confirm-escalation")
+def confirm_escalation(
+    record_id: int,
+    req: ConfirmEscalationRequest,
+    session: Session = Depends(get_session),
+):
+    """
+    Called when user confirms sending the LinkedIn escalation email.
+    Creates a new email OutreachRecord to start the 3B7 email clock,
+    stores the guessed email on the contact, and marks the LinkedIn record
+    follow_up_3_sent so it stops appearing in the Daily Brief.
+    """
+    linkedin_record = session.get(OutreachRecord, record_id)
+    if not linkedin_record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    today = datetime.utcnow()
+
+    # Store guessed email on contact so Gmail sync can match the bounce
+    if req.contact_id and req.guessed_email:
+        contact = session.get(Contact, req.contact_id)
+        if contact and not contact.email:
+            contact.email = req.guessed_email
+            contact.email_guessed = True
+            session.add(contact)
+
+    # Create new email OutreachRecord — starts 3B7 clock from today
+    email_record = OutreachRecord(
+        company_id=linkedin_record.company_id,
+        contact_id=linkedin_record.contact_id,
+        channel="email",
+        subject=req.subject,
+        body=req.body,
+        sent_at=today.isoformat(),
+        response_status="pending",
+        follow_up_3_due=_add_business_days(today.date(), 3).isoformat(),
+        follow_up_7_due=_add_business_days(today.date(), 7).isoformat(),
+        follow_up_3_sent=False,
+        follow_up_7_sent=False,
+    )
+    session.add(email_record)
+
+    # Mark LinkedIn record so it stops showing in Daily Brief
+    linkedin_record.follow_up_3_sent = True
+    linkedin_record.updated_at = today.isoformat()
+    session.add(linkedin_record)
+
+    session.commit()
+    session.refresh(email_record)
+    return {"ok": True, "email_record_id": email_record.id}
 
 
 @router.post("/{record_id}/build-mailto")

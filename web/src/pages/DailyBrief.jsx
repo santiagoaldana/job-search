@@ -527,7 +527,7 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
             </>
           )}
           {nextStep.action === 'exhausted' && (
-            <div className="text-xs text-muted">All email patterns tried. Try a mutual connection intro or phone outreach.</div>
+            <div className="text-xs text-muted">All email patterns tried. Check their LinkedIn profile — 1st-degree connections often share their email there.</div>
           )}
           {nextStep.action === 'prompt_manual_email' && (
             <div className="text-xs text-muted">No company domain found to guess email. Add their email manually in the Contacts tab.</div>
@@ -542,7 +542,7 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
 }
 
 function LinkedInNotAcceptedCard({ action, onRefresh }) {
-  const [state, setState] = useState('loading') // loading | draft | sent
+  const [state, setState] = useState('loading') // loading | draft | sent | exhausted
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [guessedEmail, setGuessedEmail] = useState(action.next_step?.guessed_email || null)
@@ -554,21 +554,28 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
         setSubject(res.subject || '')
         setBody(res.body || '')
         if (res.guessed_email) setGuessedEmail(res.guessed_email)
-        setState('draft')
+        setState(res.guessed_email ? 'draft' : 'exhausted')
       })
       .catch(() => setState('draft'))
   }, [])
 
   const handleSendViaGmail = () => {
-    const mailto = `mailto:${guessedEmail || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-    window.open(mailto, '_blank')
+    window.open(
+      `mailto:${encodeURIComponent(guessedEmail || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+      '_blank'
+    )
     setState('sent')
   }
 
   const handleConfirmSent = async () => {
     setBusy(true)
     try {
-      await api.patchOutreach(action.payload_id, { follow_up_3_sent: true })
+      await api.confirmEscalation(action.payload_id, {
+        contact_id: action.contact_id,
+        guessed_email: guessedEmail,
+        subject,
+        body,
+      })
     } catch (_) {}
     setBusy(false)
     setTimeout(onRefresh, 800)
@@ -591,7 +598,10 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
       {state === 'draft' && (
         <div className="space-y-2">
           {guessedEmail && (
-            <div className="text-xs text-muted">To: <span className="font-mono text-body">{guessedEmail}</span></div>
+            <div className="text-xs text-muted">
+              To: <span className="font-mono text-body">{guessedEmail}</span>{' '}
+              <span className="text-orange-500">(unverified)</span>
+            </div>
           )}
           <input
             value={subject}
@@ -602,37 +612,40 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
           <textarea
             value={body}
             onChange={e => setBody(e.target.value)}
-            rows={6}
+            rows={5}
             className="w-full text-xs border border-theme rounded-lg px-3 py-2 bg-card text-body resize-none"
           />
-          <div className="flex gap-2">
-            <button
-              onClick={() => setState('prompt')}
-              className="flex-1 border border-theme text-body rounded-lg py-2 text-xs font-medium"
-            >
-              Back
-            </button>
-            <button
-              onClick={handleSendViaGmail}
-              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold"
-            >
-              Send via Gmail →
-            </button>
-          </div>
+          <button
+            onClick={handleSendViaGmail}
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold"
+          >
+            Send via Gmail →
+          </button>
         </div>
       )}
 
       {state === 'sent' && (
         <div className="space-y-2">
-          <div className="text-xs text-muted">Gmail opened. Did you send it?</div>
+          <div className="text-xs text-muted">
+            Gmail opened with <span className="font-mono">{guessedEmail}</span>. Did you send it?
+          </div>
+          <div className="text-xs text-muted">
+            If it bounced, check Gmail tomorrow — the Brief will automatically suggest the next email pattern.
+          </div>
           <div className="flex gap-2">
             <button onClick={() => setState('draft')} className="flex-1 border border-theme text-body rounded-lg py-2 text-xs font-medium">
-              Back to draft
+              Back
             </button>
             <button onClick={handleConfirmSent} disabled={busy} className="flex-1 bg-green-500 text-white rounded-lg py-2 text-xs font-semibold disabled:opacity-50">
               {busy ? '...' : 'Yes, sent'}
             </button>
           </div>
+        </div>
+      )}
+
+      {state === 'exhausted' && (
+        <div className="text-xs text-muted">
+          All email patterns tried. Add their email manually in the Contacts tab, or reach out via LinkedIn DM.
         </div>
       )}
     </div>
