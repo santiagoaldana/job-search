@@ -8,6 +8,7 @@ Streams handled:
   1. SENT emails → auto-create OutreachRecord if recipient matches a known Contact
   2. INBOX replies → update response_status to "positive", store ConversationMessage
   3. LinkedIn acceptance emails → update Contact.outreach_status + linkedin_accepted flag
+  4. LinkedIn DM reply notifications → update response_status to "replied", suppress follow-ups
 """
 
 import base64
@@ -37,6 +38,8 @@ LINKEDIN_ACCEPT_PATTERNS = [
     r"is now connected with you",
     r"you are now connected",
 ]
+
+LINKEDIN_MESSAGE_SENDER = "messaging-digest-noreply@linkedin.com"
 
 IRRELEVANT_SENDERS = [
     "noreply", "no-reply", "donotreply",
@@ -221,10 +224,15 @@ def _collect_parts(payload: dict) -> tuple:
 # ── Classification ────────────────────────────────────────────────────────────
 
 def classify_email_type(from_email: str, subject: str, body_text: str) -> str:
-    """Return 'linkedin_acceptance' | 'bounce' | 'outreach_reply' | 'irrelevant'."""
+    """Return 'linkedin_acceptance' | 'linkedin_dm_reply' | 'bounce' | 'outreach_reply' | 'irrelevant'."""
     from_lower = from_email.lower()
     subject_lower = subject.lower()
     body_lower = body_text.lower()[:500]
+
+    if LINKEDIN_MESSAGE_SENDER in from_lower:
+        if "just messaged you" in subject_lower or "messaged you" in subject_lower:
+            return "linkedin_dm_reply"
+        return "irrelevant"
 
     if any(s in from_lower for s in LINKEDIN_SENDERS):
         combined = subject_lower + " " + body_lower
@@ -397,6 +405,48 @@ def handle_linkedin_acceptance(session: Session, subject: str, body_text: str) -
         "contact_name": best_contact.name,
         "company_name": company.name if company else None,
     }
+
+
+def handle_linkedin_dm_reply(session: Session, subject: str) -> dict:
+    """Detect a LinkedIn DM reply notification and mark the outreach as replied."""
+    m = re.match(r"^(.+?)\s+just messaged you", subject, re.IGNORECASE)
+    if not m:
+        return {"updated": False, "reason": "subject did not match pattern"}
+    sender_name = m.group(1).strip()
+
+    name_tokens = [t.lower() for t in sender_name.split() if len(t) > 1]
+    min_score = 2 if len(name_tokens) >= 2 else 1
+    contacts = session.exec(select(Contact)).all()
+    best_contact, best_score = None, 0
+    for c in contacts:
+        tokens = [t.lower() for t in (c.name or "").split()]
+        score = sum(1 for t in name_tokens if t in tokens)
+        if score > best_score:
+            best_contact, best_score = c, score
+    if not best_contact or best_score < min_score:
+        return {"updated": False, "reason": f"no contact matched '{sender_name}'"}
+
+    record = session.exec(
+        select(OutreachRecord)
+        .where(OutreachRecord.contact_id == best_contact.id)
+        .where(OutreachRecord.channel == "linkedin")
+        .order_by(OutreachRecord.sent_at.desc())
+    ).first()
+    if not record:
+        return {"updated": False, "reason": f"no linkedin outreach record for {best_contact.name}"}
+
+    if record.response_status == "replied":
+        return {"updated": False, "reason": "already marked replied"}
+
+    record.response_status = "replied"
+    record.follow_up_3_due = None
+    record.follow_up_7_due = None
+    record.follow_up_3_sent = True
+    record.follow_up_7_sent = True
+    record.updated_at = datetime.utcnow().isoformat()
+    session.add(record)
+    session.commit()
+    return {"updated": True, "contact_name": best_contact.name, "outreach_id": record.id}
 
 
 def handle_outreach_reply(session: Session, msg_data: dict, record: OutreachRecord) -> dict:
@@ -621,7 +671,7 @@ def run_gmail_sync(session: Session) -> dict:
             pass
         return {"error": error_msg, "new_outreach": [], "new_replies": [], "linkedin_accepted": []}
 
-    results: dict = {"new_outreach": [], "new_replies": [], "linkedin_accepted": [], "bounces": [], "errors": []}
+    results: dict = {"new_outreach": [], "new_replies": [], "linkedin_accepted": [], "linkedin_dm_replies": [], "bounces": [], "errors": []}
 
     # Stream 3: LinkedIn acceptance emails — look back 48h to catch any missed by previous runs
     inbox_msgs = _fetch_messages(service, "INBOX", extra_query="", hours=48)
@@ -632,6 +682,11 @@ def run_gmail_sync(session: Session) -> dict:
             r = handle_linkedin_acceptance(session, msg["subject"], msg["body_text"])
             if r.get("updated"):
                 results["linkedin_accepted"].append(r)
+
+        elif email_type == "linkedin_dm_reply":
+            r = handle_linkedin_dm_reply(session, msg["subject"])
+            if r.get("updated"):
+                results["linkedin_dm_replies"].append(r)
 
         elif email_type == "bounce":
             r = handle_bounce_email(session, msg)
@@ -661,6 +716,7 @@ def run_gmail_sync(session: Session) -> dict:
         "new_outreach": len(results["new_outreach"]),
         "new_replies": len(results["new_replies"]),
         "linkedin_accepted": len(results["linkedin_accepted"]),
+        "linkedin_dm_replies": len(results["linkedin_dm_replies"]),
         "bounces": len(results["bounces"]),
         "error": None,
     })
@@ -668,5 +724,5 @@ def run_gmail_sync(session: Session) -> dict:
     session.add(state)
     session.commit()
 
-    print(f"[gmail_sync] outreach={len(results['new_outreach'])} replies={len(results['new_replies'])} li_accepted={len(results['linkedin_accepted'])} bounces={len(results['bounces'])}")
+    print(f"[gmail_sync] outreach={len(results['new_outreach'])} replies={len(results['new_replies'])} li_accepted={len(results['linkedin_accepted'])} li_dm_replies={len(results['linkedin_dm_replies'])} bounces={len(results['bounces'])}")
     return results
