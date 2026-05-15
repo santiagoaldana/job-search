@@ -287,72 +287,17 @@ async def generate_outreach(
             "rationale": req.rationale,
         }
 
-    # Context-only path: call Claude inline to generate the draft
-    import anthropic as _anthropic
-    import json as _json
-    import re as _re
-    from app.services.outreach_generator import build_outreach_context
+    # Context-only path: template-based draft (no API call)
+    from app.services.outreach_generator import draft_initial_outreach_from_template
 
-    prior_message = req.prior_message
-    if not prior_message and req.contact_id:
-        prior = session.exec(
-            select(OutreachRecord)
-            .where(OutreachRecord.contact_id == req.contact_id)
-            .where(OutreachRecord.outreach_message != None)
-            .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
-        ).first()
-        if prior:
-            prior_message = prior.outreach_message
-
-    ctx = build_outreach_context(
+    result = draft_initial_outreach_from_template(
         company=company,
         contact=contact,
         email_type=req.email_type,
         context=req.context,
         hook=req.hook,
         ask=req.ask,
-        prior_message=prior_message,
     )
-
-    intel_line = f"Intel: {ctx['company']['intel_summary']}" if ctx['company'].get('intel_summary') else ""
-    context_line = f"CONTEXT PROVIDED: {ctx['context']}" if ctx.get('context') else ""
-    hook_line = f"HOOK TO USE: {ctx['hook']}" if ctx.get('hook') else ""
-    ask_line = f"ASK: {ctx['ask']}" if ctx.get('ask') else ""
-    prior_line = f"PRIOR MESSAGE: {ctx['prior_message']}" if ctx.get('prior_message') else ""
-
-    prompt = f"""You are drafting an outreach message for Santiago Aldana, an MIT Sloan MBA executive (20+ yrs FinTech/AI/payments/LATAM leadership).
-
-COMPANY: {ctx['company']['name']}
-{intel_line}
-
-CONTACT: {_json.dumps(ctx['contact'], indent=2)}
-
-EMAIL TYPE: {ctx['email_type']}
-INSTRUCTION: {ctx['type_instruction']}
-
-{context_line}
-{hook_line}
-{ask_line}
-{prior_line}
-
-{ctx['dalton_rules']}
-
-Return ONLY valid JSON in this exact format (no markdown, no explanation):
-{ctx['return_format']}"""
-
-    try:
-        client = _anthropic.Anthropic()
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=400,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = response.content[0].text.strip()
-        raw = _re.sub(r'^```(?:json)?\n?', '', raw)
-        raw = _re.sub(r'\n?```$', '', raw)
-        result = _json.loads(raw)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Draft generation failed: {e}")
 
     if contact and contact.outreach_status == "none":
         contact.outreach_status = "drafted"
@@ -360,10 +305,10 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
         session.commit()
 
     return {
-        "subject": result.get("subject", ""),
-        "body": result.get("body", ""),
-        "word_count": result.get("word_count") or len(result.get("body", "").split()),
-        "rationale": result.get("rationale"),
+        "subject": result["subject"],
+        "body": result["body"],
+        "word_count": result["word_count"],
+        "rationale": result["rationale"],
     }
 
 

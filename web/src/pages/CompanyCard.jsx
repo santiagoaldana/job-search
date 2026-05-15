@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy, Users, Network, Plus, X, ChevronDown, ChevronUp, Pencil, BookOpen } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Archive, Send, Check, Copy, Users, Network, Plus, X, ChevronDown, ChevronUp, ChevronRight, Pencil, BookOpen, ExternalLink } from 'lucide-react'
 import { api } from '../api'
 import Badge from '../components/Badge'
 import FitBar from '../components/FitBar'
@@ -1154,18 +1154,17 @@ function OutreachTab({ company, onReload, defaultContactId }) {
   const [draft, setDraft] = useState(null)
   const [logging, setLogging] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [refineCopied, setRefineCopied] = useState(false)
   const [undoId, setUndoId] = useState(null)
+  const [awaitingConfirm, setAwaitingConfirm] = useState(null) // 'gmail' | 'dm' | null
 
-  const warmContact = defaultContactId
-    ? company.contacts?.find(c => c.id === defaultContactId)
-    : null
-  const warmAlreadySent = warmContact
-    ? (company.outreach || []).some(o => o.contact_id === warmContact.id)
-    : false
+  const selectedContactObj = company.contacts?.find(c => c.id === selectedContact) || null
+  const contactEmail = selectedContactObj?.email || null
 
   const handleGenerate = async () => {
     setGenerating(true)
     setDraft(null)
+    setAwaitingConfirm(null)
     try {
       const result = await api.generateOutreach({
         company_id: company.id,
@@ -1183,11 +1182,11 @@ function OutreachTab({ company, onReload, defaultContactId }) {
     }
   }
 
-  const _doLog = async () => {
+  const _doLog = async (channel = 'email') => {
     const result = await api.logOutreach({
       company_id: company.id,
       contact_id: selectedContact || undefined,
-      channel: 'email',
+      channel,
       subject: draft.subject,
       body: draft.body,
       sent_at: new Date().toISOString(),
@@ -1195,16 +1194,34 @@ function OutreachTab({ company, onReload, defaultContactId }) {
     return result.id
   }
 
-  const handleOpenInMail = async () => {
+  const handleSendViaGmail = async () => {
     if (!draft) return
+    const to = encodeURIComponent(contactEmail || '')
+    const subject = encodeURIComponent(draft.subject || '')
+    const body = encodeURIComponent(draft.body || '')
+    window.open(`mailto:${to}?subject=${subject}&body=${body}`, '_self')
+    setAwaitingConfirm('gmail')
+  }
+
+  const handleCopyForDM = async () => {
+    if (!draft) return
+    await navigator.clipboard.writeText(draft.body)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+    setAwaitingConfirm('dm')
+  }
+
+  const handleConfirmSent = async () => {
     setLogging(true)
     try {
+      const channel = awaitingConfirm === 'dm' ? 'linkedin' : 'email'
       const savedDraft = draft
-      const id = await _doLog()
+      const id = await _doLog(channel)
       setDraft(null)
       setContext('')
       setHook('')
       setAsk('')
+      setAwaitingConfirm(null)
       setUndoId({ id, draft: savedDraft })
       onReload()
     } catch (e) {
@@ -1212,6 +1229,10 @@ function OutreachTab({ company, onReload, defaultContactId }) {
     } finally {
       setLogging(false)
     }
+  }
+
+  const handleConfirmBack = () => {
+    setAwaitingConfirm(null)
   }
 
   const handleUndo = async () => {
@@ -1226,33 +1247,48 @@ function OutreachTab({ company, onReload, defaultContactId }) {
     }
   }
 
-  const handleLogSent = async () => {
-    if (!draft) return
-    setLogging(true)
-    try {
-      await _doLog()
-      setDraft(null)
-      setContext('')
-      setHook('')
-      setAsk('')
-      onReload()
-    } catch (e) {
-      alert(e.message)
-    } finally {
-      setLogging(false)
-    }
-  }
-
   const handleWriteMyself = () => {
-    const contact = company.contacts?.find(c => c.id === selectedContact)
-    setDraft({ subject: '', body: '', manual: true, contact_name: contact?.name })
+    setDraft({ subject: '', body: '', manual: true, contact_name: selectedContactObj?.name })
+    setAwaitingConfirm(null)
   }
 
-  const handleCopy = () => {
-    const text = `Subject: ${draft.subject}\n\n${draft.body}`
+  const handleCopyFull = () => {
+    const text = draft.subject ? `Subject: ${draft.subject}\n\n${draft.body}` : draft.body
     navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleRefineWithAI = async () => {
+    if (!draft) return
+    const contactName = selectedContactObj?.name || 'the contact'
+    const contactTitle = selectedContactObj?.title || ''
+    const prompt = [
+      `You are helping Santiago Aldana (MIT Sloan MBA, 20+ yrs FinTech/AI/payments, LATAM) refine an outreach ${emailType === 'linkedin_dm' ? 'LinkedIn DM' : 'email'}.`,
+      ``,
+      `CONTACT: ${contactName}${contactTitle ? `, ${contactTitle}` : ''} at ${company.name}`,
+      context ? `CONTEXT: ${context}` : '',
+      ``,
+      `## Current draft`,
+      draft.subject ? `Subject: ${draft.subject}` : '',
+      draft.body,
+      ``,
+      `## Rules`,
+      `- Body 75 words max`,
+      `- First-person, direct — no corporate speak`,
+      `- At least half the words about the contact or their work, not Santiago`,
+      `- One specific Santiago credential woven in naturally (SoyYo, Avianca, Uff Movil, MIT Sloan)`,
+      `- No em dashes, no hyphens`,
+      `- No signature block`,
+      `- No forbidden phrases: "hope this finds you", "excited to", "pick your brain", "circle back", "touch base"`,
+      ``,
+      `Return the improved draft only — subject line first (if email), then body. No explanation.`,
+    ].filter(l => l !== null).join('\n')
+
+    await navigator.clipboard.writeText(prompt)
+    window.open('https://claude.ai/new', '_blank')
+    setRefineCopied(true)
+    setTimeout(() => setRefineCopied(false), 4000)
   }
 
   const handleResponseUpdate = async (outreachId, status) => {
@@ -1266,41 +1302,15 @@ function OutreachTab({ company, onReload, defaultContactId }) {
 
   return (
     <div className="space-y-4">
-      {/* Warm path banner */}
-      {warmContact && !draft && !warmAlreadySent && (
-        <div className="bg-green-50 dark:bg-green-950/40 border border-green-300 dark:border-green-700 rounded-xl p-4">
-          <div className="text-sm font-semibold text-green-800 dark:text-green-300 mb-0.5">
-            Warm path — {warmContact.name}
-          </div>
-          <div className="text-xs text-green-700 dark:text-green-400 mb-3">
-            {warmContact.title && `${warmContact.title} · `}1st-degree LinkedIn connection · reach out now
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleWriteMyself}
-              className="flex-1 border border-green-400 text-green-800 dark:text-green-300 rounded-xl py-3 text-sm font-medium transition-colors"
-            >
-              Write myself
-            </button>
-            <button
-              onClick={handleGenerate}
-              disabled={generating}
-              className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-            >
-              {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : `AI draft →`}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Email type selector */}
       <div className="flex gap-1 bg-card2 border border-theme rounded-xl p-1">
         {[
           { value: 'cold', label: 'Cold' },
           { value: 'event_met', label: 'Met at event' },
           { value: 'followup', label: 'Follow-up' },
+          { value: 'linkedin_dm', label: 'LinkedIn DM' },
         ].map(t => (
-          <button key={t.value} onClick={() => setEmailType(t.value)}
+          <button key={t.value} onClick={() => { setEmailType(t.value); setDraft(null); setAwaitingConfirm(null) }}
             className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               emailType === t.value
                 ? 'bg-white dark:bg-slate-700 text-body shadow-sm'
@@ -1324,6 +1334,8 @@ function OutreachTab({ company, onReload, defaultContactId }) {
                   key={c.id ?? 'none'}
                   onClick={() => {
                     setSelectedContact(c.id)
+                    setDraft(null)
+                    setAwaitingConfirm(null)
                     if (contact?.met_via && !context) setContext(`Met via ${contact.met_via}${contact.relationship_notes ? '. ' + contact.relationship_notes : ''}`)
                   }}
                   className={`w-full text-left rounded-xl px-3 py-2.5 border transition-all ${
@@ -1351,119 +1363,153 @@ function OutreachTab({ company, onReload, defaultContactId }) {
         </div>
       )}
 
-      {/* Context fields */}
-      <div className="space-y-2">
-        <textarea
-          id="outreach-context"
-          value={context}
-          onChange={e => setContext(e.target.value)}
-          placeholder={emailType === 'event_met'
-            ? 'How you met, what you discussed, what they said…'
-            : 'Any context about your connection or shared interest…'}
-          rows={2}
-          className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint resize-none outline-none leading-relaxed"
-        />
-        <input
-          value={hook}
-          onChange={e => setHook(e.target.value)}
-          placeholder='Specific angle or topic to lead with (e.g. "Supercharged Scams from EmTech AI")'
-          className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint outline-none"
-        />
-        <input
-          value={ask}
-          onChange={e => setAsk(e.target.value)}
-          placeholder='What you want from this email (e.g. "20-min call about their editorial vision on AI fraud")'
-          className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint outline-none"
-        />
-      </div>
+      {/* Draft card */}
+      {draft ? (
+        <div className="bg-card border border-blue-300 dark:border-blue-700 rounded-xl overflow-hidden">
+          {/* Confirmation overlay */}
+          {awaitingConfirm ? (
+            <div className="p-4 space-y-3">
+              <div className="text-sm text-body">
+                {awaitingConfirm === 'gmail'
+                  ? `Gmail opened with ${contactEmail || 'your email client'}. Did you send it?`
+                  : `DM copied to clipboard. Did you send it?`}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleConfirmBack}
+                  className="flex-1 border border-theme text-body rounded-xl py-2.5 text-sm font-medium">
+                  Back
+                </button>
+                <button onClick={handleConfirmSent} disabled={logging}
+                  className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold">
+                  {logging ? 'Saving…' : 'Yes, sent'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Draft header */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-theme bg-blue-50 dark:bg-blue-950/40">
+                <div className="flex items-center gap-2">
+                  {selectedContactObj && (
+                    <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">
+                      To: {selectedContactObj.name}
+                      {contactEmail && <span className="text-blue-500 ml-1">· {contactEmail}</span>}
+                    </span>
+                  )}
+                  {draft.word_count && (
+                    <span className={`text-xs ${draft.word_count > 75 ? 'text-orange-500' : 'text-green-600 dark:text-green-400'}`}>
+                      {draft.word_count}w
+                    </span>
+                  )}
+                </div>
+                <button onClick={handleCopyFull}
+                  className="flex items-center gap-1 text-xs text-muted hover:text-body">
+                  {copied ? <><Check size={12} className="text-green-500" /> Copied</> : <><Copy size={12} /> Copy</>}
+                </button>
+              </div>
 
-      {!(warmContact && !warmAlreadySent && !draft) && (
+              {/* Editable draft body */}
+              <div className="p-4 space-y-2">
+                {emailType !== 'linkedin_dm' && (
+                  <input
+                    value={draft.subject}
+                    onChange={e => setDraft(d => ({ ...d, subject: e.target.value }))}
+                    placeholder="Subject"
+                    className="w-full text-sm font-semibold text-body bg-transparent border-b border-theme pb-1 outline-none"
+                  />
+                )}
+                <textarea
+                  value={draft.body}
+                  onChange={e => setDraft(d => ({ ...d, body: e.target.value }))}
+                  placeholder="Write your message…"
+                  rows={6}
+                  className="w-full text-sm text-body bg-transparent outline-none resize-none leading-relaxed"
+                />
+              </div>
+
+              {/* Refine with AI link */}
+              <div className="px-4 pb-3">
+                <button onClick={handleRefineWithAI}
+                  className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1">
+                  {refineCopied
+                    ? <><Check size={11} className="text-green-500" /> Prompt copied — paste into Claude, then paste the response back above</>
+                    : <><ExternalLink size={11} /> Refine with AI</>}
+                </button>
+              </div>
+
+              {/* Send actions */}
+              <div className="flex gap-2 px-4 pb-3">
+                <button onClick={handleGenerate} disabled={generating}
+                  className="border border-theme text-muted rounded-lg py-2 px-3 text-xs font-medium">
+                  {generating ? <RefreshCw size={12} className="animate-spin" /> : 'Regenerate'}
+                </button>
+                {emailType === 'linkedin_dm' || !contactEmail ? (
+                  <button onClick={handleCopyForDM}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-2 text-xs font-semibold flex items-center justify-center gap-1.5">
+                    <Copy size={12} /> Copy for DM
+                  </button>
+                ) : (
+                  <button onClick={handleSendViaGmail}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-2 text-xs font-semibold flex items-center justify-center gap-1.5">
+                    <Send size={12} /> Send via Gmail
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        /* No draft yet — show generate buttons */
         <div className="flex gap-2">
-          <button
-            onClick={handleWriteMyself}
-            disabled={generating}
-            className="flex-1 border border-theme text-body rounded-xl py-3 text-sm font-medium transition-colors"
-          >
+          <button onClick={handleWriteMyself}
+            className="flex-1 border border-theme text-body rounded-xl py-3 text-sm font-medium transition-colors">
             Write myself
           </button>
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
-          >
-            {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : <><Send size={14} /> AI draft</>}
+          <button onClick={handleGenerate} disabled={generating}
+            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2">
+            {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : <><Send size={14} /> Draft</>}
           </button>
         </div>
       )}
 
-      {/* Draft result */}
-      {draft && (
-        <div className="bg-card border border-blue-300 dark:border-blue-700 rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-theme bg-blue-50 dark:bg-blue-950/40">
-            <div>
-              <span className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">
-                {draft.manual ? 'Your draft' : 'AI Draft'}
-              </span>
-              {draft.word_count && (
-                <span className={`ml-2 text-xs ${draft.word_count > 75 ? 'text-orange-500' : 'text-green-600 dark:text-green-400'}`}>
-                  {draft.word_count} words
-                </span>
-              )}
-            </div>
-            <button onClick={handleCopy}
-              className="flex items-center gap-1 text-xs text-muted hover:text-body">
-              {copied ? <><Check size={12} className="text-green-500" /> Copied</> : <><Copy size={12} /> Copy</>}
-            </button>
-          </div>
-          <div className="p-4 space-y-2">
-            <input
-              value={draft.subject}
-              onChange={e => setDraft(d => ({ ...d, subject: e.target.value }))}
-              placeholder="Subject"
-              className="w-full text-sm font-semibold text-body bg-transparent border-b border-theme pb-1 outline-none"
-            />
-            <textarea
-              value={draft.body}
-              onChange={e => setDraft(d => ({ ...d, body: e.target.value }))}
-              placeholder="Write your message…"
-              rows={draft.manual ? 8 : 6}
-              className="w-full text-sm text-body bg-transparent outline-none resize-none leading-relaxed"
-            />
-            {draft.rationale && (
-              <div className="text-xs text-muted italic pt-1 border-t border-theme">{draft.rationale}</div>
-            )}
-          </div>
-          <div className="flex gap-2 px-4 pb-3 flex-wrap">
-            {!draft.manual && (
-              <button onClick={handleGenerate} disabled={generating}
-                className="flex-1 bg-card2 border border-theme text-body rounded-lg py-2 text-xs font-medium">
-                Regenerate
-              </button>
-            )}
-            {(() => {
-              const contactEmail = company.contacts?.find(c => c.id === selectedContact)?.email
-              const to = encodeURIComponent(contactEmail || '')
-              const subject = encodeURIComponent(draft.subject || '')
-              const body = encodeURIComponent(draft.body || '')
-              const mailtoHref = `mailto:${to}?subject=${subject}&body=${body}`
-              return (
-                <a href={mailtoHref} onClick={handleOpenInMail}
-                  className="flex-1 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-2 text-xs font-medium">
-                  {logging ? 'Saving…' : 'Open in Mail →'}
-                </a>
-              )
-            })()}
-            <button onClick={handleLogSent} disabled={logging}
-              className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-medium">
-              {logging ? 'Saving…' : 'Sent ✓'}
-            </button>
-          </div>
+      {/* Customize disclosure */}
+      <details className="group">
+        <summary className="text-xs text-blue-500 cursor-pointer list-none flex items-center gap-1 select-none">
+          <ChevronRight size={12} className="group-open:rotate-90 transition-transform" /> Customize draft
+        </summary>
+        <div className="mt-2 space-y-2">
+          <textarea
+            id="outreach-context"
+            value={context}
+            onChange={e => setContext(e.target.value)}
+            placeholder={emailType === 'event_met'
+              ? 'How you met, what you discussed, what they said…'
+              : 'Any context about your connection or shared interest…'}
+            rows={2}
+            className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint resize-none outline-none leading-relaxed"
+          />
+          <input
+            value={hook}
+            onChange={e => setHook(e.target.value)}
+            placeholder='Specific angle or topic to lead with'
+            className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint outline-none"
+          />
+          <input
+            value={ask}
+            onChange={e => setAsk(e.target.value)}
+            placeholder='What you want from this message'
+            className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint outline-none"
+          />
+          <button onClick={handleGenerate} disabled={generating}
+            className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2">
+            {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : 'Regenerate with context'}
+          </button>
         </div>
-      )}
+      </details>
 
       {/* Undo banner */}
       {undoId && (
-        <div className="flex items-center justify-between bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5 mb-2">
+        <div className="flex items-center justify-between bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5">
           <span className="text-xs text-green-700 dark:text-green-300">Logged as sent</span>
           <button onClick={handleUndo} className="text-xs font-medium text-green-700 dark:text-green-300 underline">
             Undo

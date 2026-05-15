@@ -185,6 +185,95 @@ def draft_followup_from_template(stage: str, outreach_record: dict, language: st
     }
 
 
+# ── Initial Outreach Templates ────────────────────────────────────────────────
+
+INITIAL_OUTREACH_TEMPLATES = {
+    "cold": {
+        "subject": "Quick question — {company}",
+        "body": (
+            "Hi {first_name},\n\n"
+            "{hook_or_context}"
+            "I've been following {company}'s work and see strong alignment with my background "
+            "in FinTech, AI and payments across Latin America.\n\n"
+            "Would love your perspective on {ask_short}. Open to a quick call?\n\nBest,\nSantiago"
+        ),
+    },
+    "event_met": {
+        "subject": "Great meeting you — {event_ref}",
+        "body": (
+            "Hi {first_name},\n\n"
+            "Really enjoyed our conversation at {event_ref}. {context_line}"
+            "Your work at {company} resonates with what I've been building in agentic finance.\n\n"
+            "Would love to continue the conversation. Open to a quick call?\n\nBest,\nSantiago"
+        ),
+    },
+    "followup": {
+        "subject": "Re: Quick question — {company}",
+        "body": (
+            "Hi {first_name},\n\n"
+            "Following up on my note from last week. {context_line}"
+            "Still very interested in {company}'s direction. Happy to connect at your convenience.\n\nBest,\nSantiago"
+        ),
+    },
+    "linkedin_dm": {
+        "subject": "",
+        "body": (
+            "Hi {first_name} — {hook_or_context}"
+            "Really admire what {company} is building. "
+            "Would love to hear your take on {ask_short}. Open to a quick call?"
+        ),
+    },
+}
+
+
+def draft_initial_outreach_from_template(
+    company,
+    contact=None,
+    email_type: str = "cold",
+    context: Optional[str] = None,
+    hook: Optional[str] = None,
+    ask: Optional[str] = None,
+) -> dict:
+    """Template-based initial outreach draft. No API call."""
+    tpl = INITIAL_OUTREACH_TEMPLATES.get(email_type) or INITIAL_OUTREACH_TEMPLATES["cold"]
+
+    first_name = contact.name.split()[0] if contact and contact.name else "there"
+    company_name = company.name if company else "your company"
+
+    met_via = getattr(contact, "met_via", None) if contact else None
+    relationship_notes = getattr(contact, "relationship_notes", None) if contact else None
+    event_ref = met_via or "a recent event"
+
+    ctx_text = (
+        context
+        or (f"Met via {met_via}. {relationship_notes}" if met_via and relationship_notes else None)
+        or (f"Met via {met_via}" if met_via else None)
+        or hook
+        or ""
+    )
+    hook_or_context = (ctx_text.rstrip(".") + ". ") if ctx_text else ""
+    context_line = hook_or_context
+
+    ask_short = ask.rstrip(".?").lower() if ask else "where you see the space heading"
+
+    subject = tpl["subject"].format(
+        company=company_name, first_name=first_name, event_ref=event_ref
+    )
+    body = tpl["body"].format(
+        first_name=first_name, company=company_name,
+        hook_or_context=hook_or_context, context_line=context_line,
+        ask_short=ask_short, event_ref=event_ref,
+    )
+
+    return {
+        "subject": subject,
+        "body": body,
+        "word_count": len(body.split()),
+        "rationale": f"Template draft ({email_type}) — edit or refine before sending.",
+        "template_used": True,
+    }
+
+
 # ── Interview Prep Context Assembly ──────────────────────────────────────────
 
 INTERVIEW_PREP_INSTRUCTIONS = """Generate a strategic company brief with exactly these 6 sections. Return valid JSON only.
