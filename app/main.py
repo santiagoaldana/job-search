@@ -122,8 +122,9 @@ async def lifespan(app: FastAPI):
             state = session.exec(
                 select(GmailSyncState).where(GmailSyncState.account_email == GMAIL_ACCOUNT)
             ).first()
-            if not state or not state.gmail_token_json:
-                # Seed DB from env var on first deploy
+            import os
+            if os.environ.get("GMAIL_TOKEN_B64"):
+                # Always re-seed from env var so updating the env var on Render refreshes the token
                 _bootstrap_token(None)   # writes env var token to disk
                 _persist_token(session)  # reads disk → writes to DB
                 print("[startup] Gmail token seeded into DB from env var")
