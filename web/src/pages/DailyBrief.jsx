@@ -531,6 +531,13 @@ function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
             rows={5}
             className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body resize-none"
           />
+          <button
+            onClick={handleDraftDM}
+            disabled={busy}
+            className="text-xs text-sky-500 hover:underline disabled:opacity-40 self-start"
+          >
+            {busy ? 'Regenerating…' : 'Regenerate'}
+          </button>
           <div className="flex gap-2">
             <button
               onClick={handleCopy}

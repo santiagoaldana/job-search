@@ -437,21 +437,45 @@ def delete_contact(contact_id: int, session: Session = Depends(get_session)):
 
 @router.post("/{contact_id}/draft-dm")
 def draft_linkedin_dm(contact_id: int, session: Session = Depends(get_session)):
-    """Return a pre-filled thank-you DM template for a LinkedIn acceptance. No API call."""
+    """Generate a Dalton-method thank-you DM for a LinkedIn acceptance using Claude."""
+    from app.services.outreach_generator import build_outreach_context
+
     contact = session.get(Contact, contact_id)
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
     company = session.get(Company, contact.company_id) if contact.company_id else None
 
-    first_name = (contact.name or "").split()[0] or "there"
-    company_clause = f" at {company.name}" if company else ""
-    role_clause = f" Your work{company_clause} is exactly the kind of thing I'd love to learn more about." if (contact.title or company) else ""
-
-    message = (
-        f"Hi {first_name}, really glad we connected!{role_clause} "
-        f"I'd love to find a moment to exchange ideas around AI, fintech, and what's on your radar. "
-        f"Looking forward to staying in touch."
+    ctx = build_outreach_context(
+        company=company or type("_C", (), {"name": "their company", "intel_summary": None, "stage": None})(),
+        contact=contact,
+        email_type="linkedin_dm",
+        context="Just accepted LinkedIn connection request",
     )
+
+    prompt = f"""You are drafting a LinkedIn DM for Santiago Aldana using the Dalton method.
+
+CONTEXT:
+{json.dumps(ctx, indent=2)}
+
+DALTON RULES (non-negotiable):
+- 75 words maximum
+- The message must be primarily about THEM: their work, their company, their challenge
+- Open by naming something specific about what they are building or the hard problem they are solving
+- Santiago's credential appears once, briefly, as a bridge ("I ran X, so I know this problem firsthand") — never as the opener
+- End with an open question about their perspective or strategy — not a call to action
+- No em dashes, en dashes, or hyphens anywhere
+- Forbidden: "hope this finds you", "I am reaching out", "excited to", "would love to", "opportunity", "really glad we connected"
+- Return ONLY the message body — no subject line, no JSON, no signature
+
+Contact: {contact.name}, {contact.title or "unknown title"} at {company.name if company else "their company"}"""
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=300,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    message = response.content[0].text.strip()
     return {"message": message}
 
 
