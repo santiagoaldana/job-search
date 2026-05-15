@@ -358,8 +358,10 @@ def handle_linkedin_acceptance(session: Session, subject: str, body_text: str) -
         if full_name:
             acceptor_name = full_name.group(1).strip()
 
-    print(f"[linkedin_acceptance] subject={repr(subject[:80])} extracted_name={repr(acceptor_name)} body_sample={repr(body_text[200:400])}")
+    print(f"[linkedin_acceptance] subject={repr(subject[:80])} extracted_name={repr(acceptor_name)}")
     name_tokens = set(acceptor_name.lower().split())
+    # Require both first and last name to match when we have a full name; first-name-only is too ambiguous
+    min_score = 2 if len(name_tokens) >= 2 else 1
 
     contacts = session.exec(select(Contact)).all()
     best_contact, best_score = None, 0
@@ -369,7 +371,7 @@ def handle_linkedin_acceptance(session: Session, subject: str, body_text: str) -
         if score > best_score:
             best_contact, best_score = c, score
 
-    if not best_contact or best_score < 1:
+    if not best_contact or best_score < min_score:
         return {"updated": False, "reason": f"no contact matched '{acceptor_name}'"}
 
     best_contact.outreach_status = "connection_requested"  # already was; keep or advance
