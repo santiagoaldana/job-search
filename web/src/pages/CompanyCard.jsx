@@ -1377,7 +1377,7 @@ function OutreachTab({ company, onReload, defaultContactId }) {
         />
       </div>
 
-      {!(warmContact && !draft && !warmAlreadySent) && (
+      {!(warmContact && !warmAlreadySent && !draft) && (
         <div className="flex gap-2">
           <button
             onClick={handleWriteMyself}
