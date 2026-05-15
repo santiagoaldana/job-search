@@ -798,6 +798,7 @@ def mark_followup_sent(
         record.follow_up_7_due = add_business_days(today, 4).isoformat()
     else:
         record.follow_up_7_sent = True
+        record.response_status = "ghosted"
     record.updated_at = datetime.utcnow().isoformat()
 
     session.add(record)
@@ -831,6 +832,7 @@ def send_followup(
         record.follow_up_7_due = add_business_days(today, 4).isoformat()
     else:
         record.follow_up_7_sent = True
+        record.response_status = "ghosted"
     record.updated_at = datetime.utcnow().isoformat()
 
     session.add(record)
