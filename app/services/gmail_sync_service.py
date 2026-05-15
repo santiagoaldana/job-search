@@ -184,16 +184,29 @@ def _parse_address(raw: str) -> tuple[str, str]:
 
 
 def _extract_body(payload: dict) -> str:
-    """Recursively extract plain-text body from Gmail payload."""
+    """Recursively extract plain-text body from Gmail payload. Falls back to HTML → text."""
     mime = payload.get("mimeType", "")
     if mime == "text/plain":
         data = payload.get("body", {}).get("data", "")
         if data:
             return base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+    # Collect HTML fallback in case no plain-text part exists
+    html_fallback = ""
+    if mime == "text/html":
+        data = payload.get("body", {}).get("data", "")
+        if data:
+            html_fallback = base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
     for part in payload.get("parts", []):
         text = _extract_body(part)
         if text:
             return text
+    if html_fallback:
+        # Strip HTML tags to get readable text
+        text = re.sub(r"<[^>]+>", " ", html_fallback)
+        text = re.sub(r"&nbsp;", " ", text)
+        text = re.sub(r"&amp;", "&", text)
+        text = re.sub(r"\s{2,}", "\n", text).strip()
+        return text
     return ""
 
 
