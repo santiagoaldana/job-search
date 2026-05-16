@@ -480,8 +480,17 @@ def merge_contacts(req: MergeContactRequest, session: Session = Depends(get_sess
     if keep.id == discard.id:
         raise HTTPException(status_code=400, detail="Cannot merge a contact with itself")
 
-    # Fill missing fields on keep from discard
-    for field in ("email", "linkedin_url", "title", "met_via", "relationship_notes", "connected_on", "is_mit_alum"):
+    # Concatenate text fields if both have content; fill if only discard has content
+    for field in ("relationship_notes", "met_via"):
+        keep_val = getattr(keep, field, None)
+        discard_val = getattr(discard, field, None)
+        if keep_val and discard_val and keep_val.strip() != discard_val.strip():
+            setattr(keep, field, f"{keep_val} | {discard_val}")
+        elif not keep_val and discard_val:
+            setattr(keep, field, discard_val)
+
+    # Fill missing scalar fields from discard
+    for field in ("email", "linkedin_url", "title", "connected_on", "is_mit_alum"):
         if not getattr(keep, field, None) and getattr(discard, field, None):
             setattr(keep, field, getattr(discard, field))
 

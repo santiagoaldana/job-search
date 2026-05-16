@@ -541,6 +541,20 @@ def delete_company(
         for app in session.exec(select(Application).where(Application.company_id == company_id)).all():
             app.company_id = merge_into
             session.add(app)
+
+        # Merge text fields: concatenate if both have content, fill if only discard has content
+        for field in ("intel_summary", "org_notes"):
+            keep_val = getattr(target, field, None)
+            discard_val = getattr(company, field, None)
+            if keep_val and discard_val and keep_val.strip() != discard_val.strip():
+                setattr(target, field, f"{keep_val} | {discard_val}")
+            elif not keep_val and discard_val:
+                setattr(target, field, discard_val)
+        # Fill missing scalar fields
+        for field in ("funding_stage", "headcount_range", "website", "linkedin_url"):
+            if (not getattr(target, field, None) or getattr(target, field) == "unknown") and getattr(company, field, None):
+                setattr(target, field, getattr(company, field))
+        session.add(target)
         session.commit()
 
     session.delete(company)
