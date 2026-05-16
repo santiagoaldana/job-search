@@ -957,6 +957,43 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
   )
 }
 
+function WarmPathIntel({ action }) {
+  const [loading, setLoading] = useState(false)
+  const [intel, setIntel] = useState(action.intel_summary || '')
+
+  const generate = async (e) => {
+    e.stopPropagation()
+    if (!action.company_id) return
+    setLoading(true)
+    try {
+      const res = await api.refreshIntel(action.company_id)
+      setIntel(res.intel_summary || '')
+    } catch (err) {
+      console.error('intel error', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (intel) {
+    return (
+      <div className="mt-2 text-xs text-muted italic leading-relaxed line-clamp-3">
+        {intel}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={generate}
+      disabled={loading}
+      className="mt-2 text-xs text-blue-500 hover:underline disabled:opacity-50"
+    >
+      {loading ? 'Generating intel…' : 'Generate company intel'}
+    </button>
+  )
+}
+
 function WarmPathSnooze({ action, onSnoozed }) {
   const [saving, setSaving] = useState(false)
   const snooze = async (days) => {
@@ -1251,7 +1288,10 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                     <FollowUpCardActions action={action} onMarkSent={onMarkSent} onRescheduled={onRefresh} />
                   )}
                   {isWarmPath && onRefresh && (
-                    <WarmPathSnooze action={action} onSnoozed={onRefresh} />
+                    <>
+                      <WarmPathIntel action={action} />
+                      <WarmPathSnooze action={action} onSnoozed={onRefresh} />
+                    </>
                   )}
                 </div>
               )

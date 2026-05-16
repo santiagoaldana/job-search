@@ -251,14 +251,24 @@ def compute_daily_brief(session: Session) -> dict:
 
     for contact in recent_warm[:3]:
         company = session.get(Company, contact.company_id) if contact.company_id else None
+        intro_detail = None
+        if contact.introduced_by_contact_id:
+            introducer = session.get(Contact, contact.introduced_by_contact_id)
+            if introducer:
+                intro_company = session.get(Company, introducer.company_id) if introducer.company_id else None
+                intro_at = f" at {intro_company.name}" if intro_company else ""
+                intro_detail = f"Intro via {introducer.name}{intro_at}"
+        detail = intro_detail or contact.relationship_notes or "New 1st-degree connection · reach out now"
         outreach.append({
             "action_type": "warm_path",
-            "label": f"Warm path — {contact.name} at {company.name if company else 'Unknown'}",
-            "detail": "New 1st-degree connection · reach out now",
+            "label": f"New connection — {contact.name} at {company.name if company else 'Unknown'}",
+            "detail": detail,
             "cta": "Draft outreach",
             "company_id": contact.company_id,
             "payload_id": contact.id,
             "payload_type": "contact",
+            "relationship_notes": contact.relationship_notes or "",
+            "intel_summary": company.intel_summary if company else None,
         })
 
     # Bounce retry — contacts with invalid email that still have untried patterns
