@@ -92,13 +92,15 @@ def compute_daily_brief(session: Session) -> dict:
     ).all()
 
     for record in recent_accepted[:3]:
+        if record.escalation_snooze_until and record.escalation_snooze_until > today:
+            continue
         company = session.get(Company, record.company_id) if record.company_id else None
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
         who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else "Unknown"))
         outreach.append({
             "action_type": "linkedin_accepted",
             "label": f"LinkedIn accepted — {who}",
-            "detail": "They accepted your connection request — time to send a thank-you DM",
+            "detail": "Connection accepted — send your first outreach DM",
             "cta": "Draft DM",
             "company_id": record.company_id,
             "contact_id": record.contact_id,
@@ -106,6 +108,8 @@ def compute_daily_brief(session: Session) -> dict:
             "company_name": company.name if company else None,
             "payload_id": record.id,
             "payload_type": "outreach",
+            "escalation_channel": record.escalation_channel,
+            "escalation_snooze_until": record.escalation_snooze_until,
         })
 
     # Day-3 follow-ups due (not yet sent)
@@ -124,6 +128,9 @@ def compute_daily_brief(session: Session) -> dict:
         who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else 'Unknown'))
 
         if record.channel == "linkedin" and record.linkedin_accepted is None:
+            # Skip if snoozed
+            if record.escalation_snooze_until and record.escalation_snooze_until > today:
+                continue
             # Skip if an email escalation was already sent for this contact
             if record.contact_id:
                 email_escalation = session.exec(
@@ -150,6 +157,8 @@ def compute_daily_brief(session: Session) -> dict:
                 "payload_type": "outreach",
                 "next_step": next_step,
                 "days_sent": days_sent,
+                "escalation_channel": record.escalation_channel,
+                "escalation_snooze_until": record.escalation_snooze_until,
             })
         else:
             outreach.append({

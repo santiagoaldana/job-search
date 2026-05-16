@@ -64,6 +64,8 @@ def run_migrations():
         ("outreachrecord", "outreach_message", "TEXT"),
         ("contact", "is_mit_alum", "BOOLEAN"),
         ("contact", "snooze_until", "TEXT"),
+        ("outreachrecord", "escalation_snooze_until", "TEXT"),
+        ("outreachrecord", "escalation_channel", "TEXT"),
     ]
 
     with engine.connect() as conn:

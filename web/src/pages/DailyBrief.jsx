@@ -526,37 +526,73 @@ function NewReplyCard({ action, onDismiss, onRefresh }) {
 }
 
 function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
-  const [dm, setDm] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [dm, setDm] = useState('')
+  const [busy, setBusy] = useState(true)
+  const [state, setState] = useState('loading') // loading | draft | copied | done
   const [error, setError] = useState(null)
+  const [refining, setRefining] = useState(false)
+  const [refineCopied, setRefineCopied] = useState(false)
 
-  const handleDraftDM = async () => {
-    if (!action.contact_id) {
-      setError('No contact ID — cannot draft DM')
-      return
-    }
+  useEffect(() => {
+    if (!action.payload_id) { setBusy(false); setState('draft'); return }
+    api.draftTemplate(action.payload_id, 'linkedin_dm', action.contact_id)
+      .then(res => {
+        setDm(res.body || '')
+        setState('draft')
+      })
+      .catch(e => {
+        setError(e.message || 'Failed to draft DM')
+        setState('draft')
+      })
+      .finally(() => setBusy(false))
+  }, [action.payload_id, action.contact_id])
+
+  const handleCopy = () => {
+    const fallback = () => { const ta = document.createElement('textarea'); ta.value = dm; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
+    navigator.clipboard.writeText(dm).catch(fallback)
+    setState('copied')
+  }
+
+  const handleConfirmSent = async () => {
     setBusy(true)
-    setError(null)
     try {
-      const res = await api.draftLinkedinMessage(action.contact_id)
-      setDm(res.message || res.draft || '')
+      await api.skipOutreach(action.payload_id)
+      setState('done')
+      setTimeout(() => onRefresh && onRefresh(), 800)
     } catch (e) {
-      setError(e.message || 'Failed to draft DM')
+      setError(e.message || 'Error confirming')
     } finally {
       setBusy(false)
     }
   }
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(dm)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const handleRefine = async () => {
+    setRefining(true)
+    try {
+      const ctx = await api.getConversationContext(action.payload_id, { subject: '', body: dm, stage: 'linkedin_dm' })
+      const prompt = [
+        '## Prior outreach message',
+        ctx.conversation_history?.[0]?.body_preview || '(none)',
+        '',
+        '## My current DM draft',
+        dm,
+        '',
+        '## Instructions',
+        ctx.generation_instructions,
+      ].join('\n')
+      const fallback = () => { const ta = document.createElement('textarea'); ta.value = prompt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
+      navigator.clipboard.writeText(prompt).catch(fallback)
+      setRefineCopied(true)
+      setTimeout(() => setRefineCopied(false), 2000)
+    } catch (e) {
+      console.error('refine error', e)
+    } finally {
+      setRefining(false)
+    }
   }
 
   return (
-    <div className="p-4 rounded-xl border border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40 space-y-2">
+    <div className="p-4 rounded-xl border border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40 space-y-3">
       <div className="flex items-start gap-3">
         <UserPlus size={16} className="mt-0.5 flex-shrink-0 text-sky-500" />
         <div className="flex-1 min-w-0">
@@ -569,8 +605,14 @@ function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
           </button>
         )}
       </div>
+
       {error && <div className="text-xs text-red-500">{error}</div>}
-      {dm ? (
+
+      {state === 'loading' && (
+        <div className="text-xs text-muted">Drafting outreach DM...</div>
+      )}
+
+      {(state === 'draft' || state === 'copied') && (
         <div className="space-y-2">
           <textarea
             value={dm}
@@ -578,37 +620,45 @@ function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
             rows={5}
             className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body resize-none"
           />
-          <button
-            onClick={handleDraftDM}
-            disabled={busy}
-            className="text-xs text-sky-500 hover:underline disabled:opacity-40 self-start"
-          >
-            {busy ? 'Regenerating…' : 'Regenerate'}
-          </button>
-          <div className="flex gap-2">
-            <button
-              onClick={handleCopy}
-              className="flex-1 border border-sky-400 text-sky-600 rounded-lg py-2 text-xs font-semibold"
-            >
-              {copied ? 'Copied!' : 'Copy to clipboard'}
-            </button>
-            <button
-              onClick={() => { if (sending) return; setSending(true); onDismiss && onDismiss(action); onRefresh && onRefresh() }}
-              disabled={sending}
-              className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-semibold"
-            >
-              {sending ? 'Dismissing…' : 'Sent DM — dismiss'}
-            </button>
-          </div>
+          {state === 'draft' && (
+            <div className="flex gap-2">
+              <button
+                onClick={handleCopy}
+                className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-lg py-2 text-xs font-semibold"
+              >
+                Copy to clipboard →
+              </button>
+              <button
+                onClick={handleRefine}
+                disabled={refining}
+                className="text-xs px-3 py-2 border border-purple-300 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/40 disabled:opacity-40"
+              >
+                {refining ? '...' : refineCopied ? 'Copied!' : '✨ Refine with AI'}
+              </button>
+            </div>
+          )}
+          {state === 'copied' && (
+            <div className="space-y-2">
+              <div className="text-xs text-muted">Copied to clipboard. Did you send it?</div>
+              <div className="flex gap-2">
+                <button onClick={() => setState('draft')} className="flex-1 border border-theme text-body rounded-lg py-2 text-xs font-medium">
+                  Back
+                </button>
+                <button onClick={handleConfirmSent} disabled={busy} className="flex-1 bg-green-500 text-white rounded-lg py-2 text-xs font-semibold disabled:opacity-50">
+                  {busy ? '...' : 'Yes, sent'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      ) : (
-        <button
-          onClick={handleDraftDM}
-          disabled={busy}
-          className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-semibold transition-colors"
-        >
-          {busy ? 'Drafting…' : 'Draft thank-you DM →'}
-        </button>
+      )}
+
+      {state === 'done' && (
+        <div className="text-xs text-green-600 font-medium">DM sent and logged. Thread closed.</div>
+      )}
+
+      {state !== 'done' && (
+        <EscalationControls action={action} onRefresh={onRefresh} />
       )}
     </div>
   )
@@ -741,11 +791,13 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
 }
 
 function LinkedInNotAcceptedCard({ action, onRefresh }) {
-  const [state, setState] = useState('loading') // loading | draft | sent | exhausted
+  const [state, setState] = useState('loading') // loading | draft | sent | exhausted | done
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [guessedEmail, setGuessedEmail] = useState(action.next_step?.guessed_email || null)
   const [busy, setBusy] = useState(false)
+  const [refining, setRefining] = useState(false)
+  const [refineCopied, setRefineCopied] = useState(false)
 
   useEffect(() => {
     api.draftTemplate(action.payload_id, 'escalation', action.contact_id)
@@ -781,6 +833,36 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
     } catch (err) {
       setBusy(false)
       alert('Failed to confirm: ' + (err.message || 'unknown error'))
+    }
+  }
+
+  const handleRefine = async () => {
+    setRefining(true)
+    try {
+      const ctx = await api.getConversationContext(action.payload_id, { subject, body, stage: 'escalation' })
+      const historyText = (ctx.conversation_history || [])
+        .slice(-5)
+        .map(m => `From: ${m.from_name || m.from_email}\nDate: ${m.date}\n---\n${m.body_preview}`)
+        .join('\n\n')
+      const prompt = [
+        '## Conversation history',
+        historyText || '(no prior messages)',
+        '',
+        '## My current draft',
+        `Subject: ${subject}`,
+        body,
+        '',
+        '## Instructions',
+        ctx.generation_instructions,
+      ].join('\n')
+      const fallback = () => { const ta = document.createElement('textarea'); ta.value = prompt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
+      navigator.clipboard.writeText(prompt).catch(fallback)
+      setRefineCopied(true)
+      setTimeout(() => setRefineCopied(false), 2000)
+    } catch (e) {
+      console.error('refine error', e)
+    } finally {
+      setRefining(false)
     }
   }
 
@@ -821,12 +903,21 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
             rows={5}
             className="w-full text-xs border border-theme rounded-lg px-3 py-2 bg-card text-body resize-none"
           />
-          <button
-            onClick={handleSendViaGmail}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold"
-          >
-            Send via Gmail →
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSendViaGmail}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold"
+            >
+              Send via Gmail →
+            </button>
+            <button
+              onClick={handleRefine}
+              disabled={refining}
+              className="text-xs px-3 py-2 border border-purple-300 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/40 disabled:opacity-40"
+            >
+              {refining ? '...' : refineCopied ? 'Copied!' : '✨ Refine with AI'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -857,6 +948,10 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
 
       {state === 'done' && (
         <div className="text-xs text-green-600 font-medium">Email logged. Follow-up clock started.</div>
+      )}
+
+      {state !== 'done' && (
+        <EscalationControls action={action} onRefresh={onRefresh} />
       )}
     </div>
   )
@@ -892,6 +987,78 @@ function WarmPathSnooze({ action, onSnoozed }) {
           {d}d
         </button>
       ))}
+    </div>
+  )
+}
+
+function EscalationControls({ action, onRefresh }) {
+  const [saving, setSaving] = useState(false)
+
+  const snooze = async (days) => {
+    if (!action.payload_id) return
+    setSaving(true)
+    try {
+      const d = new Date()
+      d.setDate(d.getDate() + days)
+      await api.patchOutreach(action.payload_id, { escalation_snooze_until: d.toISOString().slice(0, 10) })
+      onRefresh && onRefresh()
+    } catch (e) { console.error('snooze error', e) } finally { setSaving(false) }
+  }
+
+  const setChannel = async (ch) => {
+    if (!action.payload_id) return
+    setSaving(true)
+    try {
+      await api.patchOutreach(action.payload_id, { escalation_channel: ch })
+      onRefresh && onRefresh()
+    } catch (e) { console.error('channel error', e) } finally { setSaving(false) }
+  }
+
+  const stop = async () => {
+    if (!action.payload_id) return
+    setSaving(true)
+    try {
+      await api.skipOutreach(action.payload_id)
+      onRefresh && onRefresh()
+    } catch (e) { console.error('stop error', e) } finally { setSaving(false) }
+  }
+
+  const current = action.escalation_channel || 'linkedin_dm'
+
+  return (
+    <div className="mt-3 pt-3 border-t border-theme space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-muted flex-shrink-0">Snooze:</span>
+        {[3, 7, 14, 30].map(d => (
+          <button key={d} disabled={saving}
+            onClick={e => { e.stopPropagation(); snooze(d) }}
+            className="text-xs px-2 py-1 rounded-md border border-theme text-muted hover:text-body disabled:opacity-40">
+            {d}d
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-muted flex-shrink-0">Next via:</span>
+        {[
+          { key: 'linkedin_dm', label: 'LinkedIn DM' },
+          { key: 'email', label: 'Gmail' },
+        ].map(({ key, label }) => (
+          <button key={key} disabled={saving}
+            onClick={e => { e.stopPropagation(); setChannel(key) }}
+            className={`text-xs px-2 py-1 rounded-md border disabled:opacity-40 transition-colors ${
+              current === key
+                ? 'bg-purple-100 border-purple-400 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                : 'border-theme text-muted hover:text-body'
+            }`}>
+            {label}
+          </button>
+        ))}
+        <button disabled={saving}
+          onClick={e => { e.stopPropagation(); stop() }}
+          className="text-xs px-2 py-1 rounded-md border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40 ml-auto">
+          Stop escalating
+        </button>
+      </div>
     </div>
   )
 }

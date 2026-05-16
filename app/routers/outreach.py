@@ -363,6 +363,8 @@ class OutreachUpdate(BaseModel):
     linkedin_accepted: Optional[bool] = None
     contact_id: Optional[int] = None
     outreach_message: Optional[str] = None
+    escalation_snooze_until: Optional[str] = None
+    escalation_channel: Optional[str] = None
 
 
 @router.patch("/{record_id}")
@@ -387,6 +389,10 @@ def patch_outreach(record_id: int, data: OutreachUpdate, session: Session = Depe
         record.contact_id = data.contact_id
     if data.outreach_message is not None:
         record.outreach_message = data.outreach_message
+    if data.escalation_snooze_until is not None:
+        record.escalation_snooze_until = data.escalation_snooze_until
+    if data.escalation_channel is not None:
+        record.escalation_channel = data.escalation_channel
     record.updated_at = datetime.utcnow().isoformat()
     session.add(record)
     session.commit()
@@ -666,6 +672,17 @@ def draft_template(
             f"Hi {first},\n\n"
             f"Wanted to close the loop on my earlier note. "
             f"If the timing isn't right, no worries at all. Happy to reconnect down the road."
+        )
+    elif followup_type == "linkedin_dm":
+        expertise = _derive_expertise(contact, company)
+        is_mit = getattr(contact, "is_mit_alum", None) if contact else None
+        opener = "I am a fellow MIT Sloan alum." if is_mit else f"I noticed we share an interest in {expertise}."
+        subject = None
+        body = (
+            f"Hi {first},\n\n"
+            f"{opener} I'd love to hear your perspective on what you're building at {company_name} "
+            f"and share some of what I'm seeing on the operator side. "
+            f"Open to a quick 20-minute chat?"
         )
     else:
         raise HTTPException(status_code=400, detail="Invalid followup_type")

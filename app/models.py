@@ -150,6 +150,8 @@ class OutreachRecord(SQLModel, table=True):
     follow_up_7_sent: bool = Field(default=False)           # day-7 close sent
     linkedin_accepted: Optional[bool] = Field(default=None) # None=pending, True=accepted, False=not accepted
     notes: Optional[str] = Field(default=None)
+    escalation_snooze_until: Optional[str] = Field(default=None)  # ISO date — suppress escalation card
+    escalation_channel: Optional[str] = Field(default=None)       # "email" | "linkedin_dm"
 
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
