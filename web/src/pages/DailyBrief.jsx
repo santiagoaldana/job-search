@@ -811,8 +811,8 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
         console.error('[LinkedInNotAcceptedCard] draftTemplate failed:', e)
         const name = action.contact_name ? action.contact_name.split(' ')[0] : 'there'
         const co = action.company_name || 'your company'
-        setSubject(`Quick question about ${co}`)
-        setBody(`Hi ${name},\n\nI wanted to reach out directly since my LinkedIn request hasn't been accepted yet. I'd love to connect and learn more about what you're building at ${co}.\n\nWorth a quick note back?`)
+        setSubject(name !== 'there' ? `${name} - reaching out directly` : `Reaching out directly - ${co}`)
+        setBody(`Hi ${name},\n\nI sent you a connection request on LinkedIn recently and thought reaching out directly might be easier. I would love to learn more about what you are building at ${co}.\n\nWorth a quick note back?`)
         setState('draft')
       })
   }, [])

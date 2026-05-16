@@ -615,6 +615,28 @@ def _derive_expertise(contact, company) -> str:
     return "fintech and payments"
 
 
+def _build_escalation_subject(contact, company, first, expertise, is_mit) -> str:
+    # Priority 1: intel hook from company summary
+    if company and company.intel_summary and len(company.intel_summary) > 30:
+        first_sentence = company.intel_summary.split('.')[0].strip()
+        if len(first_sentence) > 10:
+            snippet = first_sentence[:55].rsplit(' ', 1)[0] if len(first_sentence) > 55 else first_sentence
+            co = company.name if company else ''
+            return f"Re: {co} and {snippet.lower()}"
+    # Priority 2: named contact with title
+    if contact and contact.title and first != "there":
+        return f"{first} — quick question on {expertise}"
+    # Priority 3: MIT alum
+    if is_mit:
+        return "Fellow Sloan alum — quick question"
+    # Priority 4: named contact, no title
+    if first != "there":
+        return f"{first} — reaching out directly"
+    # Fallback
+    co_name = company.name if company else "your company"
+    return f"Reaching out directly — {co_name}"
+
+
 @router.post("/{record_id}/draft-template")
 def draft_template(
     record_id: int,
@@ -638,24 +660,48 @@ def draft_template(
     first = (contact.name or "").split()[0] if contact else "there"
     company_name = company.name if company else "your company"
 
+    # Fetch prior canonical message early so escalation branch can reference it
+    prior_message = None
+    if record.outreach_message:
+        prior_message = record.outreach_message
+    elif record.contact_id:
+        prior = session.exec(
+            select(OutreachRecord)
+            .where(OutreachRecord.contact_id == record.contact_id)
+            .where(OutreachRecord.outreach_message != None)
+            .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
+        ).first()
+        if prior:
+            prior_message = prior.outreach_message
+
     if followup_type == "escalation":
         expertise = _derive_expertise(contact, company)
         role = contact.title or "role"
         is_mit = getattr(contact, "is_mit_alum", None) if contact else None
 
-        subject = f"Quick question about {company_name}"
+        subject = _build_escalation_subject(contact, company, first, expertise, is_mit)
 
         if is_mit:
             opener = "I am a fellow MIT Sloan alum."
         else:
             opener = f"I noticed we have a common interest in {expertise}."
 
+        linkedin_bridge = (
+            "I sent you a connection request on LinkedIn recently — thought reaching out directly might be easier.\n\n"
+            if prior_message else ""
+        )
+
+        if contact and contact.title:
+            question = f"I was wondering if you have a few minutes to share your perspective on the {role} work at {company_name}?"
+        else:
+            question = f"I was wondering if you have a few minutes to share your perspective on {expertise}?"
+
         body = (
             f"Hi {first},\n\n"
-            f"{opener} I was wondering if you have some time to tell me about your "
-            f"{role} role at {company_name}? Your insights would be greatly appreciated "
-            f"because I'm trying to learn more about {expertise}. "
-            f"Worth exchanging notes?"
+            f"{opener}\n\n"
+            f"{linkedin_bridge}"
+            f"{question} Your insights would mean a lot.\n\n"
+            f"Worth a quick note back?"
         )
 
     elif followup_type == "day3":
@@ -693,20 +739,6 @@ def draft_template(
     elif contact and company:
         ns = _contact_next_step(contact, company)
         guessed_email = ns.get("guessed_email")
-
-    # Fetch prior canonical message so UI can show it as "sent before" reference
-    prior_message = None
-    if record.outreach_message:
-        prior_message = record.outreach_message
-    elif record.contact_id:
-        prior = session.exec(
-            select(OutreachRecord)
-            .where(OutreachRecord.contact_id == record.contact_id)
-            .where(OutreachRecord.outreach_message != None)
-            .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
-        ).first()
-        if prior:
-            prior_message = prior.outreach_message
 
     return {"subject": subject, "body": body, "guessed_email": guessed_email, "prior_message": prior_message}
 
