@@ -807,7 +807,14 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
         if (res.guessed_email) setGuessedEmail(res.guessed_email)
         setState(res.guessed_email ? 'draft' : 'exhausted')
       })
-      .catch(() => setState('draft'))
+      .catch(e => {
+        console.error('[LinkedInNotAcceptedCard] draftTemplate failed:', e)
+        const name = action.contact_name ? action.contact_name.split(' ')[0] : 'there'
+        const co = action.company_name || 'your company'
+        setSubject(`Quick question about ${co}`)
+        setBody(`Hi ${name},\n\nI wanted to reach out directly since my LinkedIn request hasn't been accepted yet. I'd love to connect and learn more about what you're building at ${co}.\n\nWorth a quick note back?`)
+        setState('draft')
+      })
   }, [])
 
   const handleSendViaGmail = () => {
@@ -1292,6 +1299,9 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                       <WarmPathIntel action={action} />
                       <WarmPathSnooze action={action} onSnoozed={onRefresh} />
                     </>
+                  )}
+                  {action.action_type === 'try_linkedin_dm' && onRefresh && (
+                    <EscalationControls action={action} onRefresh={onRefresh} />
                   )}
                 </div>
               )
