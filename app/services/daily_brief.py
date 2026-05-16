@@ -5,7 +5,7 @@ Called by GET /api/daily-brief
 
 import json
 from datetime import datetime, timedelta
-from sqlmodel import Session, select
+from sqlmodel import Session, select, or_
 
 from app.models import (
     OutreachRecord, Lead, Event, Application,
@@ -312,6 +312,10 @@ def compute_daily_brief(session: Session) -> dict:
             OutreachRecord.follow_up_7_sent == True,
             OutreachRecord.channel == "email",
             OutreachRecord.follow_up_7_due <= today,
+            or_(
+                OutreachRecord.escalation_snooze_until == None,
+                OutreachRecord.escalation_snooze_until <= today,
+            ),
         ).order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
     ).all()
     # Dedup: keep only the most recent record per (company_id, contact_id) pair
