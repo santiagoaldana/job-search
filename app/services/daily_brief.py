@@ -370,7 +370,7 @@ def compute_daily_brief(session: Session) -> dict:
             continue
         if company.id in company_ids_with_contacts:
             continue
-        outreach.append({
+        positions.append({
             "action_type": "contact_gap",
             "label": f"No contact at {company.name} — find someone to reach out to",
             "detail": f"Motivation {company.motivation} · LAMP {company.lamp_score:.0f} · no active outreach",
