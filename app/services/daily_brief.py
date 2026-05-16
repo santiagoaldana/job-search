@@ -153,6 +153,7 @@ def compute_daily_brief(session: Session) -> dict:
                 "contact_name": contact.name if contact else None,
                 "contact_title": contact.title if contact else None,
                 "company_name": company.name if company else None,
+                "intel_summary": company.intel_summary if company else None,
                 "payload_id": record.id,
                 "payload_type": "outreach",
                 "next_step": next_step,

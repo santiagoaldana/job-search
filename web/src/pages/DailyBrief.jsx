@@ -886,6 +886,8 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
         </div>
       </div>
 
+      <WarmPathIntel action={action} />
+
       {state === 'loading' && (
         <div className="text-xs text-muted">Preparing draft...</div>
       )}

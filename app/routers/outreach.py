@@ -600,9 +600,11 @@ EXPERTISE_MAP = [
     (["ai", "agentic", "llm", "machine learning", "automation"], "agentic AI"),
     (["stablecoin", "crypto", "blockchain", "web3", "defi"], "stablecoins and digital assets"),
     (["credit union", "cuso", "community bank"], "credit union fintech partnerships"),
-    (["marketing", "crm", "lifecycle", "retention", "email"], "AI-driven marketing"),
+    (["marketing", "crm", "lifecycle", "retention", "email", "klaviyo", "martech"], "AI-driven marketing"),
     (["people", "hr", "human resources", "talent", "recruiting", "culture", "chief people", "chro", "workforce"], "building high-performance teams in fintech"),
     (["product", "chief product", "head of product", "vp product"], "product strategy in fintech"),
+    (["venture", "vc ", "investor", "investment", "portfolio", "fund", "general partner"], "fintech venture investing"),
+    (["strategy", "creation strategy", "growth", "biz dev", "business development", "partnerships"], "fintech growth and strategy"),
     (["banking", "fintech", "financial"], "financial technology"),
 ]
 
@@ -621,26 +623,53 @@ def _derive_expertise(contact, company) -> str:
     return _EXPERTISE_DEFAULT
 
 
-def _build_escalation_subject(contact, company, first, expertise, is_mit) -> str:
-    # Priority 1: intel hook from company summary
-    if company and company.intel_summary and len(company.intel_summary) > 30:
-        first_sentence = company.intel_summary.split('.')[0].strip()
-        if len(first_sentence) > 10:
-            snippet = first_sentence[:55].rsplit(' ', 1)[0] if len(first_sentence) > 55 else first_sentence
-            co = company.name if company else ''
-            return f"Re: {co} and {snippet.lower()}"
-    # Priority 2: named contact with title
-    if contact and contact.title and first != "there":
-        return f"{first} — quick question on {expertise}"
-    # Priority 3: MIT alum
+_ROLE_LABELS = [
+    (["ceo", "chief executive"], "CEO"),
+    (["cto", "chief technology"], "CTO"),
+    (["cfo", "chief financial"], "CFO"),
+    (["coo", "chief operating"], "COO"),
+    (["cpo", "chief product"], "CPO"),
+    (["cro", "chief revenue"], "CRO"),
+    (["cmo", "chief marketing"], "CMO"),
+    (["chro", "chief people"], "CHRO"),
+    (["managing director"], "Managing Director"),
+    (["general partner"], "General Partner"),
+    (["principal"], "Principal"),
+    (["partner"], "Partner"),
+    (["svp", "senior vice president"], "SVP"),
+    (["evp", "executive vice president"], "EVP"),
+    (["vp ", "vice president"], "VP"),
+    (["director"], "Director"),
+    (["head of"], "Head"),
+    (["manager"], "Manager"),
+    (["founder", "co-founder"], "Founder"),
+]
+
+_SENIOR_ROLES = {"CEO", "CTO", "CFO", "COO", "CPO", "CRO", "CMO", "CHRO", "Founder",
+                 "Managing Director", "General Partner", "Partner", "Principal",
+                 "SVP", "EVP", "VP", "Director", "Head"}
+
+
+def _short_role_label(contact) -> str:
+    if not contact or not contact.title:
+        return "your role"
+    title = contact.title.lower()
+    for keywords, label in _ROLE_LABELS:
+        if any(k in title for k in keywords):
+            return label
+    return contact.title.split(",")[0].strip()
+
+
+def _build_escalation_subject(contact, company, first, is_mit) -> str:
     if is_mit:
         return "Fellow Sloan alum — quick question"
-    # Priority 4: named contact, no title
-    if first != "there":
-        return f"{first} — reaching out directly"
-    # Fallback
     co_name = company.name if company else "your company"
-    return f"Reaching out directly — {co_name}"
+    if first == "there":
+        return f"Reaching out directly — {co_name}"
+    role_label = _short_role_label(contact)
+    if role_label in _SENIOR_ROLES:
+        return f"{first} — quick question"
+    return f"{first} — reaching out directly"
 
 
 @router.post("/{record_id}/draft-template")
@@ -685,7 +714,7 @@ def draft_template(
         role = contact.title or "role"
         is_mit = getattr(contact, "is_mit_alum", None) if contact else None
 
-        subject = _build_escalation_subject(contact, company, first, expertise, is_mit)
+        subject = _build_escalation_subject(contact, company, first, is_mit)
 
         # Opener: MIT alum > intel hook > specific expertise > company anchor
         if is_mit:
@@ -704,9 +733,10 @@ def draft_template(
             if prior_message else ""
         )
 
-        # Question: role title > specific expertise > company name
+        # Question: role label > specific expertise > company name
+        role_label = _short_role_label(contact)
         if contact and contact.title:
-            question = f"I was wondering if you have a few minutes to share your perspective on the {role} work at {company_name}?"
+            question = f"I was wondering if you have a few minutes to share your perspective on {expertise} from the {role_label} seat at {company_name}?"
         elif expertise != _EXPERTISE_DEFAULT:
             question = f"I was wondering if you have a few minutes to share your perspective on {expertise}?"
         else:
