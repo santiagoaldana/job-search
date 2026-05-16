@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 
 from app.database import get_session
-from app.models import Contact, Company, OutreachRecord
+from app.models import Contact, Company, OutreachRecord, Reference
 from app.services.email_finder import determine_next_step
 
 router = APIRouter()
@@ -464,6 +464,40 @@ def update_contact(
     session.commit()
     session.refresh(contact)
     return contact
+
+
+class MergeContactRequest(BaseModel):
+    keep_id: int
+    discard_id: int
+
+
+@router.post("/merge")
+def merge_contacts(req: MergeContactRequest, session: Session = Depends(get_session)):
+    keep = session.get(Contact, req.keep_id)
+    discard = session.get(Contact, req.discard_id)
+    if not keep or not discard:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    if keep.id == discard.id:
+        raise HTTPException(status_code=400, detail="Cannot merge a contact with itself")
+
+    # Fill missing fields on keep from discard
+    for field in ("email", "linkedin_url", "title", "met_via", "relationship_notes", "connected_on", "is_mit_alum"):
+        if not getattr(keep, field, None) and getattr(discard, field, None):
+            setattr(keep, field, getattr(discard, field))
+
+    # Reassign child rows
+    for rec in session.exec(select(OutreachRecord).where(OutreachRecord.contact_id == discard.id)).all():
+        rec.contact_id = keep.id
+        session.add(rec)
+    for ref in session.exec(select(Reference).where(Reference.contact_id == discard.id)).all():
+        ref.contact_id = keep.id
+        session.add(ref)
+
+    session.add(keep)
+    session.delete(discard)
+    session.commit()
+    session.refresh(keep)
+    return keep
 
 
 @router.delete("/{contact_id}")

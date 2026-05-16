@@ -862,6 +862,40 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
   )
 }
 
+function WarmPathSnooze({ action, onSnoozed }) {
+  const [saving, setSaving] = useState(false)
+  const snooze = async (days) => {
+    if (!action.payload_id) return
+    setSaving(true)
+    try {
+      const d = new Date()
+      d.setDate(d.getDate() + days)
+      const iso = d.toISOString().slice(0, 10)
+      await api.updateContact(action.payload_id, { snooze_until: iso })
+      onSnoozed()
+    } catch (e) {
+      console.error('snooze error', e)
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <div className="mt-3 pt-3 border-t border-theme flex items-center gap-2">
+      <span className="text-xs text-muted flex-shrink-0">Snooze:</span>
+      {[3, 7, 14, 30].map(d => (
+        <button
+          key={d}
+          disabled={saving}
+          onClick={e => { e.stopPropagation(); snooze(d) }}
+          className="text-xs px-2 py-1 rounded-md border border-theme text-muted hover:text-body disabled:opacity-40"
+        >
+          {d}d
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
   const [rescheduling, setRescheduling] = useState(false)
   const [newDate, setNewDate] = useState('')
@@ -1005,6 +1039,7 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
               const cardColor = ACTION_COLORS[action.action_type] || 'border-theme bg-card'
               const iconColor = ACTION_ICON_COLORS[action.action_type] || 'text-muted'
               const isFollowUp = action.action_type === 'follow_up_3' || action.action_type === 'follow_up_7'
+              const isWarmPath = action.action_type === 'warm_path'
               const isPriority = priorityIds.includes(action.company_id)
 
               return (
@@ -1047,6 +1082,9 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                   </div>
                   {isFollowUp && onMarkSent && (
                     <FollowUpCardActions action={action} onMarkSent={onMarkSent} onRescheduled={onRefresh} />
+                  )}
+                  {isWarmPath && onRefresh && (
+                    <WarmPathSnooze action={action} onSnoozed={onRefresh} />
                   )}
                 </div>
               )

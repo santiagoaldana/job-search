@@ -144,6 +144,7 @@ export const api = {
       .then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.detail) }))
   },
   updateContact: (id, data) => patch(`/contacts/${id}`, data),
+  mergeContacts: (keepId, discardId) => post('/contacts/merge', { keep_id: keepId, discard_id: discardId }),
   markEmailBounced: (id) => post(`/contacts/${id}/bounce`),
   draftLinkedinMessage: (id) => post(`/contacts/${id}/draft-dm`),
   getContactNextStep: (id) => get(`/contacts/${id}/next-step`),
