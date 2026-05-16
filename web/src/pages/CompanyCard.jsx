@@ -39,8 +39,8 @@ export default function CompanyCard() {
   const [outreachDraft, setOutreachDraft] = useState(null)
   const [findingContacts, setFindingContacts] = useState(false)
   const [contactModal, setContactModal] = useState(null) // null=closed | 'new' | contact-object
-  const [mergeContact, setMergeContact] = useState(null) // contact being merged (the discard)
-  const [mergeTargetId, setMergeTargetId] = useState('')
+  const [selectedContacts, setSelectedContacts] = useState([])
+  const [contactMergeKeepId, setContactMergeKeepId] = useState(null)
   const [mergeSaving, setMergeSaving] = useState(false)
   const [prepModal, setPrepModal] = useState(false)
   const [prepBrief, setPrepBrief] = useState(null)
@@ -307,19 +307,28 @@ export default function CompanyCard() {
                         {c.email && <div className="text-xs text-muted mt-1">{c.email}</div>}
                       </div>
                       <div className="flex flex-col gap-1 items-end flex-shrink-0">
-                        <div className="flex gap-2 mb-1">
+                        <div className="flex gap-2 mb-1 items-center">
                           <button
                             onClick={() => setContactModal(c)}
                             className="text-xs text-muted underline"
                           >
                             Edit
                           </button>
-                          <button
-                            onClick={() => { setMergeContact(c); setMergeTargetId('') }}
-                            className="text-xs text-muted underline"
-                          >
-                            Merge
-                          </button>
+                          {(company.contacts?.length || 0) >= 2 && (
+                            <input
+                              type="checkbox"
+                              checked={selectedContacts.some(s => s.id === c.id)}
+                              onChange={() => {
+                                setSelectedContacts(prev =>
+                                  prev.some(s => s.id === c.id)
+                                    ? prev.filter(s => s.id !== c.id)
+                                    : prev.length < 2 ? [...prev, c] : prev
+                                )
+                                setContactMergeKeepId(null)
+                              }}
+                              className="cursor-pointer w-4 h-4 accent-blue-500"
+                            />
+                          )}
                         </div>
                         {c.connection_degree && (
                           <Badge color={c.connection_degree === 1 ? 'green' : c.connection_degree === 2 ? 'blue' : 'slate'}>
@@ -351,6 +360,37 @@ export default function CompanyCard() {
                   {findingContacts ? 'Searching…' : 'Find more contacts'}
                 </button>
               </>
+            )}
+
+            {/* Contact merge bar */}
+            {selectedContacts.length === 2 && (
+              <div className="border border-theme rounded-xl p-3 space-y-2 mt-2">
+                <p className="text-xs font-medium text-body">Which contact to keep?</p>
+                {selectedContacts.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setContactMergeKeepId(c.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg border text-sm ${contactMergeKeepId === c.id ? 'border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950/30' : 'border-theme text-body'}`}
+                  >
+                    Keep: {c.name}{c.title ? ` · ${c.title}` : ''}
+                  </button>
+                ))}
+                <button
+                  disabled={!contactMergeKeepId || mergeSaving}
+                  onClick={async () => {
+                    const discard = selectedContacts.find(c => c.id !== contactMergeKeepId)
+                    setMergeSaving(true)
+                    try {
+                      await api.mergeContacts(contactMergeKeepId, discard.id)
+                      setSelectedContacts([]); setContactMergeKeepId(null); load()
+                    } catch (e) { alert(e.message || 'Merge failed') }
+                    finally { setMergeSaving(false) }
+                  }}
+                  className="w-full bg-red-500 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
+                >
+                  {mergeSaving ? 'Merging…' : `Delete ${selectedContacts.find(c => c.id !== contactMergeKeepId)?.name || '…'}`}
+                </button>
+              </div>
             )}
 
             {/* Referral Sources */}
@@ -426,54 +466,6 @@ export default function CompanyCard() {
           onClose={() => setContactModal(null)}
           onSaved={() => { setContactModal(null); load() }}
         />
-      )}
-
-      {mergeContact && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-card border border-theme rounded-2xl p-5 w-full max-w-sm space-y-4">
-            <h3 className="font-semibold text-body">Merge {mergeContact.name}</h3>
-            <p className="text-xs text-muted">This contact will be deleted. Its outreach records will move to the contact you select below.</p>
-            <div>
-              <label className="text-xs text-muted block mb-1">Keep which contact?</label>
-              <select
-                value={mergeTargetId}
-                onChange={e => setMergeTargetId(e.target.value)}
-                className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body"
-              >
-                <option value="">— select —</option>
-                {(company.contacts || []).filter(c => c.id !== mergeContact.id).map(c => (
-                  <option key={c.id} value={c.id}>{c.name}{c.title ? ` · ${c.title}` : ''}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMergeContact(null)}
-                className="flex-1 border border-theme rounded-lg py-2 text-sm text-body"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={!mergeTargetId || mergeSaving}
-                onClick={async () => {
-                  setMergeSaving(true)
-                  try {
-                    await api.mergeContacts(parseInt(mergeTargetId), mergeContact.id)
-                    setMergeContact(null)
-                    load()
-                  } catch (e) {
-                    alert(e.message || 'Merge failed')
-                  } finally {
-                    setMergeSaving(false)
-                  }
-                }}
-                className="flex-1 bg-red-500 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
-              >
-                {mergeSaving ? 'Merging…' : `Delete ${mergeContact.name}`}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {prepModal && (

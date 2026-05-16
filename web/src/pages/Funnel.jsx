@@ -154,13 +154,10 @@ export default function Funnel() {
   const [outreachTarget, setOutreachTarget] = useState(null)
   const [fetchingIntel, setFetchingIntel] = useState({})
   const [savingMotivation, setSavingMotivation] = useState({})
-  const [mergeSource, setMergeSource] = useState(null)
-  const [mergeQuery, setMergeQuery] = useState('')
-  const [mergeResults, setMergeResults] = useState([])
-  const [mergeTarget, setMergeTarget] = useState(null)
+  const [selectedForMerge, setSelectedForMerge] = useState([])
+  const [mergeKeepId, setMergeKeepId] = useState(null)
   const [mergeSaving, setMergeSaving] = useState(false)
   const debounceRef = useRef(null)
-  const mergeDebounceRef = useRef(null)
   const navigate = useNavigate()
 
   async function getIntel(company, e) {
@@ -214,7 +211,7 @@ export default function Funnel() {
 
   useEffect(() => {
     clearTimeout(debounceRef.current)
-    if (!searchQ.trim()) { setSearchResults([]); return }
+    if (!searchQ.trim()) { setSearchResults([]); setSelectedForMerge([]); setMergeKeepId(null); return }
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
       try {
@@ -227,17 +224,6 @@ export default function Funnel() {
       }
     }, 300)
   }, [searchQ])
-
-  useEffect(() => {
-    clearTimeout(mergeDebounceRef.current)
-    if (!mergeQuery.trim()) { setMergeResults([]); setMergeTarget(null); return }
-    mergeDebounceRef.current = setTimeout(async () => {
-      try {
-        const results = await api.getCompanies({ q: mergeQuery, active_only: false })
-        setMergeResults(results.filter(c => c.id !== mergeSource?.id))
-      } catch (e) { console.error(e) }
-    }, 300)
-  }, [mergeQuery, mergeSource])
 
   async function addCompany() {
     const name = searchQ.trim()
@@ -320,8 +306,47 @@ export default function Funnel() {
               onUpdated={loadFunnel}
               fetchingIntel={fetchingIntel[c.id]}
               onGetIntel={(e) => getIntel(c, e)}
+              showCheckbox={searchResults.length >= 2}
+              selected={selectedForMerge.some(s => s.id === c.id)}
+              onToggle={() => {
+                setSelectedForMerge(prev =>
+                  prev.some(s => s.id === c.id)
+                    ? prev.filter(s => s.id !== c.id)
+                    : prev.length < 2 ? [...prev, c] : prev
+                )
+                setMergeKeepId(null)
+              }}
             />
           ))}
+          {selectedForMerge.length === 2 && (
+            <div className="space-y-2 border-t border-theme pt-3">
+              <p className="text-xs font-medium text-body">Which company to keep?</p>
+              {selectedForMerge.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => setMergeKeepId(c.id)}
+                  className={`w-full text-left px-3 py-2 rounded-lg border text-sm ${mergeKeepId === c.id ? 'border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950/30' : 'border-theme text-body'}`}
+                >
+                  Keep: {c.name}
+                </button>
+              ))}
+              <button
+                disabled={!mergeKeepId || mergeSaving}
+                onClick={async () => {
+                  const discard = selectedForMerge.find(c => c.id !== mergeKeepId)
+                  setMergeSaving(true)
+                  try {
+                    await api.mergeCompanies(mergeKeepId, discard.id)
+                    setSelectedForMerge([]); setMergeKeepId(null); setSearchQ(''); loadFunnel()
+                  } catch (e) { alert(e.message || 'Merge failed') }
+                  finally { setMergeSaving(false) }
+                }}
+                className="w-full bg-red-500 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
+              >
+                {mergeSaving ? 'Merging…' : `Delete ${selectedForMerge.find(c => c.id !== mergeKeepId)?.name || '…'}`}
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* Normal kanban list */
@@ -381,15 +406,7 @@ export default function Funnel() {
                             </button>
                       }
                     </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <ChevronRight size={16} className="text-faint" />
-                      <button
-                        onClick={e => { e.stopPropagation(); setMergeSource(c); setMergeQuery(''); setMergeResults([]); setMergeTarget(null) }}
-                        className="text-xs text-muted underline mt-1"
-                      >
-                        Merge
-                      </button>
-                    </div>
+                    <ChevronRight size={16} className="text-faint mt-1 flex-shrink-0" />
                   </div>
                 </button>
               )
@@ -406,74 +423,25 @@ export default function Funnel() {
         />
       )}
 
-      {mergeSource && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-card border border-theme rounded-2xl p-5 w-full max-w-sm space-y-4">
-            <h3 className="font-semibold text-body">Merge {mergeSource.name}</h3>
-            <p className="text-xs text-muted">This company will be deleted. All contacts, leads, and outreach move to the company you select.</p>
-            <div>
-              <label className="text-xs text-muted block mb-1">Keep which company?</label>
-              <input
-                type="text"
-                placeholder="Search companies…"
-                value={mergeQuery}
-                onChange={e => { setMergeQuery(e.target.value); setMergeTarget(null) }}
-                className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body mb-2"
-                autoFocus
-              />
-              {mergeResults.length > 0 && (
-                <div className="border border-theme rounded-lg divide-y divide-theme max-h-48 overflow-y-auto">
-                  {mergeResults.map(c => (
-                    <button
-                      key={c.id}
-                      onClick={() => { setMergeTarget(c); setMergeQuery(c.name) ; setMergeResults([]) }}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-bg ${mergeTarget?.id === c.id ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600' : 'text-body'}`}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMergeSource(null)}
-                className="flex-1 border border-theme rounded-lg py-2 text-sm text-body"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={!mergeTarget || mergeSaving}
-                onClick={async () => {
-                  setMergeSaving(true)
-                  try {
-                    await api.mergeCompanies(mergeTarget.id, mergeSource.id)
-                    setMergeSource(null)
-                    loadFunnel()
-                  } catch (e) {
-                    alert(e.message || 'Merge failed')
-                  } finally {
-                    setMergeSaving(false)
-                  }
-                }}
-                className="flex-1 bg-red-500 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
-              >
-                {mergeSaving ? 'Merging…' : `Delete ${mergeSource.name}`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
 
-function SearchResultCard({ company, onNavigate, onLogOutreach, onUpdated, fetchingIntel, onGetIntel }) {
+function SearchResultCard({ company, onNavigate, onLogOutreach, onUpdated, fetchingIntel, onGetIntel, showCheckbox, selected, onToggle }) {
   const funding = FUNDING_BADGE[company.funding_stage] || FUNDING_BADGE.unknown
   const stageColor = STAGE_COLORS[company.stage] || 'slate'
   return (
-    <div className="bg-card border border-theme rounded-xl p-4 space-y-2">
+    <div className={`bg-card border rounded-xl p-4 space-y-2 ${selected ? 'border-blue-400' : 'border-theme'}`}>
       <div className="flex items-start justify-between gap-2">
+        {showCheckbox && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            onClick={e => e.stopPropagation()}
+            className="mt-1 flex-shrink-0 cursor-pointer w-4 h-4 accent-blue-500"
+          />
+        )}
         <button className="flex-1 text-left" onClick={onNavigate}>
           <div className="font-semibold text-body truncate">{company.name}</div>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
