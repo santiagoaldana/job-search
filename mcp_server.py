@@ -412,7 +412,7 @@ async def list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="update_company_intel",
-            description="Update or append intel notes for a company in the funnel. Use when Santiago pastes news, context, or strategic notes about a target company.",
+            description="Manually save or append research notes about a target company. Use when Santiago pastes news, context, or strategic notes. The 'Get Intel' and 'Refresh intel' UI buttons generate AI-synthesized intel automatically; use this tool to layer in additional manual context on top.",
             inputSchema={
                 "type": "object",
                 "properties": {

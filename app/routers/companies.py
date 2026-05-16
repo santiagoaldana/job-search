@@ -569,7 +569,7 @@ async def refresh_intel(company_id: int, session: Session = Depends(get_session)
         raise HTTPException(status_code=404, detail="Company not found")
     try:
         from app.services.company_intel import generate_company_brief
-        brief = await generate_company_brief(company.name)
+        brief = await generate_company_brief(company, session)
         company.intel_summary = brief
         company.last_intel_refresh = datetime.utcnow().isoformat()
         company.updated_at = datetime.utcnow().isoformat()
