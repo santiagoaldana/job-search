@@ -65,14 +65,25 @@ async def generate_company_brief(company, session) -> str:
         for o in outreach
     ) if outreach else "None on record."
 
-    # Open roles
+    # Open roles — executive-relevant only (same threshold as hot leads / daily brief)
     leads = session.exec(
-        select(Lead).where(Lead.company_id == company_id, Lead.status == "active")
+        select(Lead).where(
+            Lead.company_id == company_id,
+            Lead.status == "active",
+            Lead.fit_score >= 65,
+        ).order_by(Lead.fit_score.desc())
     ).all()
+    seen_titles: set = set()
+    unique_leads = []
+    for l in leads:
+        key = l.title.strip().lower()
+        if key not in seen_titles:
+            seen_titles.add(key)
+            unique_leads.append(l)
     roles_block = "\n".join(
         l.title + (f" — {l.location}" if l.location else "")
-        for l in leads
-    ) if leads else "None tracked."
+        for l in unique_leads[:5]
+    ) if unique_leads else "None tracked."
 
     return (
         f"Intel snapshot as of {fetched_at}\n\n"
