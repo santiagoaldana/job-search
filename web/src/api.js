@@ -145,6 +145,7 @@ export const api = {
   },
   updateContact: (id, data) => patch(`/contacts/${id}`, data),
   mergeContacts: (keepId, discardId) => post('/contacts/merge', { keep_id: keepId, discard_id: discardId }),
+  mergeCompanies: (keepId, discardId) => request('DELETE', `/companies/${discardId}?merge_into=${keepId}`),
   markEmailBounced: (id) => post(`/contacts/${id}/bounce`),
   draftLinkedinMessage: (id) => post(`/contacts/${id}/draft-dm`),
   getContactNextStep: (id) => get(`/contacts/${id}/next-step`),
