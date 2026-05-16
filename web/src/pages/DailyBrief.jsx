@@ -1037,6 +1037,10 @@ function WarmPathSnooze({ action, onSnoozed }) {
 
 function EscalationControls({ action, onRefresh }) {
   const [saving, setSaving] = useState(false)
+  const [snoozedUntil, setSnoozedUntil] = useState(null)
+  const [snoozedDays, setSnoozedDays] = useState(null)
+  const [localChannel, setLocalChannel] = useState(action.escalation_channel || 'linkedin_dm')
+  const [dirty, setDirty] = useState(false)
 
   const snooze = async (days) => {
     if (!action.payload_id) return
@@ -1045,17 +1049,23 @@ function EscalationControls({ action, onRefresh }) {
       const d = new Date()
       d.setDate(d.getDate() + days)
       await api.patchOutreach(action.payload_id, { escalation_snooze_until: d.toISOString().slice(0, 10) })
-      onRefresh && onRefresh()
+      setSnoozedUntil(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
+      setSnoozedDays(days)
+      setDirty(true)
     } catch (e) { console.error('snooze error', e) } finally { setSaving(false) }
   }
 
   const setChannel = async (ch) => {
     if (!action.payload_id) return
+    setLocalChannel(ch)
     setSaving(true)
     try {
       await api.patchOutreach(action.payload_id, { escalation_channel: ch })
-      onRefresh && onRefresh()
-    } catch (e) { console.error('channel error', e) } finally { setSaving(false) }
+      setDirty(true)
+    } catch (e) {
+      setLocalChannel(action.escalation_channel || 'linkedin_dm')
+      console.error('channel error', e)
+    } finally { setSaving(false) }
   }
 
   const stop = async () => {
@@ -1067,8 +1077,6 @@ function EscalationControls({ action, onRefresh }) {
     } catch (e) { console.error('stop error', e) } finally { setSaving(false) }
   }
 
-  const current = action.escalation_channel || 'linkedin_dm'
-
   return (
     <div className="mt-3 pt-3 border-t border-theme space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
@@ -1076,10 +1084,17 @@ function EscalationControls({ action, onRefresh }) {
         {[3, 7, 14, 30].map(d => (
           <button key={d} disabled={saving}
             onClick={e => { e.stopPropagation(); snooze(d) }}
-            className="text-xs px-2 py-1 rounded-md border border-theme text-muted hover:text-body disabled:opacity-40">
+            className={`text-xs px-2 py-1 rounded-md border disabled:opacity-40 transition-colors ${
+              snoozedDays === d
+                ? 'bg-green-100 border-green-500 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                : 'border-theme text-muted hover:text-body'
+            }`}>
             {d}d
           </button>
         ))}
+        {snoozedUntil && (
+          <span className="text-xs text-green-600 dark:text-green-400">Snoozed until {snoozedUntil} ✓</span>
+        )}
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted flex-shrink-0">Next via:</span>
@@ -1090,19 +1105,37 @@ function EscalationControls({ action, onRefresh }) {
           <button key={key} disabled={saving}
             onClick={e => { e.stopPropagation(); setChannel(key) }}
             className={`text-xs px-2 py-1 rounded-md border disabled:opacity-40 transition-colors ${
-              current === key
+              localChannel === key
                 ? 'bg-purple-100 border-purple-400 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
                 : 'border-theme text-muted hover:text-body'
             }`}>
             {label}
           </button>
         ))}
-        <button disabled={saving}
-          onClick={e => { e.stopPropagation(); stop() }}
-          className="text-xs px-2 py-1 rounded-md border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40 ml-auto">
-          Stop escalating
-        </button>
+        {dirty && (
+          <button
+            onClick={e => { e.stopPropagation(); onRefresh && onRefresh() }}
+            className="text-xs px-3 py-1 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 ml-auto">
+            Done — dismiss
+          </button>
+        )}
+        {!dirty && (
+          <button disabled={saving}
+            onClick={e => { e.stopPropagation(); stop() }}
+            className="text-xs px-2 py-1 rounded-md border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40 ml-auto">
+            Stop escalating
+          </button>
+        )}
       </div>
+      {dirty && (
+        <div className="flex justify-end">
+          <button disabled={saving}
+            onClick={e => { e.stopPropagation(); stop() }}
+            className="text-xs px-2 py-1 rounded-md border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40">
+            Stop escalating
+          </button>
+        </div>
+      )}
     </div>
   )
 }
