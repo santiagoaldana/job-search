@@ -607,12 +607,18 @@ EXPERTISE_MAP = [
 ]
 
 
+_EXPERTISE_DEFAULT = "fintech and payments"
+
+
 def _derive_expertise(contact, company) -> str:
     search = ((contact.title or "") + " " + (company.name if company else "")).lower()
+    # When no contact title, also search company intel for keyword signals
+    if (not contact or not contact.title) and company and company.intel_summary:
+        search += " " + company.intel_summary[:500].lower()
     for keywords, label in EXPERTISE_MAP:
         if any(k in search for k in keywords):
             return label
-    return "fintech and payments"
+    return _EXPERTISE_DEFAULT
 
 
 def _build_escalation_subject(contact, company, first, expertise, is_mit) -> str:
@@ -681,20 +687,30 @@ def draft_template(
 
         subject = _build_escalation_subject(contact, company, first, expertise, is_mit)
 
+        # Opener: MIT alum > intel hook > specific expertise > company anchor
         if is_mit:
             opener = "I am a fellow MIT Sloan alum."
-        else:
+        elif company and company.intel_summary and len(company.intel_summary) > 30:
+            first_sentence = company.intel_summary.split('.')[0].strip()
+            snippet = first_sentence[:80] if len(first_sentence) > 80 else first_sentence
+            opener = f"I came across {company_name} recently — {snippet.lower()}."
+        elif expertise != _EXPERTISE_DEFAULT:
             opener = f"I noticed we have a common interest in {expertise}."
+        else:
+            opener = f"I have been following {company_name} and wanted to reach out."
 
         linkedin_bridge = (
             "I sent you a connection request on LinkedIn recently — thought reaching out directly might be easier.\n\n"
             if prior_message else ""
         )
 
+        # Question: role title > specific expertise > company name
         if contact and contact.title:
             question = f"I was wondering if you have a few minutes to share your perspective on the {role} work at {company_name}?"
-        else:
+        elif expertise != _EXPERTISE_DEFAULT:
             question = f"I was wondering if you have a few minutes to share your perspective on {expertise}?"
+        else:
+            question = f"I was wondering if you would be open to sharing what you are working on at {company_name}?"
 
         body = (
             f"Hi {first},\n\n"
