@@ -133,21 +133,20 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[startup] Gmail token seed error: {e}")
 
-    # Wed + Sat 8am: refresh leads for active companies (was every 6 hours)
-    scheduler.add_job(
-        job_refresh_leads,
-        CronTrigger(day_of_week="wed,sat", hour=8),
-        id="refresh_leads",
-        replace_existing=True,
-    )
-    # Daily 7am: daily brief pre-computation + event reminder check
-    scheduler.add_job(
-        job_daily_morning,
-        CronTrigger(hour=7, minute=0),
-        id="daily_morning",
-        replace_existing=True,
-    )
-    # 7:45am and 12:45pm daily: publish scheduled LinkedIn posts (was every 30 min)
+    # Paused until June 1 to stay within Neon free-tier transfer limit
+    # scheduler.add_job(
+    #     job_refresh_leads,
+    #     CronTrigger(day_of_week="wed,sat", hour=8),
+    #     id="refresh_leads",
+    #     replace_existing=True,
+    # )
+    # scheduler.add_job(
+    #     job_daily_morning,
+    #     CronTrigger(hour=7, minute=0),
+    #     id="daily_morning",
+    #     replace_existing=True,
+    # )
+    # 7:45am and 12:45pm daily: publish scheduled LinkedIn posts
     scheduler.add_job(
         job_linkedin_publish,
         CronTrigger(hour="7,12", minute=45),
@@ -156,18 +155,6 @@ async def lifespan(app: FastAPI):
     )
 
     scheduler.start()
-
-    # Keep-alive: ping self every 4 min to prevent Render free-tier cold starts
-    import threading, urllib.request, time
-    _api_url = os.environ.get("API_BASE_URL", "https://job-search-do1r.onrender.com")
-    def _keep_alive():
-        while True:
-            time.sleep(240)
-            try:
-                urllib.request.urlopen(f"{_api_url}/api/health", timeout=10)
-            except Exception:
-                pass
-    threading.Thread(target=_keep_alive, daemon=True).start()
 
     print("✓ Job Search System v2 started")
     yield
