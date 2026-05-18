@@ -146,13 +146,13 @@ async def lifespan(app: FastAPI):
     #     id="daily_morning",
     #     replace_existing=True,
     # )
-    # 7:45am and 12:45pm daily: publish scheduled LinkedIn posts
-    scheduler.add_job(
-        job_linkedin_publish,
-        CronTrigger(hour="7,12", minute=45),
-        id="linkedin_publish",
-        replace_existing=True,
-    )
+    # Paused until June 1
+    # scheduler.add_job(
+    #     job_linkedin_publish,
+    #     CronTrigger(hour="7,12", minute=45),
+    #     id="linkedin_publish",
+    #     replace_existing=True,
+    # )
 
     scheduler.start()
 
