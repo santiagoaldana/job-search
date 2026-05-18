@@ -271,6 +271,7 @@ def match_email_to_outreach(
     from_email: str,
     from_name: str,
     thread_id: str,
+    all_contacts: list,
 ) -> Optional[OutreachRecord]:
     """Four-pass matching. Returns the most relevant pending OutreachRecord."""
     # Pass 1: thread continuity
@@ -282,9 +283,7 @@ def match_email_to_outreach(
             return session.get(OutreachRecord, existing_msg.outreach_record_id)
 
     # Pass 2: exact email match on Contact
-    contact = session.exec(
-        select(Contact).where(Contact.email == from_email)
-    ).first()
+    contact = next((c for c in all_contacts if c.email == from_email), None)
     if contact:
         record = session.exec(
             select(OutreachRecord)
@@ -299,8 +298,7 @@ def match_email_to_outreach(
     domain = from_email.split("@")[-1] if "@" in from_email else ""
     if domain and domain not in GENERIC_DOMAINS:
         name_tokens = set(from_name.lower().split()) if from_name else set()
-        contacts = session.exec(select(Contact)).all()
-        for c in contacts:
+        for c in all_contacts:
             if not c.email:
                 continue
             c_domain = c.email.split("@")[-1]
@@ -319,9 +317,8 @@ def match_email_to_outreach(
     # Pass 4: name token overlap >= 2
     name_tokens = set(from_name.lower().split()) if from_name else set()
     if len(name_tokens) >= 2:
-        contacts = session.exec(select(Contact)).all()
         best_record, best_score = None, 0
-        for c in contacts:
+        for c in all_contacts:
             c_tokens = set(c.name.lower().split())
             score = len(name_tokens & c_tokens)
             if score >= 2 and score > best_score:
@@ -341,7 +338,7 @@ def match_email_to_outreach(
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
 
-def handle_linkedin_acceptance(session: Session, subject: str, body_text: str) -> dict:
+def handle_linkedin_acceptance(session: Session, subject: str, body_text: str, all_contacts: list) -> dict:
     """Update Contact + OutreachRecord when LinkedIn acceptance email is detected."""
     # LinkedIn subjects use first name only: "John has accepted your invitation"
     # Try subject first (handles "John Bruce accepted" and "John has accepted")
@@ -371,9 +368,8 @@ def handle_linkedin_acceptance(session: Session, subject: str, body_text: str) -
     # Require both first and last name to match when we have a full name; first-name-only is too ambiguous
     min_score = 2 if len(name_tokens) >= 2 else 1
 
-    contacts = session.exec(select(Contact)).all()
     best_contact, best_score = None, 0
-    for c in contacts:
+    for c in all_contacts:
         c_tokens = set(c.name.lower().split())
         score = len(name_tokens & c_tokens)
         if score > best_score:
@@ -407,7 +403,7 @@ def handle_linkedin_acceptance(session: Session, subject: str, body_text: str) -
     }
 
 
-def handle_linkedin_dm_reply(session: Session, subject: str) -> dict:
+def handle_linkedin_dm_reply(session: Session, subject: str, all_contacts: list) -> dict:
     """Detect a LinkedIn DM reply notification and mark the outreach as replied."""
     m = re.match(r"^(.+?)\s+just messaged you", subject, re.IGNORECASE)
     if not m:
@@ -416,9 +412,8 @@ def handle_linkedin_dm_reply(session: Session, subject: str) -> dict:
 
     name_tokens = [t.lower() for t in sender_name.split() if len(t) > 1]
     min_score = 2 if len(name_tokens) >= 2 else 1
-    contacts = session.exec(select(Contact)).all()
     best_contact, best_score = None, 0
-    for c in contacts:
+    for c in all_contacts:
         tokens = [t.lower() for t in (c.name or "").split()]
         score = sum(1 for t in name_tokens if t in tokens)
         if score > best_score:
@@ -673,18 +668,21 @@ def run_gmail_sync(session: Session) -> dict:
 
     results: dict = {"new_outreach": [], "new_replies": [], "linkedin_accepted": [], "linkedin_dm_replies": [], "bounces": [], "errors": []}
 
+    # Load contacts once — reused across all handler calls to avoid repeated full-table fetches
+    all_contacts = session.exec(select(Contact)).all()
+
     # Stream 3: LinkedIn acceptance emails — look back 48h to catch any missed by previous runs
     inbox_msgs = _fetch_messages(service, "INBOX", extra_query="", hours=48)
     for msg in inbox_msgs:
         email_type = classify_email_type(msg["from_email"], msg["subject"], msg["body_text"])
 
         if email_type == "linkedin_acceptance":
-            r = handle_linkedin_acceptance(session, msg["subject"], msg["body_text"])
+            r = handle_linkedin_acceptance(session, msg["subject"], msg["body_text"], all_contacts)
             if r.get("updated"):
                 results["linkedin_accepted"].append(r)
 
         elif email_type == "linkedin_dm_reply":
-            r = handle_linkedin_dm_reply(session, msg["subject"])
+            r = handle_linkedin_dm_reply(session, msg["subject"], all_contacts)
             if r.get("updated"):
                 results["linkedin_dm_replies"].append(r)
 
@@ -696,7 +694,7 @@ def run_gmail_sync(session: Session) -> dict:
                 results["errors"].append(f"bounce unhandled: {r.get('reason')} ({r.get('failed_email', '?')})")
 
         elif email_type == "outreach_reply":
-            matched = match_email_to_outreach(session, msg["from_email"], msg["from_name"], msg["thread_id"])
+            matched = match_email_to_outreach(session, msg["from_email"], msg["from_name"], msg["thread_id"], all_contacts)
             if matched:
                 r = handle_outreach_reply(session, msg, matched)
                 if not r.get("skipped"):
