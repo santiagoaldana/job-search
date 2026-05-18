@@ -668,8 +668,11 @@ def run_gmail_sync(session: Session) -> dict:
 
     results: dict = {"new_outreach": [], "new_replies": [], "linkedin_accepted": [], "linkedin_dm_replies": [], "bounces": [], "errors": []}
 
-    # Load contacts once — reused across all handler calls to avoid repeated full-table fetches
-    all_contacts = session.exec(select(Contact)).all()
+    # Load only contacted contacts — outreach_status != "none" filters out the bulk of
+    # imported LinkedIn connections that were never reached out to (~200-300 vs 9000+)
+    all_contacts = session.exec(
+        select(Contact).where(Contact.outreach_status != "none")
+    ).all()
 
     # Stream 3: LinkedIn acceptance emails — look back 48h to catch any missed by previous runs
     inbox_msgs = _fetch_messages(service, "INBOX", extra_query="", hours=48)
