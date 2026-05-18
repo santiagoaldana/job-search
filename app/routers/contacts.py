@@ -34,6 +34,26 @@ def list_contacts(session: Session = Depends(get_session)):
     return result
 
 
+@router.get("/active")
+def list_active_contacts(session: Session = Depends(get_session)):
+    """Return only contacted contacts (outreach_status != none) — lightweight alternative to /contacts."""
+    contacts = session.exec(
+        select(Contact)
+        .where(Contact.outreach_status != "none")
+        .order_by(Contact.name)
+    ).all()
+    result = []
+    for c in contacts:
+        company = session.get(Company, c.company_id) if c.company_id else None
+        result.append({
+            "id": c.id,
+            "name": c.name,
+            "title": c.title,
+            "company_name": company.name if company else None,
+        })
+    return result
+
+
 class QuickAddRequest(BaseModel):
     name: str
     title: Optional[str] = None

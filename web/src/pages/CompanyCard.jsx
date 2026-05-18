@@ -661,7 +661,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
 
   useEffect(() => {
-    api.listAllContacts().then(setAllContacts).catch(() => setAllContacts(company.contacts || []))
+    api.listActiveContacts().then(setAllContacts).catch(() => setAllContacts(company.contacts || []))
   }, [])
 
   const handleScreenshotPaste = async (file) => {
