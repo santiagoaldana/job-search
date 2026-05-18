@@ -381,7 +381,9 @@ class LogInteractionRequest(BaseModel):
 def log_interaction(req: LogInteractionRequest, session: Session = Depends(get_session)):
     """Log a LinkedIn or email interaction with an existing contact."""
     name_lower = req.contact_name.lower()
-    candidates = session.exec(select(Contact)).all()
+    candidates = session.exec(
+        select(Contact).where(Contact.name.ilike(f"%{req.contact_name}%"))
+    ).all()
     contact = next((c for c in candidates if name_lower in (c.name or "").lower()), None)
 
     if contact is None:
