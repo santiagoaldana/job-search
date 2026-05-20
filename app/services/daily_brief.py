@@ -161,6 +161,26 @@ def compute_daily_brief(session: Session) -> dict:
                 "escalation_channel": record.escalation_channel,
                 "escalation_snooze_until": record.escalation_snooze_until,
             })
+        elif record.channel == "linkedin" and record.linkedin_accepted == True:
+            # Original touch was a LinkedIn DM — bump via DM, not email
+            next_step = _contact_next_step(contact, company) if contact else {"action": "draft_linkedin_dm", "guessed_email": None}
+            outreach.append({
+                "action_type": "try_linkedin_dm",
+                "label": f"Day 3 Bump — {who}",
+                "detail": f"{days_sent} day{'s' if days_sent != 1 else ''} overdue · DM follow-up",
+                "cta": "Draft LinkedIn DM",
+                "company_id": record.company_id,
+                "contact_id": record.contact_id,
+                "contact_name": contact.name if contact else None,
+                "contact_title": contact.title if contact else None,
+                "company_name": company.name if company else None,
+                "intel_summary": company.intel_summary if company else None,
+                "payload_id": record.id,
+                "payload_type": "outreach",
+                "next_step": next_step,
+                "days_sent": days_sent,
+                "followup_day": 3,
+            })
         else:
             outreach.append({
                 "action_type": "follow_up_3",
