@@ -505,7 +505,7 @@ function NewReplyCard({ action, onDismiss, onRefresh }) {
   const handleReply = () => {
     if (action.contact_name) {
       const subject = encodeURIComponent(`Re: ${action.label.replace('Reply received — ', '')}`)
-      window.open(`mailto:?subject=${subject}`, '_blank')
+      window.open(`https://mail.google.com/mail/?view=cm&su=${subject}`, '_blank')
     }
     if (action.company_id) {
       // Navigate handled by parent handleAction
@@ -718,7 +718,7 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
 
   const handleSendEmail = () => {
     if (!nextStep?.guessed_email) return
-    const mailto = `mailto:${nextStep.guessed_email}?subject=${encodeURIComponent('Following up — ' + (action.contact_name || ''))}`
+    const mailto = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(nextStep.guessed_email)}&su=${encodeURIComponent('Following up — ' + (action.contact_name || ''))}`
     window.open(mailto, '_blank')
     setEmailSent(true)
     setState('escalated')
@@ -832,7 +832,7 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
 
   const handleSendViaGmail = () => {
     window.open(
-      `mailto:${encodeURIComponent(guessedEmail || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+      `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(guessedEmail || '')}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
       '_blank'
     )
     setState('sent')

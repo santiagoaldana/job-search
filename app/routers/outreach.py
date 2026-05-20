@@ -870,10 +870,10 @@ def build_mailto(
 
     subject_enc = urllib.parse.quote(req.subject or "", safe="")
     body_enc = urllib.parse.quote(req.body or "", safe="")
-    to_part = f"mailto:{urllib.parse.quote(to_email, safe='@.')}" if to_email else "mailto:"
-    mailto_url = f"{to_part}?subject={subject_enc}&body={body_enc}"
+    to_enc = urllib.parse.quote(to_email, safe="@.")
+    gmail_url = f"https://mail.google.com/mail/?view=cm&to={to_enc}&su={subject_enc}&body={body_enc}"
 
-    return {"mailto_url": mailto_url, "to_email": to_email or None}
+    return {"mailto_url": gmail_url, "to_email": to_email or None}
 
 
 @router.post("/{record_id}/mark-followup-sent")
@@ -918,8 +918,8 @@ def send_followup(
 
     subject_enc = urllib.parse.quote(req.subject or "", safe="")
     body_enc = urllib.parse.quote(req.body or "", safe="")
-    to_part = f"mailto:{urllib.parse.quote(to_email, safe='@.')}" if to_email else "mailto:"
-    mailto_url = f"{to_part}?subject={subject_enc}&body={body_enc}"
+    to_enc = urllib.parse.quote(to_email, safe="@.")
+    mailto_url = f"https://mail.google.com/mail/?view=cm&to={to_enc}&su={subject_enc}&body={body_enc}"
 
     today = date.today()
     if req.followup_day == 3:
