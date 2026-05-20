@@ -373,7 +373,7 @@ def get_conversation_history(outreach_id: int) -> List[dict]:
                         "from_email": "santiago@aidatasolutions.co",
                         "from_name": "Santiago Aldana",
                         "subject": record.subject or "(no subject)",
-                        "body_preview": (record.body[:200] if record.body else "") or "(original email body not stored)",
+                        "body_preview": (record.body or "") or "(original email body not stored)",
                         "message_type": "outreach",
                     }]
                 return []
@@ -385,7 +385,7 @@ def get_conversation_history(outreach_id: int) -> List[dict]:
 
             # Reverse to get last 10, but keep original order in result
             for msg in reversed(messages[-10:]):
-                body_preview = msg.body_full[:200] if msg.body_full else ""  # 200 char preview
+                body_preview = msg.body_full or ""
                 msg_dict = {
                     "date": msg.message_date,
                     "from_email": msg.from_email,

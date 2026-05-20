@@ -260,7 +260,20 @@ function FollowUpModal({ action, onClose, onSent }) {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-3">
-          {error && (
+          {error && !body && (
+            <div className="flex flex-col items-center py-8 gap-3">
+              <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/40 rounded-lg p-3 text-center w-full">
+                Could not load draft — the server may be waking up. Try again in a few seconds.
+              </div>
+              <button
+                onClick={() => { setError(null); setDrafting(true); api.draftFollowup(action.payload_id, action.followup_day, language).then(d => { setSubject(d.subject || ''); setBody(d.body || ''); setConversation(d.conversation_text || ''); setDrafting(false); }).catch(e => { setError(e.message); setDrafting(false); }) }}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {error && body && (
             <div className="mb-3 text-xs text-red-500 bg-red-50 dark:bg-red-950/40 rounded-lg p-2">{error}</div>
           )}
           {drafting ? (
@@ -321,7 +334,7 @@ function FollowUpModal({ action, onClose, onSent }) {
                 </button>
               )}
             </div>
-          ) : (
+          ) : !error || body ? (
             <>
               {conversation && (
                 <div className="mb-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -433,7 +446,7 @@ function FollowUpModal({ action, onClose, onSent }) {
                 </div>
               )}
             </>
-          )}
+          ) : null}
         </div>
 
         {/* Footer */}
