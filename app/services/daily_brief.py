@@ -83,6 +83,35 @@ def compute_daily_brief(session: Session) -> dict:
             "payload_type": "outreach",
         })
 
+    # Post-meeting follow-ups due (meeting has passed, thank-you not yet sent)
+    met_records = session.exec(
+        select(OutreachRecord).where(
+            OutreachRecord.meeting_date != None,
+            OutreachRecord.post_meeting_followup_sent == False,
+            OutreachRecord.meeting_date <= today,
+        )
+    ).all()
+
+    for record in met_records:
+        company = session.get(Company, record.company_id) if record.company_id else None
+        contact = session.get(Contact, record.contact_id) if record.contact_id else None
+        who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else "Unknown"))
+        days_ago = _days_diff(record.meeting_date, today)
+        detail_time = "today" if days_ago == 0 else ("yesterday" if days_ago == 1 else f"{days_ago} days ago")
+        outreach.append({
+            "action_type": "post_meeting_followup",
+            "label": f"Follow up after meeting — {who}",
+            "detail": f"Met {detail_time} · send thank-you note",
+            "cta": "Draft follow-up",
+            "company_id": record.company_id,
+            "contact_id": record.contact_id,
+            "contact_name": contact.name if contact else None,
+            "company_name": company.name if company else None,
+            "payload_id": record.id,
+            "payload_type": "outreach",
+            "followup_day": 0,
+        })
+
     # LinkedIn acceptances detected via Gmail sync in last 48h
     recent_accepted = session.exec(
         select(OutreachRecord)
@@ -598,7 +627,7 @@ def compute_daily_brief(session: Session) -> dict:
     priority_ids: set = set(json.loads(config.priority_company_ids)) if config else set()
 
     _urgency = {
-        "new_reply": 50, "linkedin_accepted": 40,
+        "new_reply": 50, "post_meeting_followup": 45, "linkedin_accepted": 40,
         "follow_up_3": 30, "follow_up_7": 20,
         "warm_path": 15, "email_escalation": 12,
         "try_linkedin_dm": 10, "email_bounce_retry": 8,
@@ -636,6 +665,7 @@ def compute_daily_brief(session: Session) -> dict:
 
 _MCP_TOOL_MAP = {
     "new_reply": "get_contact_next_step",
+    "post_meeting_followup": "draft_followup",
     "linkedin_accepted": "draft_linkedin_message",
     "follow_up_3": "draft_followup",
     "follow_up_7": "draft_followup",

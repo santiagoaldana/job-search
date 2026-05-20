@@ -165,6 +165,9 @@ def _parse_message(service, msg_id: str) -> Optional[dict]:
     body_text = _extract_body(msg.get("payload", {}))
     message_date = datetime.utcfromtimestamp(internal_date).isoformat() if internal_date else datetime.utcnow().isoformat()
 
+    ics_text = _extract_ics(msg.get("payload", {}))
+    ics_data = _parse_ics(ics_text) if ics_text else {"ics_date": None, "ics_summary": None, "ics_attendees": []}
+
     return {
         "gmail_message_id": msg_id,
         "thread_id": thread_id,
@@ -174,6 +177,9 @@ def _parse_message(service, msg_id: str) -> Optional[dict]:
         "to_email": to_email.lower(),
         "body_text": body_text,
         "message_date": message_date,
+        "ics_date": ics_data["ics_date"],
+        "ics_summary": ics_data["ics_summary"],
+        "ics_attendees": ics_data["ics_attendees"],
     }
 
 
@@ -221,10 +227,60 @@ def _collect_parts(payload: dict) -> tuple:
     return plain, html
 
 
+def _extract_ics(payload: dict) -> Optional[str]:
+    """Recursively search payload parts for a text/calendar or .ics attachment. Returns raw ICS text or None."""
+    mime = payload.get("mimeType", "")
+    if mime == "text/calendar":
+        data = payload.get("body", {}).get("data", "")
+        if data:
+            return base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+    filename = (payload.get("filename") or "").lower()
+    if filename.endswith(".ics"):
+        data = payload.get("body", {}).get("data", "")
+        if data:
+            return base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+    for part in payload.get("parts", []):
+        result = _extract_ics(part)
+        if result:
+            return result
+    return None
+
+
+def _parse_ics(ics_text: str) -> dict:
+    """Extract DTSTART, SUMMARY, and ATTENDEE emails from ICS text."""
+    dtstart = None
+    summary = None
+    attendees = []
+
+    for line in ics_text.splitlines():
+        line = line.strip()
+        if line.startswith("DTSTART"):
+            val = line.split(":", 1)[-1].strip()
+            # Handle DTSTART;TZID=... or plain DTSTART
+            try:
+                val_clean = re.sub(r"[TZ]", " ", val).strip().split()[0]
+                dtstart = datetime.strptime(val_clean[:8], "%Y%m%d").date().isoformat()
+            except Exception:
+                pass
+        elif line.startswith("SUMMARY"):
+            summary = line.split(":", 1)[-1].strip()
+        elif line.upper().startswith("ATTENDEE"):
+            m = re.search(r"mailto:([^\s;>\"]+)", line, re.IGNORECASE)
+            if m:
+                attendees.append(m.group(1).lower())
+
+    return {"ics_date": dtstart, "ics_summary": summary, "ics_attendees": attendees}
+
+
 # ── Classification ────────────────────────────────────────────────────────────
 
-def classify_email_type(from_email: str, subject: str, body_text: str) -> str:
-    """Return 'linkedin_acceptance' | 'linkedin_dm_reply' | 'bounce' | 'outreach_reply' | 'irrelevant'."""
+SANTIAGO_EMAILS = {"santiago@aidatasolutions.co", "aldana.santiago@gmail.com", "saldana@stmaryscu.org"}
+
+
+def classify_email_type(from_email: str, subject: str, body_text: str, ics_date: Optional[str] = None) -> str:
+    """Return 'calendar_invite' | 'linkedin_acceptance' | 'linkedin_dm_reply' | 'bounce' | 'outreach_reply' | 'irrelevant'."""
+    if ics_date:
+        return "calendar_invite"
     from_lower = from_email.lower()
     subject_lower = subject.lower()
     body_lower = body_text.lower()[:500]
@@ -494,6 +550,59 @@ def handle_outreach_reply(session: Session, msg_data: dict, record: OutreachReco
     }
 
 
+def handle_calendar_invite(session: Session, msg: dict, all_contacts: list) -> dict:
+    """Set meeting_date on OutreachRecord when a calendar invite is detected."""
+    ics_date = msg.get("ics_date")
+    if not ics_date:
+        return {"updated": False, "reason": "no ics_date"}
+
+    attendees = [a for a in msg.get("ics_attendees", []) if a not in SANTIAGO_EMAILS]
+
+    record = None
+
+    # Try matching by attendee email first
+    for attendee_email in attendees:
+        contact = next((c for c in all_contacts if c.email == attendee_email), None)
+        if contact:
+            r = session.exec(
+                select(OutreachRecord)
+                .where(OutreachRecord.contact_id == contact.id)
+                .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
+            ).first()
+            if r:
+                record = r
+                break
+
+    # Fall back to matching via from/to fields on the message
+    if not record:
+        for email_field in ("from_email", "to_email"):
+            em = msg.get(email_field, "")
+            if em and em not in SANTIAGO_EMAILS:
+                name_field = "from_name" if email_field == "from_email" else ""
+                nm = msg.get(name_field, "") if name_field else ""
+                record = match_email_to_outreach(session, em, nm, msg.get("thread_id", ""), all_contacts)
+                if record:
+                    break
+
+    if not record:
+        return {"updated": False, "reason": "no matching outreach record for attendees"}
+
+    record.meeting_date = ics_date
+    if record.response_status == "pending":
+        record.response_status = "positive"
+    record.updated_at = datetime.utcnow().isoformat()
+    session.add(record)
+    session.commit()
+
+    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    return {
+        "updated": True,
+        "contact_name": contact.name if contact else None,
+        "meeting_date": ics_date,
+        "outreach_id": record.id,
+    }
+
+
 def handle_bounce_email(session: Session, msg_data: dict) -> dict:
     """Extract failed address from bounce, mark contact.email_invalid=True."""
     body = msg_data["body_text"]
@@ -648,8 +757,8 @@ def get_or_create_sync_state(session: Session) -> GmailSyncState:
 
 # ── Main orchestration ────────────────────────────────────────────────────────
 
-def run_gmail_sync(session: Session) -> dict:
-    """Called once daily at 7am. Looks back 24 hours. No Claude API cost."""
+def run_gmail_sync(session: Session, hours: int = 24) -> dict:
+    """Called once daily at 7am. Looks back `hours` hours. No Claude API cost."""
     try:
         service = _get_gmail_service(session)
         _persist_token(session)  # save refreshed token back to DB immediately
@@ -666,7 +775,7 @@ def run_gmail_sync(session: Session) -> dict:
             pass
         return {"error": error_msg, "new_outreach": [], "new_replies": [], "linkedin_accepted": []}
 
-    results: dict = {"new_outreach": [], "new_replies": [], "linkedin_accepted": [], "linkedin_dm_replies": [], "bounces": [], "errors": []}
+    results: dict = {"new_outreach": [], "new_replies": [], "linkedin_accepted": [], "linkedin_dm_replies": [], "bounces": [], "calendar_invites": [], "errors": []}
 
     # Load only contacted contacts — outreach_status != "none" filters out the bulk of
     # imported LinkedIn connections that were never reached out to (~200-300 vs 9000+)
@@ -674,12 +783,17 @@ def run_gmail_sync(session: Session) -> dict:
         select(Contact).where(Contact.outreach_status != "none")
     ).all()
 
-    # Stream 3: LinkedIn acceptance emails — look back 48h to catch any missed by previous runs
-    inbox_msgs = _fetch_messages(service, "INBOX", extra_query="", hours=48)
+    # Stream 3: LinkedIn acceptance emails — look back at least 48h, or full backfill window
+    inbox_msgs = _fetch_messages(service, "INBOX", extra_query="", hours=max(hours, 48))
     for msg in inbox_msgs:
-        email_type = classify_email_type(msg["from_email"], msg["subject"], msg["body_text"])
+        email_type = classify_email_type(msg["from_email"], msg["subject"], msg["body_text"], ics_date=msg.get("ics_date"))
 
-        if email_type == "linkedin_acceptance":
+        if email_type == "calendar_invite":
+            r = handle_calendar_invite(session, msg, all_contacts)
+            if r.get("updated"):
+                results["calendar_invites"].append(r)
+
+        elif email_type == "linkedin_acceptance":
             r = handle_linkedin_acceptance(session, msg["subject"], msg["body_text"], all_contacts)
             if r.get("updated"):
                 results["linkedin_accepted"].append(r)
@@ -704,7 +818,7 @@ def run_gmail_sync(session: Session) -> dict:
                     results["new_replies"].append(r)
 
     # Stream 1: Emails Santiago sent → only if recipient is a known contact
-    sent_msgs = _fetch_messages(service, "SENT")
+    sent_msgs = _fetch_messages(service, "SENT", hours=hours)
     for msg in sent_msgs:
         r = handle_sent_email(session, msg)
         if r.get("outreach_created"):
@@ -719,11 +833,12 @@ def run_gmail_sync(session: Session) -> dict:
         "linkedin_accepted": len(results["linkedin_accepted"]),
         "linkedin_dm_replies": len(results["linkedin_dm_replies"]),
         "bounces": len(results["bounces"]),
+        "calendar_invites": len(results["calendar_invites"]),
         "error": None,
     })
     state.updated_at = datetime.utcnow().isoformat()
     session.add(state)
     session.commit()
 
-    print(f"[gmail_sync] outreach={len(results['new_outreach'])} replies={len(results['new_replies'])} li_accepted={len(results['linkedin_accepted'])} li_dm_replies={len(results['linkedin_dm_replies'])} bounces={len(results['bounces'])}")
+    print(f"[gmail_sync] outreach={len(results['new_outreach'])} replies={len(results['new_replies'])} li_accepted={len(results['linkedin_accepted'])} li_dm_replies={len(results['linkedin_dm_replies'])} bounces={len(results['bounces'])} calendar={len(results['calendar_invites'])}")
     return results

@@ -129,6 +129,16 @@ FOLLOW_UP_TEMPLATES = {
             "body": "Hola {first_name},\n\nVuelvo a escribirte una última vez. Si en algún momento hay oportunidad de conversar, lo agradecería mucho.",
         },
     },
+    "post_meeting": {
+        "en": {
+            "subject": "Great talking with you",
+            "body": "Hi {first_name},\n\nReally enjoyed our conversation. Thank you for the time and insights.\n\nLooking forward to staying in touch.\n\nSantiago",
+        },
+        "es": {
+            "subject": "Fue un placer hablar contigo",
+            "body": "Hola {first_name},\n\nMucho gusto hablar contigo. Gracias por el tiempo y los aprendizajes.\n\nQuedo en contacto.\n\nSantiago",
+        },
+    },
 }
 
 

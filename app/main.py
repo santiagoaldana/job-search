@@ -133,7 +133,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[startup] Gmail token seed error: {e}")
 
-    # Paused until June 1 to stay within Neon free-tier transfer limit
+    # Lead refresh and LinkedIn publish remain paused
     # scheduler.add_job(
     #     job_refresh_leads,
     #     CronTrigger(day_of_week="wed,sat", hour=8),
@@ -141,18 +141,17 @@ async def lifespan(app: FastAPI):
     #     replace_existing=True,
     # )
     # scheduler.add_job(
-    #     job_daily_morning,
-    #     CronTrigger(hour=7, minute=0),
-    #     id="daily_morning",
-    #     replace_existing=True,
-    # )
-    # Paused until June 1
-    # scheduler.add_job(
     #     job_linkedin_publish,
     #     CronTrigger(hour="7,12", minute=45),
     #     id="linkedin_publish",
     #     replace_existing=True,
     # )
+    scheduler.add_job(
+        job_daily_morning,
+        CronTrigger(hour=7, minute=0),
+        id="daily_morning",
+        replace_existing=True,
+    )
 
     scheduler.start()
 

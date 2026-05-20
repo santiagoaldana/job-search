@@ -153,6 +153,9 @@ class OutreachRecord(SQLModel, table=True):
     escalation_snooze_until: Optional[str] = Field(default=None)  # ISO date — suppress escalation card
     escalation_channel: Optional[str] = Field(default=None)       # "email" | "linkedin_dm"
 
+    meeting_date: Optional[str] = Field(default=None)             # ISO date of confirmed networking meeting
+    post_meeting_followup_sent: bool = Field(default=False)        # thank-you sent after meeting
+
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 

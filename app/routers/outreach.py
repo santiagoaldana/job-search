@@ -488,7 +488,12 @@ async def draft_followup(
     contact = session.get(Contact, record.contact_id) if record.contact_id else None
 
     # Map followup_day to stage
-    stage = "day_3" if req.followup_day == 3 else "day_7"
+    if req.followup_day == 0:
+        stage = "post_meeting"
+    elif req.followup_day == 3:
+        stage = "day_3"
+    else:
+        stage = "day_7"
 
     # Build outreach record dict for template function
     from datetime import datetime, date
@@ -917,7 +922,9 @@ def mark_followup_sent(
         raise HTTPException(status_code=404, detail="Record not found")
 
     today = date.today()
-    if req.followup_day == 3:
+    if req.followup_day == 0:
+        record.post_meeting_followup_sent = True
+    elif req.followup_day == 3:
         record.follow_up_3_sent = True
         record.follow_up_7_due = add_business_days(today, 4).isoformat()
     else:

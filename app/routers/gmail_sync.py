@@ -24,6 +24,14 @@ def trigger_sync(session: Session = Depends(get_session)):
     return result
 
 
+@router.post("/sync-backfill")
+def trigger_sync_backfill(session: Session = Depends(get_session)):
+    """One-time backfill: looks back 240 hours (10 days) to catch up after the May pause."""
+    from app.services.gmail_sync_service import run_gmail_sync
+    result = run_gmail_sync(session, hours=240)
+    return result
+
+
 @router.post("/sync-async")
 def trigger_sync_async(background_tasks: BackgroundTasks):
     """Fire-and-forget Gmail sync — returns immediately, runs in background."""

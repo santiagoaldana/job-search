@@ -66,6 +66,8 @@ def run_migrations():
         ("contact", "snooze_until", "TEXT"),
         ("outreachrecord", "escalation_snooze_until", "TEXT"),
         ("outreachrecord", "escalation_channel", "TEXT"),
+        ("outreachrecord", "meeting_date", "TEXT"),
+        ("outreachrecord", "post_meeting_followup_sent", "BOOLEAN DEFAULT FALSE"),
     ]
 
     with engine.connect() as conn:
