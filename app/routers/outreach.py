@@ -577,19 +577,48 @@ async def get_conversation_context(
             detail="No conversation history found for this record.",
         )
 
+    santiago_emails = {"santiago@aidatasolutions.co", "aldana.santiago@gmail.com"}
+    has_inbound_reply = any(
+        (msg.get("from_email") or "").lower() not in santiago_emails
+        for msg in history
+    )
+
+    if has_inbound_reply:
+        generation_instructions = (
+            "You are helping Santiago Aldana, an executive with 20+ years in FinTech, payments, "
+            "digital identity and LATAM markets, currently Chief Product Solutions Officer at SMCU "
+            "(number one SBA credit union lender in Massachusetts). "
+            "He is actively searching for C-suite or SVP roles at companies in payments infrastructure, "
+            "BaaS, embedded banking, agentic AI, and digital identity. "
+            "Companies he is actively connecting with include Infinant, Firmly, Grasshopper Bank, Synctera, and Sardine. "
+            "\n\n"
+            "Read the conversation history above carefully. Then rewrite the draft to:\n"
+            "1. Reference something specific from the prior exchange, not generically.\n"
+            "2. If the prior thread involved a referral or closed process, acknowledge its outcome warmly.\n"
+            "3. Update the contact on Santiago's current search focus if it adds value.\n"
+            "4. End with a light specific ask or offer. Never use 'pick your brain' or 'circle back'.\n"
+            "5. Never use em dashes, en dashes, or hyphens as punctuation.\n"
+            "Keep body under 100 words. Do NOT add a signature block. "
+            'Return JSON: {"subject": "...", "body": "...", "reasoning": "why this version is better"}'
+        )
+    else:
+        generation_instructions = (
+            "Refine the draft using the Dalton method: lead with a specific fact about the recipient "
+            "or their company, make it about them not Santiago, end with a single light ask. "
+            "Maintain warm conversational tone. Keep body under 80 words. "
+            "Do NOT use corporate jargon, 'synergy', 'circle back', or 'pick your brain'. "
+            "Never use em dashes, en dashes, or hyphens as punctuation. "
+            "Do NOT add a signature block. "
+            'Return JSON: {"subject": "...", "body": "...", "reasoning": "why this version is better"}'
+        )
+
     return {
         "record_id": record_id,
         "stage": req.stage,
         "draft_subject": req.subject,
         "draft_body": req.body,
         "conversation_history": history,
-        "generation_instructions": (
-            "Refine the draft to reference specific points from the conversation above. "
-            "Maintain warm, conversational tone. Keep body ≤100 words. "
-            "Do NOT use corporate jargon or 'synergy', 'circle back', 'pick your brain'. "
-            "Do NOT add a signature block. Return JSON: "
-            '{"subject": "...", "body": "...", "reasoning": "why this version is better"}'
-        ),
+        "generation_instructions": generation_instructions,
     }
 
 
