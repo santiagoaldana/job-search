@@ -29,6 +29,7 @@ const ACTION_ICONS = {
   email_escalation: Mail,
   new_reply: MessageSquare,
   linkedin_accepted: UserPlus,
+  champion_checkin: Star,
 }
 
 const ACTION_COLORS = {
@@ -46,6 +47,7 @@ const ACTION_COLORS = {
   email_escalation: 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/40',
   new_reply: 'border-green-400 bg-green-50 dark:border-green-600 dark:bg-green-950/50',
   linkedin_accepted: 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40',
+  champion_checkin: 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40',
 }
 
 const ACTION_ICON_COLORS = {
@@ -63,6 +65,7 @@ const ACTION_ICON_COLORS = {
   email_escalation: 'text-orange-500',
   new_reply: 'text-green-600',
   linkedin_accepted: 'text-sky-500',
+  champion_checkin: 'text-amber-500',
 }
 
 function FollowUpModal({ action, onClose, onSent }) {
@@ -1050,6 +1053,166 @@ function WarmPathSnooze({ action, onSnoozed }) {
   )
 }
 
+function WarmPathChampionToggle({ action, onRefresh }) {
+  const [open, setOpen] = useState(false)
+  const [notes, setNotes] = useState('')
+  const [date, setDate] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const confirm = async (e) => {
+    e.stopPropagation()
+    if (!date || !action.payload_id) return
+    setSaving(true)
+    try {
+      await api.updateContact(action.payload_id, {
+        is_champion: true,
+        champion_notes: notes.trim() || null,
+        next_checkin_date: date,
+      })
+      onRefresh()
+    } catch (err) {
+      console.error('champion toggle error', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <div className="mt-3 pt-3 border-t border-theme">
+        <button
+          onClick={e => { e.stopPropagation(); setOpen(true) }}
+          className="text-xs text-amber-600 dark:text-amber-400 hover:underline"
+        >
+          Already a champion? Mark as such →
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-theme flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+      <textarea
+        rows={2}
+        placeholder="How do you know them / what happened?"
+        value={notes}
+        onChange={e => setNotes(e.target.value)}
+        className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <button
+          disabled={!date || saving}
+          onClick={confirm}
+          className="text-xs px-3 py-2 rounded-lg bg-amber-500 text-white font-medium disabled:opacity-40 hover:bg-amber-600"
+        >
+          {saving ? 'Saving…' : 'Confirm'}
+        </button>
+        <button
+          onClick={e => { e.stopPropagation(); setOpen(false) }}
+          className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ChampionCheckinCard({ action, onRefresh }) {
+  const [notes, setNotes] = useState('')
+  const [date, setDate] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const save = async (e) => {
+    e.stopPropagation()
+    if (!date || !action.payload_id) return
+    setSaving(true)
+    try {
+      const newNotes = action.champion_notes
+        ? `${action.champion_notes}\n\n${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: ${notes.trim()}`
+        : notes.trim()
+      await api.updateContact(action.payload_id, {
+        champion_notes: newNotes || null,
+        next_checkin_date: date,
+      })
+      setDone(true)
+      setTimeout(() => onRefresh(), 1200)
+    } catch (err) {
+      console.error('checkin save error', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const close = async (e) => {
+    e.stopPropagation()
+    if (!action.payload_id) return
+    setSaving(true)
+    try {
+      await api.updateContact(action.payload_id, { is_champion: false })
+      onRefresh()
+    } catch (err) {
+      console.error('close relationship error', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="mt-3 pt-3 border-t border-theme text-xs text-green-600 dark:text-green-400">
+        Check-in logged. Next reminder set.
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-theme flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+      {action.champion_notes && (
+        <div className="text-xs text-muted bg-slate-50 dark:bg-slate-800/50 rounded-lg px-3 py-2 leading-relaxed whitespace-pre-wrap line-clamp-4">
+          {action.champion_notes}
+        </div>
+      )}
+      <textarea
+        rows={2}
+        placeholder="How did it go?"
+        value={notes}
+        onChange={e => setNotes(e.target.value)}
+        className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <button
+          disabled={!date || saving}
+          onClick={save}
+          className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-40 hover:bg-blue-600"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+      <button
+        disabled={saving}
+        onClick={close}
+        className="text-xs text-muted hover:text-red-500 disabled:opacity-40 text-left"
+      >
+        Close relationship
+      </button>
+    </div>
+  )
+}
+
 function EscalationControls({ action, onRefresh }) {
   const [saving, setSaving] = useState(false)
   const [snoozedUntil, setSnoozedUntil] = useState(null)
@@ -1299,6 +1462,7 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
               const iconColor = ACTION_ICON_COLORS[action.action_type] || 'text-muted'
               const isFollowUp = action.action_type === 'follow_up_3' || action.action_type === 'follow_up_7'
               const isWarmPath = action.action_type === 'warm_path'
+              const isChampionCheckin = action.action_type === 'champion_checkin'
               const isPriority = priorityIds.includes(action.company_id)
 
               return (
@@ -1346,7 +1510,11 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                     <>
                       <WarmPathIntel action={action} />
                       <WarmPathSnooze action={action} onSnoozed={onRefresh} />
+                      <WarmPathChampionToggle action={action} onRefresh={onRefresh} />
                     </>
+                  )}
+                  {isChampionCheckin && onRefresh && (
+                    <ChampionCheckinCard action={action} onRefresh={onRefresh} />
                   )}
                   {action.action_type === 'try_linkedin_dm' && onRefresh && (
                     <EscalationControls action={action} onRefresh={onRefresh} />

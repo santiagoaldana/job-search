@@ -68,6 +68,9 @@ def run_migrations():
         ("outreachrecord", "escalation_channel", "TEXT"),
         ("outreachrecord", "meeting_date", "TEXT"),
         ("outreachrecord", "post_meeting_followup_sent", "BOOLEAN DEFAULT FALSE"),
+        ("contact", "is_champion", "BOOLEAN DEFAULT FALSE"),
+        ("contact", "champion_notes", "TEXT"),
+        ("contact", "next_checkin_date", "TEXT"),
     ]
 
     with engine.connect() as conn:

@@ -86,6 +86,9 @@ class Contact(SQLModel, table=True):
     email_patterns_tried: Optional[str] = Field(default=None)  # JSON list of tried patterns
     connection_request_variant: Optional[str] = Field(default=None)  # "A" or "B"
     is_mit_alum: Optional[bool] = Field(default=None)
+    is_champion: bool = Field(default=False)
+    champion_notes: Optional[str] = Field(default=None)
+    next_checkin_date: Optional[str] = Field(default=None)  # ISO date — next manual check-in
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
     company: Optional[Company] = Relationship(back_populates="contacts")
