@@ -745,7 +745,25 @@ def handle_sent_email(session: Session, msg_data: dict) -> dict:
     if recent:
         return {"outreach_created": False, "reason": "recent outreach record already exists"}
 
+    # Check if this contact has ever replied or engaged — re-engagement emails to warm
+    # contacts should not start a 3/7 cold-outreach clock
+    warm_history = session.exec(
+        select(OutreachRecord)
+        .where(OutreachRecord.contact_id == contact.id)
+        .where(OutreachRecord.response_status.in_(["positive", "replied", "negative"]))
+    ).first()
+
     today = datetime.utcnow().date()
+    if warm_history:
+        # Warm re-engagement: log the message but use a 30-day soft reminder instead
+        f3_sent = True
+        f7_sent = False
+        f7_due = (today + timedelta(days=30)).isoformat()
+    else:
+        f3_sent = False
+        f7_sent = False
+        f7_due = _add_business_days(today, 7).isoformat()
+
     record = OutreachRecord(
         company_id=contact.company_id,
         contact_id=contact.id,
@@ -755,9 +773,9 @@ def handle_sent_email(session: Session, msg_data: dict) -> dict:
         body=msg_data["body_text"][:2000],
         response_status="pending",
         follow_up_3_due=_add_business_days(today, 3).isoformat(),
-        follow_up_7_due=_add_business_days(today, 7).isoformat(),
-        follow_up_3_sent=False,
-        follow_up_7_sent=False,
+        follow_up_7_due=f7_due,
+        follow_up_3_sent=f3_sent,
+        follow_up_7_sent=f7_sent,
         updated_at=datetime.utcnow().isoformat(),
     )
     session.add(record)
