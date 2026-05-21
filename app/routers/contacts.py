@@ -5,7 +5,10 @@ import csv
 import io
 import json
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 from typing import Optional
+
+_EASTERN = ZoneInfo("America/New_York")
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlmodel import Session, select
@@ -86,6 +89,9 @@ class ContactUpdateRequest(BaseModel):
     connected_on: Optional[str] = None
     snooze_until: Optional[str] = None
     company_id: Optional[int] = None
+    is_champion: Optional[bool] = None
+    champion_notes: Optional[str] = None
+    next_checkin_date: Optional[str] = None
 
 
 def _match_company_from_index(company_name: str, company_index: dict) -> Optional[int]:
@@ -410,7 +416,7 @@ def log_interaction(req: LogInteractionRequest, session: Session = Depends(get_s
 
     session.add(contact)
 
-    today = datetime.utcnow().date()
+    today = datetime.now(_EASTERN).date()
 
     def _add_business_days(start: date, days: int) -> date:
         d = start
@@ -441,7 +447,7 @@ def log_interaction(req: LogInteractionRequest, session: Session = Depends(get_s
             company_id=contact.company_id,
             contact_id=contact.id,
             channel=req.channel,
-            sent_at=datetime.utcnow().isoformat(),
+            sent_at=datetime.now(_EASTERN).isoformat(),
             body=req.note,
             outreach_message=prior_message,
             response_status="positive" if req.had_reply else "pending",

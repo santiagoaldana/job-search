@@ -1,12 +1,21 @@
 """Outreach router — log outreach, generate scripts, track 3B7 follow-ups."""
 
 from datetime import datetime, timedelta, date
+from zoneinfo import ZoneInfo
 from typing import Optional
 import json
 import urllib.parse
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from pydantic import BaseModel
+
+_EASTERN = ZoneInfo("America/New_York")
+
+def _today_eastern() -> str:
+    return datetime.now(_EASTERN).strftime("%Y-%m-%d")
+
+def _today_eastern_date() -> date:
+    return datetime.now(_EASTERN).date()
 
 
 def add_business_days(start: date, days: int) -> date:
@@ -152,7 +161,7 @@ def get_outreach_stats(session: Session = Depends(get_session)):
 @router.get("/due-today")
 def due_today(session: Session = Depends(get_session)):
     """Return outreach records with follow-up due today or overdue."""
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = _today_eastern()
     records = session.exec(
         select(OutreachRecord).where(
             OutreachRecord.response_status == "pending",
@@ -165,8 +174,8 @@ def due_today(session: Session = Depends(get_session)):
 @router.post("")
 def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
     """Log an outreach that was sent (manual entry)."""
-    sent_at = data.sent_at or datetime.utcnow().isoformat()
-    sent_date = datetime.fromisoformat(sent_at).date()
+    sent_at = data.sent_at or datetime.now(_EASTERN).isoformat()
+    sent_date = datetime.fromisoformat(sent_at[:19]).date()
     follow_up_3 = add_business_days(sent_date, 3).isoformat()
     follow_up_7 = add_business_days(sent_date, 7).isoformat()
 
@@ -427,7 +436,7 @@ def update_response(
 
     # Reset follow-up counter from today when a reply is received
     if data.response_status == "positive":
-        today = datetime.utcnow().date()
+        today = _today_eastern_date()
         record.follow_up_3_due = add_business_days(today, 3).isoformat()
         record.follow_up_7_due = add_business_days(today, 7).isoformat()
         record.follow_up_3_sent = False
@@ -839,7 +848,7 @@ def confirm_escalation(
     if not linkedin_record:
         raise HTTPException(status_code=404, detail="Record not found")
 
-    today = datetime.utcnow()
+    today = datetime.now(_EASTERN)
 
     # Store guessed email on contact so Gmail sync can match the bounce
     if req.contact_id and req.guessed_email:

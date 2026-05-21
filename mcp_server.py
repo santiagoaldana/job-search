@@ -854,8 +854,9 @@ async def _dispatch(name: str, args: dict) -> dict:
                 contact_map[cid] = {"name": c.get("name", ""), "title": c.get("title", "")}
             except Exception:
                 pass
-        from datetime import date
-        today = date.today()
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        today = datetime.now(ZoneInfo("America/New_York")).date()
         result = []
         seen = set()
         for r in records:
@@ -892,8 +893,9 @@ async def _dispatch(name: str, args: dict) -> dict:
             except Exception:
                 pass
 
-        from datetime import date
-        today = date.today()
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        today = datetime.now(ZoneInfo("America/New_York")).date()
         pipeline = []
         seen_company_contact = set()
         for r in records:

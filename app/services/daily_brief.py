@@ -5,7 +5,13 @@ Called by GET /api/daily-brief
 
 import json
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from sqlmodel import Session, select, or_
+
+_EASTERN = ZoneInfo("America/New_York")
+
+def _now_eastern() -> datetime:
+    return datetime.now(_EASTERN)
 
 from app.models import (
     OutreachRecord, Lead, Event, Application,
@@ -17,7 +23,7 @@ from app.services.email_finder import determine_next_step as _contact_next_step
 
 
 def compute_daily_brief(session: Session) -> dict:
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = _now_eastern().strftime("%Y-%m-%d")
     positions = []
     outreach = []
     events_section = []
@@ -254,7 +260,7 @@ def compute_daily_brief(session: Session) -> dict:
         })
 
     # Auto-ghost: both follow-ups sent, still pending, 14+ days since Day 7 sent
-    ghost_cutoff = (datetime.utcnow() - timedelta(days=14)).strftime("%Y-%m-%d")
+    ghost_cutoff = (_now_eastern() - timedelta(days=14)).strftime("%Y-%m-%d")
     stale_records = session.exec(
         select(OutreachRecord).where(
             OutreachRecord.response_status == "pending",
@@ -270,9 +276,36 @@ def compute_daily_brief(session: Session) -> dict:
     if stale_records:
         session.commit()
 
+    # Champion check-ins due today
+    champion_due = session.exec(
+        select(Contact).where(
+            Contact.is_champion == True,
+            Contact.next_checkin_date != None,
+            Contact.next_checkin_date <= today,
+        )
+    ).all()
+
+    for contact in champion_due:
+        company = session.get(Company, contact.company_id) if contact.company_id else None
+        who = f"{contact.name} at {company.name}" if company else contact.name
+        outreach.append({
+            "action_type": "champion_checkin",
+            "label": f"Check in — {who}",
+            "detail": "Scheduled check-in",
+            "cta": "Log outcome",
+            "company_id": contact.company_id,
+            "contact_id": contact.id,
+            "contact_name": contact.name,
+            "company_name": company.name if company else None,
+            "champion_notes": contact.champion_notes,
+            "next_checkin_date": contact.next_checkin_date,
+            "payload_id": contact.id,
+            "payload_type": "contact",
+        })
+
     # Warm path alerts — new 1st-degree contacts at funnel companies (last 14 days, motivation >= 7)
     # snooze_until overrides created_at as the surface date when set
-    today_date = datetime.utcnow().date()
+    today_date = _now_eastern().date()
     fourteen_days_ago_date = today_date - timedelta(days=14)
 
     def _surface_date(c):
@@ -287,6 +320,7 @@ def compute_daily_brief(session: Session) -> dict:
             Contact.connection_degree == 1,
             Contact.company_id != None,
             Contact.outreach_status == "none",
+            Contact.is_champion == False,
         )
     ).all()
     recent_warm = [c for c in recent_warm if fourteen_days_ago_date <= _surface_date(c) <= today_date]
@@ -440,7 +474,7 @@ def compute_daily_brief(session: Session) -> dict:
     # ══════════════════════════════════════════════════════════════════════════
 
     # Monday LinkedIn import reminder
-    if datetime.utcnow().weekday() == 0:
+    if _now_eastern().weekday() == 0:
         positions.append({
             "action_type": "linkedin_import_reminder",
             "label": "Update your network map",
@@ -627,7 +661,7 @@ def compute_daily_brief(session: Session) -> dict:
     priority_ids: set = set(json.loads(config.priority_company_ids)) if config else set()
 
     _urgency = {
-        "new_reply": 50, "post_meeting_followup": 45, "linkedin_accepted": 40,
+        "new_reply": 50, "champion_checkin": 48, "post_meeting_followup": 45, "linkedin_accepted": 40,
         "follow_up_3": 30, "follow_up_7": 20,
         "warm_path": 15, "email_escalation": 12,
         "try_linkedin_dm": 10, "email_bounce_retry": 8,
@@ -672,6 +706,7 @@ _MCP_TOOL_MAP = {
     "check_linkedin_acceptance": "mark_linkedin_status",
     "email_escalation": "generate_outreach",
     "try_linkedin_dm": "draft_linkedin_message",
+    "champion_checkin": "get_contact_next_step",
     "warm_path": "generate_outreach",
     "email_bounce_retry": "mark_email_bounced",
     "contact_gap": "find_contacts",
