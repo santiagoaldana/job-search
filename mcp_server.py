@@ -1220,7 +1220,6 @@ def main():
         from starlette.responses import JSONResponse
         from starlette.background import BackgroundTask
         import uvicorn
-        import threading
 
         messages_path = a.messages_path
         sse = SseServerTransport(messages_path)
@@ -1235,22 +1234,6 @@ def main():
 
         async def health(request):
             return JSONResponse({"status": "ok"})
-
-        def _keep_alive():
-            """Ping self every 4 minutes to prevent Render free-tier cold start."""
-            import time
-            import urllib.request
-            port = a.port
-            url = f"http://localhost:{port}/health"
-            while True:
-                time.sleep(240)
-                try:
-                    urllib.request.urlopen(url, timeout=10)
-                except Exception:
-                    pass
-
-        t = threading.Thread(target=_keep_alive, daemon=True)
-        t.start()
 
         starlette_app = Starlette(routes=[
             Route("/health", endpoint=health),
