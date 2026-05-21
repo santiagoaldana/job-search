@@ -676,6 +676,65 @@ def handle_sent_email(session: Session, msg_data: dict) -> dict:
     if existing:
         return {"outreach_created": False, "reason": "already stored"}
 
+    # Check 1: Thread continuity — if this thread_id already has a ConversationMessage,
+    # this is a follow-up in an existing thread, not a new outreach
+    thread_id = msg_data.get("thread_id", "")
+    if thread_id:
+        existing_thread_msg = session.exec(
+            select(ConversationMessage).where(ConversationMessage.thread_id == thread_id)
+        ).first()
+        if existing_thread_msg and existing_thread_msg.outreach_record_id:
+            existing_record = session.get(OutreachRecord, existing_thread_msg.outreach_record_id)
+            if existing_record:
+                follow_up_conv = ConversationMessage(
+                    outreach_record_id=existing_record.id,
+                    message_date=msg_data["message_date"],
+                    from_email=msg_data["from_email"],
+                    from_name=msg_data["from_name"],
+                    to_email=msg_data["to_email"],
+                    subject=msg_data["subject"],
+                    body_full=msg_data["body_text"],
+                    message_type="outreach",
+                    gmail_message_id=msg_data["gmail_message_id"],
+                    thread_id=thread_id,
+                )
+                session.add(follow_up_conv)
+                if not existing_record.body and msg_data.get("body_text"):
+                    existing_record.body = msg_data["body_text"][:2000]
+                    existing_record.updated_at = datetime.utcnow().isoformat()
+                    session.add(existing_record)
+                session.commit()
+                return {"outreach_created": False, "reason": "follow-up in existing thread"}
+
+    # Check 2: Re:/Fwd: subject guard — reply-chain email, not new outreach
+    subject = msg_data.get("subject", "")
+    if re.match(r"^(re|fwd|fw)\s*:", subject.strip(), re.IGNORECASE):
+        existing_record = session.exec(
+            select(OutreachRecord)
+            .where(OutreachRecord.contact_id == contact.id)
+            .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
+        ).first()
+        if existing_record:
+            follow_up_conv = ConversationMessage(
+                outreach_record_id=existing_record.id,
+                message_date=msg_data["message_date"],
+                from_email=msg_data["from_email"],
+                from_name=msg_data["from_name"],
+                to_email=msg_data["to_email"],
+                subject=msg_data["subject"],
+                body_full=msg_data["body_text"],
+                message_type="outreach",
+                gmail_message_id=msg_data["gmail_message_id"],
+                thread_id=thread_id,
+            )
+            session.add(follow_up_conv)
+            if not existing_record.body and msg_data.get("body_text"):
+                existing_record.body = msg_data["body_text"][:2000]
+                existing_record.updated_at = datetime.utcnow().isoformat()
+                session.add(existing_record)
+            session.commit()
+            return {"outreach_created": False, "reason": "reply-chain subject, attached to existing record"}
+
     # Dedup: OutreachRecord for this contact sent in last 24h
     cutoff = (datetime.utcnow() - timedelta(hours=24)).isoformat()
     recent = session.exec(
