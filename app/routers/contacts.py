@@ -85,6 +85,7 @@ class ContactUpdateRequest(BaseModel):
     referral_target_company_id: Optional[int] = None
     connected_on: Optional[str] = None
     snooze_until: Optional[str] = None
+    company_id: Optional[int] = None
 
 
 def _match_company_from_index(company_name: str, company_index: dict) -> Optional[int]:
@@ -95,10 +96,12 @@ def _match_company_from_index(company_name: str, company_index: dict) -> Optiona
     # Exact match first
     if name_lower in company_index:
         return company_index[name_lower]
-    # Substring match
-    for cname, cid in company_index.items():
-        if cname in name_lower or name_lower in cname:
-            return cid
+    # Substring match — only when query is long enough to avoid short-token false positives
+    # (e.g. "MIT" must not match "Remitly")
+    if len(name_lower) >= 5:
+        for cname, cid in company_index.items():
+            if name_lower in cname or (len(cname) >= 5 and cname in name_lower):
+                return cid
     return None
 
 
