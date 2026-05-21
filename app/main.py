@@ -146,12 +146,13 @@ async def lifespan(app: FastAPI):
     #     id="linkedin_publish",
     #     replace_existing=True,
     # )
-    scheduler.add_job(
-        job_daily_morning,
-        CronTrigger(hour=7, minute=0),
-        id="daily_morning",
-        replace_existing=True,
-    )
+    # Daily sync paused until June 1 to conserve Neon free-tier DB transfer
+    # scheduler.add_job(
+    #     job_daily_morning,
+    #     CronTrigger(hour=7, minute=0),
+    #     id="daily_morning",
+    #     replace_existing=True,
+    # )
 
     scheduler.start()
 
