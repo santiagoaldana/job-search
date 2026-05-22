@@ -1229,8 +1229,8 @@ def main():
             stateless=True,
         )
 
-        async def handle_mcp(request):
-            return await session_manager.handle_request(request)
+        async def handle_mcp(scope, receive, send):
+            await session_manager.handle_request(scope, receive, send)
 
         async def health(request):
             return JSONResponse({"status": "ok"})
@@ -1238,7 +1238,7 @@ def main():
         starlette_app = Starlette(
             routes=[
                 Route("/health", endpoint=health),
-                Route("/mcp", endpoint=handle_mcp, methods=["GET", "POST", "DELETE"]),
+                Mount("/mcp", app=handle_mcp),
             ],
             middleware=[
                 Middleware(
