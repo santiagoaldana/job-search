@@ -861,32 +861,52 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
 }
 
 function EmailBounceRetryCard({ action, onRefresh }) {
-  const [state, setState] = useState('loading') // loading | draft | sent | exhausted
+  const [state, setState] = useState('loading') // loading | needs_intel | draft | sent | exhausted
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [guessedEmail, setGuessedEmail] = useState(action.guessed_email || null)
   const [contactTitle, setContactTitle] = useState('')
   const [intel, setIntel] = useState('')
-  const [news, setNews] = useState('')
+  const [companyId, setCompanyId] = useState(action.company_id || null)
   const [busy, setBusy] = useState(false)
+  const [generatingIntel, setGeneratingIntel] = useState(false)
   const [refineCopied, setRefineCopied] = useState(false)
   const [draftKey, setDraftKey] = useState(0)
 
   useEffect(() => {
     api.draftBounceRetry(action.payload_id)
       .then(res => {
-        setSubject(res.subject || '')
-        setBody(res.body || '')
         if (res.guessed_email) setGuessedEmail(res.guessed_email)
         if (res.contact_title) setContactTitle(res.contact_title)
         if (res.intel) setIntel(res.intel)
-        if (res.news) setNews(res.news)
+        if (res.company_id) setCompanyId(res.company_id)
+        if (res.needs_intel) {
+          setState('needs_intel')
+          return
+        }
+        setSubject(res.subject || '')
+        setBody(res.body || '')
         setState(res.guessed_email || guessedEmail ? 'draft' : 'exhausted')
       })
       .catch(() => {
         setState(guessedEmail ? 'draft' : 'exhausted')
       })
   }, [draftKey])
+
+  const handleGenerateIntel = async () => {
+    if (!companyId) return
+    setGeneratingIntel(true)
+    try {
+      const res = await api.refreshIntel(companyId)
+      if (res.intel_summary) setIntel(res.intel_summary)
+      // Re-fetch the draft now that intel exists
+      setDraftKey(k => k + 1)
+    } catch (_) {
+      setState(guessedEmail ? 'draft' : 'exhausted')
+    } finally {
+      setGeneratingIntel(false)
+    }
+  }
 
   const handleSendViaGmail = () => {
     window.open(
@@ -949,8 +969,21 @@ function EmailBounceRetryCard({ action, onRefresh }) {
         </div>
       </div>
 
-      {state === 'loading' && (
-        <div className="text-xs text-muted">Preparing draft...</div>
+      {(state === 'loading' || generatingIntel) && (
+        <div className="text-xs text-muted">{generatingIntel ? 'Generating company intel...' : 'Preparing draft...'}</div>
+      )}
+
+      {state === 'needs_intel' && !generatingIntel && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted">No company intel yet. Generate it first for a better draft.</div>
+          <button
+            onClick={handleGenerateIntel}
+            disabled={!companyId}
+            className="w-full text-xs border border-blue-300 text-blue-600 rounded-lg py-2 font-medium hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-50"
+          >
+            Generate company intel →
+          </button>
+        </div>
       )}
 
       {state === 'draft' && (

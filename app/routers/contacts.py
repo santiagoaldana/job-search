@@ -639,9 +639,31 @@ def _derive_expertise_from_title(title: str, company_name: str) -> str:
     return f"what you are building at {company_name}"
 
 
+def _extract_intel_opener(intel: str, company_name: str) -> str:
+    """Pull the first substantive sentence from a Claude-written intel_summary."""
+    import re
+    # Skip lines that look like raw report headers (RSS dump artifacts)
+    _SKIP_PREFIXES = ("intel snapshot", "recent news", "contacts:", "outreach:", "open roles:", "---")
+    for line in intel.splitlines():
+        line = line.strip()
+        if not line or any(line.lower().startswith(p) for p in _SKIP_PREFIXES):
+            continue
+        if line.startswith("-"):
+            continue
+        # Take first sentence of this line
+        sentence = re.split(r"(?<=[.!?])\s", line)[0].strip()
+        if len(sentence) > 30:
+            return sentence
+    return ""
+
+
 @router.post("/{contact_id}/draft-bounce-retry")
-async def draft_bounce_retry(contact_id: int, session: Session = Depends(get_session)):
-    """Generate a role-specific outreach draft for a bounce-retry (no OutreachRecord needed)."""
+def draft_bounce_retry(contact_id: int, session: Session = Depends(get_session)):
+    """
+    Generate a role-specific outreach draft for a bounce-retry.
+    Returns needs_intel=True if intel_summary is empty, signalling the card
+    to prompt the user to generate intel before drafting.
+    """
     contact = session.get(Contact, contact_id)
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
@@ -650,26 +672,27 @@ async def draft_bounce_retry(contact_id: int, session: Session = Depends(get_ses
     first = (contact.name or "").split()[0] or "there"
     company_name = company.name if company else "your company"
     role = contact.title or ""
-
-    # Auto-generate intel if empty (free: Google News RSS + DB reads, no Anthropic API)
     intel = (company.intel_summary or "").strip() if company else ""
-    if not intel and company:
-        try:
-            from app.services.company_intel import generate_company_brief
-            intel = await generate_company_brief(company, session)
-            company.intel_summary = intel
-            company.updated_at = __import__("datetime").datetime.utcnow().isoformat()
-            session.add(company)
-            session.commit()
-        except Exception:
-            intel = ""
 
-    news_raw = (company.recent_news or "").strip() if company else ""
+    # If no curated intel yet, signal the card — don't draft with raw RSS noise
+    if not intel:
+        ns = determine_next_step(contact, company)
+        guessed_email = ns.get("guessed_email") or (contact.email if not contact.email_invalid else None)
+        return {
+            "needs_intel": True,
+            "company_id": company.id if company else None,
+            "guessed_email": guessed_email,
+            "contact_title": role,
+            "intel": "",
+        }
 
-    # Opener: intel first sentence > MIT alum > generic
-    if intel and len(intel) > 30:
-        snippet = intel.split(".")[0].strip()[:120]
-        opener = f"I came across {company_name} recently. {snippet}."
+    # Build opener from the first substantive sentence of the curated intel
+    intel_sentence = _extract_intel_opener(intel, company_name)
+    if intel_sentence:
+        # Lowercase first char so it reads as continuation, e.g. "...a $1T payments platform."
+        intel_lc = intel_sentence[0].lower() + intel_sentence[1:] if intel_sentence else ""
+        intel_lc = intel_lc.rstrip(".")
+        opener = f"I have been following {company_name}, {intel_lc}."
     elif getattr(contact, "is_mit_alum", False):
         opener = "I am a fellow MIT Sloan alum."
     else:
@@ -693,12 +716,13 @@ async def draft_bounce_retry(contact_id: int, session: Session = Depends(get_ses
     guessed_email = ns.get("guessed_email") or (contact.email if not contact.email_invalid else None)
 
     return {
+        "needs_intel": False,
         "subject": subject,
         "body": body,
         "guessed_email": guessed_email,
         "contact_title": role,
         "intel": intel,
-        "news": news_raw,
+        "company_id": company.id if company else None,
     }
 
 
