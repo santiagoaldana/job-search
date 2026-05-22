@@ -1033,9 +1033,9 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
   const [state, setState] = useState('loading') // loading | draft | sent | exhausted | done
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [intel, setIntel] = useState('')
   const [guessedEmail, setGuessedEmail] = useState(action.next_step?.guessed_email || null)
   const [busy, setBusy] = useState(false)
-  const [refining, setRefining] = useState(false)
   const [refineCopied, setRefineCopied] = useState(false)
 
   useEffect(() => {
@@ -1043,6 +1043,7 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
       .then(res => {
         setSubject(res.subject || '')
         setBody(res.body || '')
+        if (res.intel) setIntel(res.intel)
         if (res.guessed_email) setGuessedEmail(res.guessed_email)
         setState(res.guessed_email ? 'draft' : 'exhausted')
       })
@@ -1082,34 +1083,30 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
     }
   }
 
-  const handleRefine = async () => {
-    setRefining(true)
-    try {
-      const ctx = await api.getConversationContext(action.payload_id, { subject, body, stage: 'escalation' })
-      const historyText = (ctx.conversation_history || [])
-        .slice(-5)
-        .map(m => `From: ${m.from_name || m.from_email}\nDate: ${m.date}\n---\n${m.body_preview}`)
-        .join('\n\n')
-      const prompt = [
-        '## Conversation history',
-        historyText || '(no prior messages)',
-        '',
-        '## My current draft',
-        `Subject: ${subject}`,
-        body,
-        '',
-        '## Instructions',
-        ctx.generation_instructions,
-      ].join('\n')
-      const fallback = () => { const ta = document.createElement('textarea'); ta.value = prompt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
-      navigator.clipboard.writeText(prompt).catch(fallback)
-      setRefineCopied(true)
-      setTimeout(() => setRefineCopied(false), 2000)
-    } catch (e) {
-      console.error('refine error', e)
-    } finally {
-      setRefining(false)
-    }
+  const handleRefine = () => {
+    const lines = [
+      '## Who I am reaching out to',
+      `${action.contact_name || 'this contact'}${action.contact_title ? `, ${action.contact_title}` : ''} at ${action.company_name || 'their company'}.`,
+      'LinkedIn connection was not accepted. This is a direct email escalation.',
+      '',
+    ]
+    if (intel) { lines.push('## Company context', intel, '') }
+    lines.push(
+      '## My current draft',
+      `Subject: ${subject}`,
+      body,
+      '',
+      "## Santiago's background",
+      'MIT Sloan MBA. 20+ years in FinTech, payments, digital identity, LATAM markets. Currently Chief Product Solutions Officer at SMCU (largest SBA credit union lender in Massachusetts). Seeking C-suite or SVP roles in payments infrastructure, BaaS, embedded banking, agentic AI.',
+      '',
+      '## Instructions',
+      "Rewrite the email. Be specific to this person's role and company context above. Lead with something they genuinely care about. End with a soft, specific ask. 3 to 4 sentences max. No em dashes, no hyphens.",
+    )
+    const prompt = lines.join('\n')
+    const fallback = () => { const ta = document.createElement('textarea'); ta.value = prompt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
+    navigator.clipboard.writeText(prompt).catch(fallback)
+    setRefineCopied(true)
+    setTimeout(() => setRefineCopied(false), 2000)
   }
 
   return (
@@ -1160,10 +1157,9 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
             </button>
             <button
               onClick={handleRefine}
-              disabled={refining}
-              className="text-xs px-3 py-2 border border-purple-300 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/40 disabled:opacity-40"
+              className="text-xs px-3 py-2 border border-purple-300 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/40"
             >
-              {refining ? '...' : refineCopied ? 'Copied!' : '✨ Refine with AI'}
+              {refineCopied ? 'Copied!' : '✨ Refine with AI'}
             </button>
           </div>
         </div>

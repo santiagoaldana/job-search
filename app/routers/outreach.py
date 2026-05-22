@@ -718,7 +718,7 @@ def _build_escalation_subject(contact, company, first, is_mit) -> str:
 
 
 @router.post("/{record_id}/draft-template")
-def draft_template(
+async def draft_template(
     record_id: int,
     followup_type: str = "escalation",
     contact_id: Optional[int] = None,
@@ -754,44 +754,71 @@ def draft_template(
         if prior:
             prior_message = prior.outreach_message
 
+    intel = ""
     if followup_type == "escalation":
-        expertise = _derive_expertise(contact, company)
-        role = contact.title or "role"
+        from app.services.draft_helpers import (
+            _derive_expertise_from_title, _AMBIGUOUS_NAMES,
+            _pick_headline, _humanize_headline, _extract_curated_opener,
+        )
         is_mit = getattr(contact, "is_mit_alum", None) if contact else None
 
-        subject = _build_escalation_subject(contact, company, first, is_mit)
+        # Auto-fetch intel if missing (free: RSS + DB reads, no Anthropic API)
+        intel = (company.intel_summary or "").strip() if company else ""
+        if not intel and company:
+            try:
+                from app.services.company_intel import generate_company_brief
+                intel = await generate_company_brief(company, session)
+                company.intel_summary = intel
+                company.updated_at = datetime.utcnow().isoformat()
+                session.add(company)
+                session.commit()
+            except Exception:
+                intel = ""
 
-        # Opener: MIT alum > intel hook > specific expertise > company anchor
-        if is_mit:
+        # Fetch disambiguated news headlines
+        news_headlines: list = []
+        if company:
+            try:
+                from app.services.company_intel import fetch_news
+                suffix = " fintech payments" if company_name.lower() in _AMBIGUOUS_NAMES else ""
+                news_headlines = await fetch_news(company_name + suffix, max_items=8)
+            except Exception:
+                pass
+
+        # Opener: fresh news > curated intel > MIT alum > generic
+        headline = _pick_headline(news_headlines, company_name)
+        curated = _extract_curated_opener(intel)
+
+        if headline:
+            opener = _humanize_headline(headline, company_name)
+        elif curated:
+            curated_lc = curated[0].lower() + curated[1:]
+            opener = f"I have been following {company_name}, {curated_lc.rstrip('.')}."
+        elif is_mit:
             opener = "I am a fellow MIT Sloan alum."
-        elif company and company.intel_summary and len(company.intel_summary) > 30:
-            first_sentence = company.intel_summary.split('.')[0].strip()
-            snippet = first_sentence[:80] if len(first_sentence) > 80 else first_sentence
-            opener = f"I came across {company_name} recently — {snippet.lower()}."
-        elif expertise != _EXPERTISE_DEFAULT:
-            opener = f"I noticed we have a common interest in {expertise}."
         else:
-            opener = f"I have been following {company_name} and wanted to reach out."
+            opener = f"I have been following {company_name} and wanted to reach out directly."
 
         linkedin_bridge = (
-            "I sent you a connection request on LinkedIn recently — thought reaching out directly might be easier.\n\n"
+            "I sent you a connection request on LinkedIn recently. Thought reaching out directly might be easier.\n\n"
             if prior_message else ""
         )
 
-        # Question: role label > specific expertise > company name
-        role_label = _short_role_label(contact)
+        # Role-specific question
+        expertise_q = _derive_expertise_from_title(contact.title or "", company_name) if contact and contact.title else f"what you are building at {company_name}"
+        question = f"I was wondering if you would have 15 minutes to share your perspective on {expertise_q}, given your vantage point at {company_name}."
+
+        # Subject: first 3 role words
         if contact and contact.title:
-            question = f"I was wondering if you have a few minutes to share your perspective on {expertise} from the {role_label} seat at {company_name}?"
-        elif expertise != _EXPERTISE_DEFAULT:
-            question = f"I was wondering if you have a few minutes to share your perspective on {expertise}?"
+            subject = f"{' '.join(contact.title.split()[:3])} perspective — {company_name}"
         else:
-            question = f"I was wondering if you would be open to sharing what you are working on at {company_name}?"
+            subject = _build_escalation_subject(contact, company, first, is_mit)
 
         body = (
             f"Hi {first},\n\n"
             f"{opener}\n\n"
             f"{linkedin_bridge}"
-            f"{question} Your insights would mean a lot.\n\n"
+            f"{question}\n\n"
             f"Worth a quick note back?"
         )
 
@@ -831,7 +858,7 @@ def draft_template(
         ns = _contact_next_step(contact, company)
         guessed_email = ns.get("guessed_email")
 
-    return {"subject": subject, "body": body, "guessed_email": guessed_email, "prior_message": prior_message}
+    return {"subject": subject, "body": body, "guessed_email": guessed_email, "prior_message": prior_message, "intel": intel if followup_type == "escalation" else ""}
 
 
 @router.post("/{record_id}/confirm-escalation")
