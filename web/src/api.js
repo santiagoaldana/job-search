@@ -1,17 +1,24 @@
 const BASE = '/api'
 
-async function request(method, path, body) {
+async function request(method, path, body, { retries = 2, retryDelay = 1500 } = {}) {
   const opts = { method, credentials: 'include', headers: { 'Content-Type': 'application/json' } }
   if (body !== undefined) opts.body = JSON.stringify(body)
-  const res = await fetch(BASE + path, opts)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    const detail = Array.isArray(err.detail)
-      ? err.detail.map(e => e.msg || JSON.stringify(e)).join('; ')
-      : (err.detail || res.statusText)
-    throw new Error(detail)
+  let lastErr
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, retryDelay))
+    const res = await fetch(BASE + path, opts)
+    if (res.ok) return res.json()
+    // Only retry on server errors (5xx); client errors (4xx) fail immediately
+    if (res.status < 500) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      const detail = Array.isArray(err.detail)
+        ? err.detail.map(e => e.msg || JSON.stringify(e)).join('; ')
+        : (err.detail || res.statusText)
+      throw new Error(detail)
+    }
+    lastErr = new Error(`Server error ${res.status}`)
   }
-  return res.json()
+  throw lastErr
 }
 
 const get = (path) => request('GET', path)
