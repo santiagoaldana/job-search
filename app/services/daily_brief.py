@@ -303,17 +303,10 @@ def compute_daily_brief(session: Session) -> dict:
             "payload_type": "contact",
         })
 
-    # Warm path alerts — new 1st-degree contacts at funnel companies (last 14 days, motivation >= 7)
-    # snooze_until overrides created_at as the surface date when set
+    # Warm path alerts — 1st-degree contacts at funnel companies with no outreach taken yet.
+    # Surfaces every day until the user acts (logs outreach, marks champion, or sets a follow-up date).
+    # snooze_until hides the card until that date; null means surface every day.
     today_date = _now_eastern().date()
-    fourteen_days_ago_date = today_date - timedelta(days=14)
-
-    def _surface_date(c):
-        raw = c.snooze_until or c.created_at
-        try:
-            return datetime.fromisoformat(raw[:10]).date()
-        except Exception:
-            return today_date
 
     recent_warm = session.exec(
         select(Contact).where(
@@ -323,7 +316,7 @@ def compute_daily_brief(session: Session) -> dict:
             Contact.is_champion == False,
         )
     ).all()
-    recent_warm = [c for c in recent_warm if fourteen_days_ago_date <= _surface_date(c) <= today_date]
+    recent_warm = [c for c in recent_warm if not c.snooze_until or c.snooze_until <= today_date.isoformat()]
 
     high_motivation_ids = {
         c.id for c in session.exec(select(Company).where(Company.motivation >= 7, Company.is_archived == False)).all()

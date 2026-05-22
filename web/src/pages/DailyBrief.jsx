@@ -1020,15 +1020,20 @@ function WarmPathIntel({ action }) {
 }
 
 function WarmPathSnooze({ action, onSnoozed }) {
+  const [open, setOpen] = useState(false)
+  const [date, setDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    return d.toISOString().slice(0, 10)
+  })
   const [saving, setSaving] = useState(false)
-  const snooze = async (days) => {
-    if (!action.payload_id) return
+
+  const confirm = async (e) => {
+    e.stopPropagation()
+    if (!date || !action.payload_id) return
     setSaving(true)
     try {
-      const d = new Date()
-      d.setDate(d.getDate() + days)
-      const iso = d.toISOString().slice(0, 10)
-      await api.updateContact(action.payload_id, { snooze_until: iso })
+      await api.updateContact(action.payload_id, { snooze_until: date })
       onSnoozed()
     } catch (e) {
       console.error('snooze error', e)
@@ -1036,19 +1041,41 @@ function WarmPathSnooze({ action, onSnoozed }) {
       setSaving(false)
     }
   }
-  return (
-    <div className="mt-3 pt-3 border-t border-theme flex items-center gap-2">
-      <span className="text-xs text-muted flex-shrink-0">Snooze:</span>
-      {[3, 7, 14, 30].map(d => (
+
+  if (!open) {
+    return (
+      <div className="mt-3 pt-3 border-t border-theme">
         <button
-          key={d}
-          disabled={saving}
-          onClick={e => { e.stopPropagation(); snooze(d) }}
-          className="text-xs px-2 py-1 rounded-md border border-theme text-muted hover:text-body disabled:opacity-40"
+          onClick={e => { e.stopPropagation(); setOpen(true) }}
+          className="text-xs text-muted hover:text-body hover:underline"
         >
-          {d}d
+          Not ready? Set follow-up date →
         </button>
-      ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-theme flex items-center gap-2" onClick={e => e.stopPropagation()}>
+      <input
+        type="date"
+        value={date}
+        onChange={e => setDate(e.target.value)}
+        className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+      <button
+        disabled={!date || saving}
+        onClick={confirm}
+        className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body disabled:opacity-40"
+      >
+        {saving ? 'Saving…' : 'Confirm'}
+      </button>
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(false) }}
+        className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body"
+      >
+        Cancel
+      </button>
     </div>
   )
 }
