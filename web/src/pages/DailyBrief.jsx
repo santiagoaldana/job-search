@@ -1204,6 +1204,7 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
 function WarmPathIntel({ action }) {
   const [loading, setLoading] = useState(false)
   const [intel, setIntel] = useState(action.intel_summary || '')
+  const [expanded, setExpanded] = useState(false)
 
   const generate = async (e) => {
     e.stopPropagation()
@@ -1221,8 +1222,17 @@ function WarmPathIntel({ action }) {
 
   if (intel) {
     return (
-      <div className="mt-2 text-xs text-muted italic leading-relaxed line-clamp-3">
-        {intel}
+      <div className="mt-2">
+        <div className={`text-xs text-muted italic leading-relaxed ${expanded ? '' : 'line-clamp-3'}`}>
+          {intel}
+        </div>
+        <button
+          onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
+          className="flex items-center gap-1 mt-1 text-xs text-blue-500 hover:text-blue-400"
+        >
+          {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
       </div>
     )
   }
