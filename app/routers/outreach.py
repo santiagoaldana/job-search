@@ -759,6 +759,7 @@ async def draft_template(
         from app.services.draft_helpers import (
             _derive_expertise_from_title, _AMBIGUOUS_NAMES,
             _pick_headline, _humanize_headline, _extract_curated_opener,
+            _extract_headlines_from_intel_dump,
         )
         is_mit = getattr(contact, "is_mit_alum", None) if contact else None
 
@@ -785,9 +786,15 @@ async def draft_template(
             except Exception:
                 pass
 
-        # Opener: fresh news > curated intel > MIT alum > generic
+        # Opener: fresh news > cached intel news > curated intel prose > MIT alum > expertise-based
+        # Note: live fetch_news may fail silently on cloud IPs (Google News blocks); use intel dump as fallback
         headline = _pick_headline(news_headlines, company_name)
+        if not headline and intel:
+            dump_headlines = _extract_headlines_from_intel_dump(intel)
+            headline = _pick_headline(dump_headlines, company_name)
         curated = _extract_curated_opener(intel)
+
+        expertise_q = _derive_expertise_from_title(contact.title or "", company_name) if contact and contact.title else f"what you are building at {company_name}"
 
         if headline:
             opener = _humanize_headline(headline, company_name)
@@ -797,7 +804,7 @@ async def draft_template(
         elif is_mit:
             opener = "I am a fellow MIT Sloan alum."
         else:
-            opener = f"I have been following {company_name} and wanted to reach out directly."
+            opener = f"I have been following {company_name}'s work on {expertise_q} and wanted to reach out directly."
 
         linkedin_bridge = (
             "I sent you a connection request on LinkedIn recently. Thought reaching out directly might be easier.\n\n"
@@ -805,7 +812,6 @@ async def draft_template(
         )
 
         # Role-specific question
-        expertise_q = _derive_expertise_from_title(contact.title or "", company_name) if contact and contact.title else f"what you are building at {company_name}"
         question = f"I was wondering if you would have 15 minutes to share your perspective on {expertise_q}, given your vantage point at {company_name}."
 
         # Subject: first 3 role words

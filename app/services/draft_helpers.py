@@ -66,3 +66,22 @@ def _extract_curated_opener(intel: str) -> str:
         if len(sentence) > 30:
             return sentence
     return ""
+
+
+def _extract_headlines_from_intel_dump(intel: str) -> list:
+    """Pull news headlines from the structured intel dump format (lines under RECENT NEWS:)."""
+    headlines = []
+    in_news = False
+    for line in intel.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("recent news"):
+            in_news = True
+            continue
+        if in_news:
+            if stripped.startswith("---") or (stripped and not stripped.startswith("-")):
+                break
+            if stripped.startswith("-"):
+                headline = re.sub(r"\s*\([^)]{0,25}\)\s*$", "", stripped.lstrip("- ")).strip()
+                if headline and len(headline) > 20:
+                    headlines.append(headline)
+    return headlines
