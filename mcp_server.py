@@ -1214,6 +1214,7 @@ def main():
     a = parser.parse_args()
 
     if a.http:
+        import contextlib
         from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
         from starlette.applications import Starlette
         from starlette.routing import Route, Mount
@@ -1229,6 +1230,11 @@ def main():
             stateless=True,
         )
 
+        @contextlib.asynccontextmanager
+        async def lifespan(app):
+            async with session_manager.run():
+                yield
+
         async def handle_mcp(scope, receive, send):
             await session_manager.handle_request(scope, receive, send)
 
@@ -1236,6 +1242,7 @@ def main():
             return JSONResponse({"status": "ok"})
 
         starlette_app = Starlette(
+            lifespan=lifespan,
             routes=[
                 Route("/health", endpoint=health),
                 Mount("/mcp", app=handle_mcp),
