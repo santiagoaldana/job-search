@@ -1242,22 +1242,26 @@ function ChampionCheckinCard({ action, onRefresh }) {
 
 function EscalationControls({ action, onRefresh }) {
   const [saving, setSaving] = useState(false)
-  const [snoozedUntil, setSnoozedUntil] = useState(null)
-  const [snoozedDays, setSnoozedDays] = useState(null)
+  const [rescheduling, setRescheduling] = useState(false)
+  const [rescheduleDate, setRescheduleDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    return d.toISOString().slice(0, 10)
+  })
+  const [rescheduledLabel, setRescheduledLabel] = useState(null)
   const [localChannel, setLocalChannel] = useState(action.escalation_channel || 'linkedin_dm')
   const [dirty, setDirty] = useState(false)
 
-  const snooze = async (days) => {
-    if (!action.payload_id) return
+  const confirmReschedule = async (e) => {
+    e.stopPropagation()
+    if (!rescheduleDate || !action.payload_id) return
     setSaving(true)
     try {
-      const d = new Date()
-      d.setDate(d.getDate() + days)
-      await api.patchOutreach(action.payload_id, { escalation_snooze_until: d.toISOString().slice(0, 10) })
-      setSnoozedUntil(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
-      setSnoozedDays(days)
+      await api.patchOutreach(action.payload_id, { escalation_snooze_until: rescheduleDate })
+      setRescheduledLabel(new Date(rescheduleDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
+      setRescheduling(false)
       setDirty(true)
-    } catch (e) { console.error('snooze error', e) } finally { setSaving(false) }
+    } catch (e) { console.error('reschedule error', e) } finally { setSaving(false) }
   }
 
   const setChannel = async (ch) => {
@@ -1284,23 +1288,32 @@ function EscalationControls({ action, onRefresh }) {
 
   return (
     <div className="mt-3 pt-3 border-t border-theme space-y-2">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-muted flex-shrink-0">Snooze:</span>
-        {[3, 7, 14, 30].map(d => (
-          <button key={d} disabled={saving}
-            onClick={e => { e.stopPropagation(); snooze(d) }}
-            className={`text-xs px-2 py-1 rounded-md border disabled:opacity-40 transition-colors ${
-              snoozedDays === d
-                ? 'bg-green-100 border-green-500 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                : 'border-theme text-muted hover:text-body'
-            }`}>
-            {d}d
+      {!rescheduling && (
+        <div className="flex items-center gap-3">
+          {rescheduledLabel
+            ? <span className="text-xs text-green-600 dark:text-green-400">Rescheduled to {rescheduledLabel} ✓</span>
+            : <button onClick={e => { e.stopPropagation(); setRescheduling(true) }} className="text-xs text-muted hover:text-body hover:underline">Reschedule →</button>
+          }
+        </div>
+      )}
+      {rescheduling && (
+        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          <input
+            type="date"
+            value={rescheduleDate}
+            onChange={e => setRescheduleDate(e.target.value)}
+            className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button disabled={!rescheduleDate || saving} onClick={confirmReschedule}
+            className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body disabled:opacity-40">
+            {saving ? 'Saving…' : 'Confirm'}
           </button>
-        ))}
-        {snoozedUntil && (
-          <span className="text-xs text-green-600 dark:text-green-400">Snoozed until {snoozedUntil} ✓</span>
-        )}
-      </div>
+          <button onClick={e => { e.stopPropagation(); setRescheduling(false) }}
+            className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body">
+            Cancel
+          </button>
+        </div>
+      )}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted flex-shrink-0">Next via:</span>
         {[
