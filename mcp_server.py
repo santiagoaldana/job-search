@@ -1214,32 +1214,41 @@ def main():
     a = parser.parse_args()
 
     if a.http:
-        from mcp.server.sse import SseServerTransport
+        from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
         from starlette.applications import Starlette
         from starlette.routing import Route, Mount
         from starlette.responses import JSONResponse
-        from starlette.background import BackgroundTask
+        from starlette.middleware import Middleware
+        from starlette.middleware.cors import CORSMiddleware
         import uvicorn
 
-        messages_path = a.messages_path
-        sse = SseServerTransport(messages_path)
+        session_manager = StreamableHTTPSessionManager(
+            app=server,
+            event_store=None,
+            json_response=False,
+            stateless=True,
+        )
 
-        async def handle_sse(request):
-            from starlette.responses import Response
-            async with sse.connect_sse(
-                request.scope, request.receive, request._send
-            ) as streams:
-                await server.run(streams[0], streams[1], server.create_initialization_options())
-            return Response()
+        async def handle_mcp(request):
+            return await session_manager.handle_request(request)
 
         async def health(request):
             return JSONResponse({"status": "ok"})
 
-        starlette_app = Starlette(routes=[
-            Route("/health", endpoint=health),
-            Route("/sse", endpoint=handle_sse),
-            Mount(messages_path, app=sse.handle_post_message),
-        ])
+        starlette_app = Starlette(
+            routes=[
+                Route("/health", endpoint=health),
+                Route("/mcp", endpoint=handle_mcp, methods=["GET", "POST", "DELETE"]),
+            ],
+            middleware=[
+                Middleware(
+                    CORSMiddleware,
+                    allow_origins=["*"],
+                    allow_methods=["*"],
+                    allow_headers=["*"],
+                )
+            ],
+        )
         uvicorn.run(starlette_app, host="0.0.0.0", port=a.port)
     else:
         async def _run_stdio():
