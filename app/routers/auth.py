@@ -38,8 +38,8 @@ def _make_session_cookie(email: str) -> str:
 
 def _redirect_uri(request: Request) -> str:
     base = str(request.base_url).rstrip("/")
-    # Railway terminates SSL at its proxy, so base_url comes in as http — force https
-    if base.startswith("http://") and "railway.app" in base:
+    # Railway and Cloudflare both terminate SSL upstream, so base_url comes in as http — force https
+    if base.startswith("http://"):
         base = "https://" + base[7:]
     return f"{base}/auth/callback"
 
