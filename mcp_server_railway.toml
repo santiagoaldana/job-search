@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt"
+
+[deploy]
+startCommand = "python3 mcp_server.py --http --port $PORT"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
