@@ -101,7 +101,7 @@ function FollowUpModal({ action, onClose, onSent }) {
         setBody(draftBody)
         setConversation(d.conversation_text || '')
         setDrafting(false)
-        const stage = action.followup_day === 3 ? 'day_3' : 'day_7'
+        const stage = action.followup_day === 0 ? 'post_meeting' : action.followup_day === 3 ? 'day_3' : 'day_7'
         api.getConversationContext(action.payload_id, { subject: draftSubject, body: draftBody, stage })
           .then(ctx => {
             const historyText = (ctx.conversation_history || [])
@@ -185,7 +185,7 @@ function FollowUpModal({ action, onClose, onSent }) {
     setRefining(true)
     setRefinePanel(null)
     try {
-      const stage = action.followup_day === 3 ? 'day_3' : 'day_7'
+      const stage = action.followup_day === 0 ? 'post_meeting' : action.followup_day === 3 ? 'day_3' : 'day_7'
       const ctx = await api.getConversationContext(action.payload_id, { subject, body, stage })
       const historyText = (ctx.conversation_history || [])
         .slice(-5)
@@ -228,7 +228,7 @@ function FollowUpModal({ action, onClose, onSent }) {
     }
   }
 
-  const title = action.followup_day === 3 ? 'Day 3 Bump' : 'Day 7 Close'
+  const title = action.followup_day === 0 ? 'Post-Meeting Follow-up' : action.followup_day === 3 ? 'Day 3 Bump' : 'Day 7 Close'
   const companyName = action.label?.replace(/Day \d+ (?:follow-up|close) — /, '') || ''
 
   return (
@@ -1080,7 +1080,8 @@ function WarmPathSnooze({ action, onSnoozed }) {
   )
 }
 
-function WarmPathChampionToggle({ action, onRefresh }) {
+function WarmPathChampionToggle({ action, onRefresh, contactId: contactIdProp }) {
+  const contactId = contactIdProp ?? action.payload_id
   const [open, setOpen] = useState(false)
   const [notes, setNotes] = useState('')
   const [date, setDate] = useState('')
@@ -1088,10 +1089,10 @@ function WarmPathChampionToggle({ action, onRefresh }) {
 
   const confirm = async (e) => {
     e.stopPropagation()
-    if (!date || !action.payload_id) return
+    if (!date || !contactId) return
     setSaving(true)
     try {
-      await api.updateContact(action.payload_id, {
+      await api.updateContact(contactId, {
         is_champion: true,
         champion_notes: notes.trim() || null,
         next_checkin_date: date,
@@ -1358,7 +1359,7 @@ function EscalationControls({ action, onRefresh }) {
   )
 }
 
-function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
+function FollowUpCardActions({ action, onMarkSent, onRescheduled, onMetDraft }) {
   const [rescheduling, setRescheduling] = useState(false)
   const [newDate, setNewDate] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1444,6 +1445,16 @@ function FollowUpCardActions({ action, onMarkSent, onRescheduled }) {
             className="text-xs text-red-400 hover:text-red-500 disabled:opacity-40"
           >
             {closing ? 'Closing…' : 'Close out'}
+          </button>
+        </div>
+      )}
+      {onMetDraft && !rescheduling && (
+        <div className="mt-2 flex justify-center">
+          <button
+            onClick={e => { e.stopPropagation(); onMetDraft() }}
+            className="text-xs text-green-600 dark:text-green-400 hover:underline"
+          >
+            We met — draft post-meeting email instead →
           </button>
         </div>
       )}
@@ -1544,7 +1555,15 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                     )}
                   </div>
                   {isFollowUp && onMarkSent && (
-                    <FollowUpCardActions action={action} onMarkSent={onMarkSent} onRescheduled={onRefresh} />
+                    <FollowUpCardActions
+                      action={action}
+                      onMarkSent={onMarkSent}
+                      onRescheduled={onRefresh}
+                      onMetDraft={action.contact_id ? () => onMarkSent({ ...action, followup_day: 0 }) : undefined}
+                    />
+                  )}
+                  {isFollowUp && action.contact_id && !action.is_champion && onRefresh && (
+                    <WarmPathChampionToggle action={action} contactId={action.contact_id} onRefresh={onRefresh} />
                   )}
                   {isWarmPath && onRefresh && (
                     <>

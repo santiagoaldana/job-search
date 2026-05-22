@@ -933,6 +933,7 @@ def mark_followup_sent(
     today = date.today()
     if req.followup_day == 0:
         record.post_meeting_followup_sent = True
+        record.follow_up_3_sent = True
     elif req.followup_day == 3:
         record.follow_up_3_sent = True
         record.follow_up_7_due = add_business_days(today, 4).isoformat()
