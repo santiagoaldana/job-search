@@ -866,7 +866,7 @@ async def _dispatch(name: str, args: dict) -> dict:
                 continue
             seen.add(key)
             sent = r.get("sent_at", "")[:10]
-            days_since = (today - date.fromisoformat(sent)).days if sent else None
+            days_since = (today - datetime.fromisoformat(sent).date()).days if sent else None
             contact_info = contact_map.get(r.get("contact_id"), {})
             result.append({
                 "contact_name": contact_info.get("name", "—"),
@@ -905,7 +905,7 @@ async def _dispatch(name: str, args: dict) -> dict:
                 continue
             seen_company_contact.add(key)
             sent = r.get("sent_at", "")[:10]
-            days_since = (today - date.fromisoformat(sent)).days if sent else None
+            days_since = (today - datetime.fromisoformat(sent).date()).days if sent else None
             f3_due = r.get("follow_up_3_due", "")
             f7_due = r.get("follow_up_7_due", "")
             f3_sent = r.get("follow_up_3_sent", False)
