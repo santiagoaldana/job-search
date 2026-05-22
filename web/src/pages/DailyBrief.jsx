@@ -1471,6 +1471,8 @@ function EscalationControls({ action, onRefresh }) {
   const [rescheduledLabel, setRescheduledLabel] = useState(null)
   const [localChannel, setLocalChannel] = useState(action.escalation_channel || 'linkedin_dm')
   const [dirty, setDirty] = useState(false)
+  const [stopped, setStopped] = useState(false)
+  const [stopError, setStopError] = useState(null)
 
   const confirmReschedule = async (e) => {
     e.stopPropagation()
@@ -1499,12 +1501,23 @@ function EscalationControls({ action, onRefresh }) {
 
   const stop = async () => {
     if (!action.payload_id) return
-    setSaving(true)
+    setStopError(null)
+    setStopped(true)
     try {
       await api.skipOutreach(action.payload_id)
       onRefresh && onRefresh()
-    } catch (e) { console.error('stop error', e) } finally { setSaving(false) }
+    } catch (e) {
+      console.error('stop error', e)
+      setStopped(false)
+      setStopError('Failed to stop — tap again to retry')
+    }
   }
+
+  if (stopped) return (
+    <div className="mt-3 pt-3 border-t border-theme">
+      <span className="text-xs text-muted">Stopping escalation...</span>
+    </div>
+  )
 
   return (
     <div className="mt-3 pt-3 border-t border-theme space-y-2">
@@ -1565,6 +1578,9 @@ function EscalationControls({ action, onRefresh }) {
           </button>
         )}
       </div>
+      {stopError && (
+        <div className="text-xs text-red-500">{stopError}</div>
+      )}
       {dirty && (
         <div className="flex justify-end">
           <button disabled={saving}
