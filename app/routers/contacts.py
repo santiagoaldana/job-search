@@ -764,6 +764,63 @@ async def draft_bounce_retry(contact_id: int, session: Session = Depends(get_ses
     }
 
 
+class ConfirmBounceRetrySentRequest(BaseModel):
+    guessed_email: str
+    subject: Optional[str] = None
+    body: Optional[str] = None
+
+
+@router.post("/{contact_id}/confirm-bounce-retry-sent")
+def confirm_bounce_retry_sent(
+    contact_id: int,
+    req: ConfirmBounceRetrySentRequest,
+    session: Session = Depends(get_session),
+):
+    """Log a bounce-retry send: update contact email, clear invalid flag, create OutreachRecord."""
+    contact = session.get(Contact, contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    # Duplicate guard — skip if an email OutreachRecord already exists for this contact
+    existing = session.exec(
+        select(OutreachRecord)
+        .where(OutreachRecord.contact_id == contact_id)
+        .where(OutreachRecord.channel == "email")
+        .where(OutreachRecord.sent_at.is_not(None))  # type: ignore[union-attr]
+    ).first()
+    if not existing:
+        def _add_bd(start: date, days: int) -> date:
+            d, count = start, 0
+            while count < days:
+                d += timedelta(days=1)
+                if d.weekday() < 5:
+                    count += 1
+            return d
+
+        today = datetime.now(tz=_EASTERN).date()
+        record = OutreachRecord(
+            contact_id=contact_id,
+            company_id=contact.company_id,
+            channel="email",
+            sent_at=datetime.utcnow().isoformat(),
+            response_status="pending",
+            outreach_message=req.body,
+            follow_up_3_due=_add_bd(today, 3).isoformat(),
+            follow_up_7_due=_add_bd(today, 7).isoformat(),
+        )
+        session.add(record)
+
+    # Update contact email to guessed address and clear invalid flag
+    contact.email = req.guessed_email
+    contact.email_invalid = False
+    contact.email_guessed = True
+    contact.outreach_status = "contacted"
+    session.add(contact)
+    session.commit()
+
+    return {"ok": True}
+
+
 @router.get("/{contact_id}/next-step")
 def get_contact_next_step(contact_id: int, session: Session = Depends(get_session)):
     """Return the recommended next outreach action for a contact."""

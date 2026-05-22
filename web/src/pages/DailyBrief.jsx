@@ -910,6 +910,17 @@ function EmailBounceRetryCard({ action, onRefresh }) {
     setBusy(false)
   }
 
+  const handleConfirmSent = async () => {
+    try {
+      await api.confirmBounceRetrySent(action.payload_id, {
+        guessed_email: guessedEmail,
+        subject,
+        body,
+      })
+    } catch (_) {}
+    onRefresh()
+  }
+
   const handleRefine = () => {
     const lines = [
       '## Who I am reaching out to',
@@ -1002,7 +1013,7 @@ function EmailBounceRetryCard({ action, onRefresh }) {
               {busy ? '...' : 'Email bounced — try next'}
             </button>
             <button
-              onClick={onRefresh}
+              onClick={handleConfirmSent}
               className="flex-1 bg-green-500 text-white rounded-lg py-2 text-xs font-semibold"
             >
               Sent ✓

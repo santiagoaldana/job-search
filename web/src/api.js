@@ -149,6 +149,7 @@ export const api = {
   mergeCompanies: (keepId, discardId) => request('DELETE', `/companies/${discardId}?merge_into=${keepId}`),
   markEmailBounced: (id) => post(`/contacts/${id}/bounce`),
   draftBounceRetry: (contactId) => post(`/contacts/${contactId}/draft-bounce-retry`),
+  confirmBounceRetrySent: (contactId, data) => post(`/contacts/${contactId}/confirm-bounce-retry-sent`, data),
   draftLinkedinMessage: (id) => post(`/contacts/${id}/draft-dm`),
   getContactNextStep: (id) => get(`/contacts/${id}/next-step`),
   getNetworkPath: (companyId, refresh = false) => get(`/companies/${companyId}/network-path${refresh ? '?refresh=true' : ''}`),
