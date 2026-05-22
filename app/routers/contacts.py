@@ -620,6 +620,88 @@ def mark_email_bounce(contact_id: int, session: Session = Depends(get_session)):
     return {"ok": True, "next_step": next_step}
 
 
+def _derive_expertise_from_title(title: str, company_name: str) -> str:
+    t = title.lower()
+    if any(k in t for k in ("tokeniz", "vault", "card")):
+        return "embedded card products and tokenization infrastructure"
+    if any(k in t for k in ("payment", "acquiring", "issuing")):
+        return "payments infrastructure and orchestration"
+    if any(k in t for k in ("identity", "kyc", "aml", "fraud")):
+        return "digital identity and compliance"
+    if any(k in t for k in ("lending", "credit", "loan")):
+        return "embedded lending and credit products"
+    if any(k in t for k in ("compliance", "risk", "regulatory")):
+        return "risk and compliance frameworks"
+    if any(k in t for k in ("engineer", "platform", "infrastructure", "architect")):
+        return "platform architecture and developer experience"
+    if any(k in t for k in ("product", "growth", "strategy")):
+        return f"product strategy at {company_name}"
+    return f"what you are building at {company_name}"
+
+
+@router.post("/{contact_id}/draft-bounce-retry")
+async def draft_bounce_retry(contact_id: int, session: Session = Depends(get_session)):
+    """Generate a role-specific outreach draft for a bounce-retry (no OutreachRecord needed)."""
+    contact = session.get(Contact, contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    company = session.get(Company, contact.company_id) if contact.company_id else None
+
+    first = (contact.name or "").split()[0] or "there"
+    company_name = company.name if company else "your company"
+    role = contact.title or ""
+
+    # Auto-generate intel if empty (free: Google News RSS + DB reads, no Anthropic API)
+    intel = (company.intel_summary or "").strip() if company else ""
+    if not intel and company:
+        try:
+            from app.services.company_intel import generate_company_brief
+            intel = await generate_company_brief(company, session)
+            company.intel_summary = intel
+            company.updated_at = __import__("datetime").datetime.utcnow().isoformat()
+            session.add(company)
+            session.commit()
+        except Exception:
+            intel = ""
+
+    news_raw = (company.recent_news or "").strip() if company else ""
+
+    # Opener: intel first sentence > MIT alum > generic
+    if intel and len(intel) > 30:
+        snippet = intel.split(".")[0].strip()[:120]
+        opener = f"I came across {company_name} recently. {snippet}."
+    elif getattr(contact, "is_mit_alum", False):
+        opener = "I am a fellow MIT Sloan alum."
+    else:
+        opener = f"I have been following {company_name} and wanted to reach out directly."
+
+    # Role-specific question
+    expertise = _derive_expertise_from_title(role, company_name) if role else f"what you are building at {company_name}"
+    question = f"I was wondering if you would have 15 minutes to share your perspective on {expertise} — your vantage point at {company_name} would be genuinely valuable."
+
+    # Subject: first 3 role words if available
+    if role:
+        role_words = role.split()[:3]
+        subject = f"{' '.join(role_words)} perspective — {company_name}"
+    else:
+        subject = f"{first} — quick question"
+
+    body = f"Hi {first},\n\n{opener}\n\n{question}\n\nWorth a quick note back?"
+
+    # Next guessed email
+    ns = determine_next_step(contact, company)
+    guessed_email = ns.get("guessed_email") or (contact.email if not contact.email_invalid else None)
+
+    return {
+        "subject": subject,
+        "body": body,
+        "guessed_email": guessed_email,
+        "contact_title": role,
+        "intel": intel,
+        "news": news_raw,
+    }
+
+
 @router.get("/{contact_id}/next-step")
 def get_contact_next_step(contact_id: int, session: Session = Depends(get_session)):
     """Return the recommended next outreach action for a contact."""

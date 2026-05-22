@@ -865,24 +865,25 @@ function EmailBounceRetryCard({ action, onRefresh }) {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [guessedEmail, setGuessedEmail] = useState(action.guessed_email || null)
+  const [contactTitle, setContactTitle] = useState('')
+  const [intel, setIntel] = useState('')
+  const [news, setNews] = useState('')
   const [busy, setBusy] = useState(false)
-  const [refining, setRefining] = useState(false)
   const [refineCopied, setRefineCopied] = useState(false)
   const [draftKey, setDraftKey] = useState(0)
 
   useEffect(() => {
-    const firstName = (action.contact_name || '').split(' ')[0] || 'there'
-    const co = action.company_name || 'your company'
-    api.draftTemplate(action.payload_id, 'escalation', action.payload_id)
+    api.draftBounceRetry(action.payload_id)
       .then(res => {
         setSubject(res.subject || '')
         setBody(res.body || '')
         if (res.guessed_email) setGuessedEmail(res.guessed_email)
+        if (res.contact_title) setContactTitle(res.contact_title)
+        if (res.intel) setIntel(res.intel)
+        if (res.news) setNews(res.news)
         setState(res.guessed_email || guessedEmail ? 'draft' : 'exhausted')
       })
       .catch(() => {
-        setSubject(`${firstName} - reaching out directly`)
-        setBody(`Hi ${firstName},\n\nI reached out via email recently and wanted to try again. I would love to learn more about what you are building at ${co}.\n\nWorth a quick note back?`)
         setState(guessedEmail ? 'draft' : 'exhausted')
       })
   }, [draftKey])
@@ -911,34 +912,31 @@ function EmailBounceRetryCard({ action, onRefresh }) {
     setBusy(false)
   }
 
-  const handleRefine = async () => {
-    setRefining(true)
-    try {
-      const ctx = await api.getConversationContext(action.payload_id, { subject, body, stage: 'initial' })
-      const historyText = (ctx.conversation_history || [])
-        .slice(-5)
-        .map(m => `From: ${m.from_name || m.from_email}\nDate: ${m.date}\n---\n${m.body_preview}`)
-        .join('\n\n')
-      const prompt = [
-        '## Conversation history',
-        historyText || '(no prior messages)',
-        '',
-        '## My current draft',
-        `Subject: ${subject}`,
-        body,
-        '',
-        '## Instructions',
-        ctx.generation_instructions,
-      ].join('\n')
-      const fallback = () => { const ta = document.createElement('textarea'); ta.value = prompt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
-      navigator.clipboard.writeText(prompt).catch(fallback)
-      setRefineCopied(true)
-      setTimeout(() => setRefineCopied(false), 2000)
-    } catch (e) {
-      console.error('refine error', e)
-    } finally {
-      setRefining(false)
-    }
+  const handleRefine = () => {
+    const lines = [
+      '## Who I am reaching out to',
+      `${action.contact_name || 'this contact'}${contactTitle ? `, ${contactTitle}` : ''} at ${action.company_name || 'their company'}.`,
+      'A previous email bounced. This is a retry with a different email address pattern.',
+      '',
+    ]
+    if (intel) { lines.push('## Company context', intel, '') }
+    if (news) { lines.push('## Recent news', news, '') }
+    lines.push(
+      '## My current draft',
+      `Subject: ${subject}`,
+      body,
+      '',
+      "## Santiago's background",
+      'MIT Sloan MBA. 20+ years in FinTech, payments, digital identity, LATAM markets. Currently Chief Product Solutions Officer at SMCU (largest SBA credit union lender in Massachusetts). Seeking C-suite or SVP roles in payments infrastructure, BaaS, embedded banking, agentic AI.',
+      '',
+      '## Instructions',
+      "Rewrite the email. Be specific to this person's role and company context above. Lead with something they genuinely care about. End with a soft, specific ask. 3 to 4 sentences max. No em dashes, no hyphens.",
+    )
+    const prompt = lines.join('\n')
+    const fallback = () => { const ta = document.createElement('textarea'); ta.value = prompt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
+    navigator.clipboard.writeText(prompt).catch(fallback)
+    setRefineCopied(true)
+    setTimeout(() => setRefineCopied(false), 2000)
   }
 
   return (
@@ -984,10 +982,9 @@ function EmailBounceRetryCard({ action, onRefresh }) {
             </button>
             <button
               onClick={handleRefine}
-              disabled={refining}
               className="text-xs px-3 py-2 border border-purple-300 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/40 disabled:opacity-40"
             >
-              {refining ? '...' : refineCopied ? 'Copied!' : '✨ Refine with AI'}
+              {refineCopied ? 'Copied!' : '✨ Refine with AI'}
             </button>
           </div>
         </div>
