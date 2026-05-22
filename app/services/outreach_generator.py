@@ -1,6 +1,5 @@
 """
-Outreach Generator — template-based drafts and context assembly.
-AI generation is handled by Claude via MCP tools; this module is data/logic only.
+Outreach Generator — drafts, context assembly, and AI-powered escalation drafts.
 """
 
 from typing import Optional, List
@@ -39,6 +38,110 @@ DALTON_RULES = (
     "8. Do NOT include a signature block\n"
     "9. If connection degree is 1 or warmth is 'warm', reference that shared context naturally"
 )
+
+
+SANTIAGO_PROFILE = {
+    "name": "Santiago Aldana",
+    "current_role": "Chief Product & Solutions Officer, St. Mary's Credit Union (SMCU)",
+    "managing_partner": "AI Data Solutions — exclusive LATAM distribution of Maven AGI",
+    "target_roles": ["CEO", "COO", "CPO", "SVP Product", "SVP Payments", "SVP Embedded Banking"],
+    "target_sectors": ["Payments", "Embedded Banking", "Agentic AI", "Digital Identity", "BaaS"],
+    "positioning": (
+        "Enterprise Whisperer / Speedboat — brings enterprise discipline to growth-stage FinTech. "
+        "Turns regulated complexity into competitive moat."
+    ),
+    "key_credentials": [
+        "CEO SoyYo (2020-2024) — digital identity platform, 3M+ users, sold to Redeban (Colombia's leading PSP)",
+        "CDTO Avianca (2017-2019) — $110M IT budget, $700-800M annual digital revenue, 47% of sales migrated to digital",
+        "CEO Uff! Movil (2010-2015) — LatAm's first MVNO, 400K customers, sold to Bancolombia at $18M",
+        "CIO Telefonica (2004-2009) — 60M EUR IT transformation across 5 countries in 17 months",
+        "MIT Sloan MBA — Strategy, Innovation and Technology",
+    ],
+    "board_roles": ["Tuya Credit Card (Open Banking)", "Colombia Fintech (regulatory)", "Zulu (cross-border crypto)"],
+    "target_company_stage": "Series B-D FinTech or growth-stage payments/AI",
+    "geography": "Boston, MA — open to remote/hybrid",
+    "outreach_style": "Dalton method — ultra-short, specific ask, no fluff, no em dashes",
+}
+
+GENERATION_INSTRUCTIONS = (
+    "Write a Dalton 6-point outreach message using ALL of the data above. This must feel like it was written specifically for this person — not a template.\n\n"
+    "PERSONALIZATION (do all of these):\n"
+    "- Read the company intel_summary carefully. Find one specific, current detail about what this company is doing or facing right now — use that as the hook, not a generic industry observation.\n"
+    "- Look at the contact's title and role. What is the hardest part of their job right now given the company's situation? Orient the message around their world, not Santiago's.\n"
+    "- Pick the one credential from Santiago's profile that is most directly relevant to THIS person's specific challenges — not the most impressive credential in general.\n"
+    "- If relationship_notes or met_via is present, reference it concretely.\n"
+    "- If a prior_message exists, this is a follow-up — acknowledge it briefly without being apologetic.\n\n"
+    "DALTON RULES (non-negotiable):\n"
+    "- Body ≤75 words (300 chars max for connection requests)\n"
+    "- Subject line: their experience or role at this company, not Santiago's ask\n"
+    "- At least half the words are about THEM\n"
+    "- End with an open question, not a statement\n"
+    "- Ask for advice or insight, never a job or introduction\n"
+    "- No em dashes, en dashes, or hyphens anywhere in the text\n"
+    "- Forbidden phrases: 'hope this finds you', 'I am reaching out', 'opportunity', 'resume', 'job search', 'excited to', 'would love to'\n\n"
+    "Return ONLY valid JSON in this exact format:\n"
+    '{"subject": "<subject line>", "body": "<email body, ≤75 words, plain text, no markdown>"}'
+)
+
+
+async def generate_escalation_draft(
+    contact,
+    company,
+    prior_message: Optional[str] = None,
+    email_type: str = "cold",
+) -> Optional[dict]:
+    """
+    Call Claude Haiku to generate a personalized escalation draft.
+    Returns {"subject": ..., "body": ...} or None on failure.
+    """
+    import json
+    import anthropic
+
+    contact_info = {}
+    if contact:
+        contact_info = {
+            "name": contact.name,
+            "title": contact.title or "unknown title",
+            "connection_degree": getattr(contact, "connection_degree", "unknown"),
+            "warmth": getattr(contact, "warmth", "cold"),
+            "met_via": getattr(contact, "met_via", None),
+            "relationship_notes": getattr(contact, "relationship_notes", None),
+        }
+
+    company_info = {
+        "name": company.name if company else "unknown",
+        "intel_summary": (getattr(company, "intel_summary", None) or "")[:1500],
+        "stage": getattr(company, "stage", None),
+    }
+
+    context = {
+        "company": company_info,
+        "contact": contact_info,
+        "prior_message": prior_message,
+        "email_type": email_type,
+        "type_instructions": "Open with a genuine, specific connection point. Do not fabricate shared history.",
+        "santiago_profile": SANTIAGO_PROFILE,
+        "generation_instructions": GENERATION_INSTRUCTIONS,
+    }
+
+    prompt = f"Here is the outreach context:\n\n{json.dumps(context, indent=2)}\n\n{GENERATION_INSTRUCTIONS}"
+
+    try:
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(raw)
+        if "subject" in result and "body" in result:
+            return result
+    except Exception:
+        pass
+
+    return None
 
 
 def build_outreach_context(

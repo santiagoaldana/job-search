@@ -761,6 +761,7 @@ async def draft_template(
             _pick_headline, _humanize_headline, _extract_curated_opener,
             _extract_headlines_from_intel_dump,
         )
+        from app.services.outreach_generator import generate_escalation_draft
         is_mit = getattr(contact, "is_mit_alum", None) if contact else None
 
         # Auto-fetch intel if missing (free: RSS + DB reads, no Anthropic API)
@@ -776,63 +777,66 @@ async def draft_template(
             except Exception:
                 intel = ""
 
-        # Fetch disambiguated news headlines
-        news_headlines: list = []
-        if company:
-            try:
-                from app.services.company_intel import fetch_news
-                suffix = " fintech payments" if company_name.lower() in _AMBIGUOUS_NAMES else ""
-                news_headlines = await fetch_news(company_name + suffix, max_items=8)
-            except Exception:
-                pass
+        # Try AI-powered personalized draft first
+        ai_draft = await generate_escalation_draft(contact, company, prior_message, "cold")
+        if ai_draft:
+            subject = ai_draft["subject"]
+            body = ai_draft["body"]
+        else:
+            # Fallback: template-based draft
+            # Fetch disambiguated news headlines
+            news_headlines: list = []
+            if company:
+                try:
+                    from app.services.company_intel import fetch_news
+                    suffix = " fintech payments" if company_name.lower() in _AMBIGUOUS_NAMES else ""
+                    news_headlines = await fetch_news(company_name + suffix, max_items=8)
+                except Exception:
+                    pass
 
-        # Opener: fresh news > cached intel news > curated intel prose > MIT alum > expertise-based
-        # Note: live fetch_news may fail silently on cloud IPs (Google News blocks); use intel dump as fallback
-        headline = _pick_headline(news_headlines, company_name)
-        if not headline and intel:
-            dump_headlines = _extract_headlines_from_intel_dump(intel)
-            headline = _pick_headline(dump_headlines, company_name)
-        curated = _extract_curated_opener(intel)
+            # Opener: fresh news > cached intel news > curated intel prose > MIT alum > expertise-based
+            # Note: live fetch_news may fail silently on cloud IPs (Google News blocks); use intel dump as fallback
+            headline = _pick_headline(news_headlines, company_name)
+            if not headline and intel:
+                dump_headlines = _extract_headlines_from_intel_dump(intel)
+                headline = _pick_headline(dump_headlines, company_name)
+            curated = _extract_curated_opener(intel)
 
-        expertise_q = _derive_expertise_from_title(contact.title or "", company_name) if contact and contact.title else f"what you are building at {company_name}"
+            expertise_q = _derive_expertise_from_title(contact.title or "", company_name) if contact and contact.title else f"what you are building at {company_name}"
 
-        if headline:
-            opener = _humanize_headline(headline, company_name)
-        elif curated:
-            # If sentence starts with the company name, use it directly; otherwise embed after "following X,"
-            if curated.lower().startswith(company_name.lower()):
-                opener = curated if curated.endswith(".") else curated + "."
+            if headline:
+                opener = _humanize_headline(headline, company_name)
+            elif curated:
+                if curated.lower().startswith(company_name.lower()):
+                    opener = curated if curated.endswith(".") else curated + "."
+                else:
+                    curated_lc = curated[0].lower() + curated[1:]
+                    opener = f"I have been following {company_name}, {curated_lc.rstrip('.')}."
+            elif is_mit:
+                opener = "I am a fellow MIT Sloan alum."
             else:
-                curated_lc = curated[0].lower() + curated[1:]
-                opener = f"I have been following {company_name}, {curated_lc.rstrip('.')}."
-        elif is_mit:
-            opener = "I am a fellow MIT Sloan alum."
-        else:
-            # Strip " at {company_name}" suffix from expertise_q to avoid repeating the company name
-            expertise_short = expertise_q.replace(f" at {company_name}", "").strip()
-            opener = f"I have been following {company_name}'s work on {expertise_short} and wanted to reach out directly."
+                expertise_short = expertise_q.replace(f" at {company_name}", "").strip()
+                opener = f"I have been following {company_name}'s work on {expertise_short} and wanted to reach out directly."
 
-        linkedin_bridge = (
-            "I sent you a connection request on LinkedIn recently. Thought reaching out directly might be easier.\n\n"
-            if prior_message else ""
-        )
+            linkedin_bridge = (
+                "I sent you a connection request on LinkedIn recently. Thought reaching out directly might be easier.\n\n"
+                if prior_message else ""
+            )
 
-        # Role-specific question
-        question = f"I was wondering if you would have 15 minutes to share your perspective on {expertise_q}, given your vantage point at {company_name}."
+            question = f"I was wondering if you would have 15 minutes to share your perspective on {expertise_q}, given your vantage point at {company_name}."
 
-        # Subject: first 3 role words
-        if contact and contact.title:
-            subject = f"{' '.join(contact.title.split()[:3])} perspective — {company_name}"
-        else:
-            subject = _build_escalation_subject(contact, company, first, is_mit)
+            if contact and contact.title:
+                subject = f"{' '.join(contact.title.split()[:3])} perspective — {company_name}"
+            else:
+                subject = _build_escalation_subject(contact, company, first, is_mit)
 
-        body = (
-            f"Hi {first},\n\n"
-            f"{opener}\n\n"
-            f"{linkedin_bridge}"
-            f"{question}\n\n"
-            f"Worth a quick note back?"
-        )
+            body = (
+                f"Hi {first},\n\n"
+                f"{opener}\n\n"
+                f"{linkedin_bridge}"
+                f"{question}\n\n"
+                f"Worth a quick note back?"
+            )
 
     elif followup_type == "day3":
         subject = f"{company_name} — still curious"
