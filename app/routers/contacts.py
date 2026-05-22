@@ -639,18 +639,50 @@ def _derive_expertise_from_title(title: str, company_name: str) -> str:
     return f"what you are building at {company_name}"
 
 
-def _extract_intel_opener(intel: str, company_name: str) -> str:
-    """Pull the first substantive sentence from a Claude-written intel_summary."""
+_AMBIGUOUS_NAMES = {
+    "stripe", "square", "plaid", "marqeta", "synctera", "sardine",
+    "brex", "ramp", "unit", "column", "mercury", "relay", "grasshopper",
+}
+_HEADLINE_SKIP = ("hiring", "job", "career", "apply", "underwear", "stare", "dies", "kickstarter", "grade 1")
+
+
+def _pick_headline(news_headlines: list, company_name: str = "") -> str:
+    """Return the best headline: prefer company-as-subject, skip noise."""
     import re
-    # Skip lines that look like raw report headers (RSS dump artifacts)
+    candidates = []
+    for raw in news_headlines:
+        cleaned = re.sub(r"\s*\([^)]{0,25}\)\s*$", "", raw.strip().lstrip("- ")).strip()
+        cleaned = re.sub(r"\s+-\s+[^-]+$", "", cleaned).strip()
+        if not cleaned or len(cleaned) < 20:
+            continue
+        if any(k in cleaned.lower() for k in _HEADLINE_SKIP):
+            continue
+        candidates.append(cleaned)
+    # Prefer headlines where company is the subject (starts with company name)
+    if company_name:
+        for c in candidates:
+            if c.lower().startswith(company_name.lower()):
+                return c
+    return candidates[0] if candidates else ""
+
+
+def _humanize_headline(headline: str, company_name: str) -> str:
+    """Turn a news headline into a natural first-person observation."""
+    if headline.lower().startswith(company_name.lower()):
+        # "Stripe builds X" → "I saw Stripe builds X" (keep original case)
+        return f"I saw {headline}."
+    # "X backed by Stripe" → "I saw that X backed by Stripe"
+    return f"I saw that {headline}."
+
+
+def _extract_curated_opener(intel: str) -> str:
+    """Pull the first substantive sentence from a Claude-written intel_summary (not an RSS dump)."""
+    import re
     _SKIP_PREFIXES = ("intel snapshot", "recent news", "contacts:", "outreach:", "open roles:", "---")
     for line in intel.splitlines():
         line = line.strip()
-        if not line or any(line.lower().startswith(p) for p in _SKIP_PREFIXES):
+        if not line or any(line.lower().startswith(p) for p in _SKIP_PREFIXES) or line.startswith("-"):
             continue
-        if line.startswith("-"):
-            continue
-        # Take first sentence of this line
         sentence = re.split(r"(?<=[.!?])\s", line)[0].strip()
         if len(sentence) > 30:
             return sentence
@@ -658,12 +690,9 @@ def _extract_intel_opener(intel: str, company_name: str) -> str:
 
 
 @router.post("/{contact_id}/draft-bounce-retry")
-def draft_bounce_retry(contact_id: int, session: Session = Depends(get_session)):
-    """
-    Generate a role-specific outreach draft for a bounce-retry.
-    Returns needs_intel=True if intel_summary is empty, signalling the card
-    to prompt the user to generate intel before drafting.
-    """
+async def draft_bounce_retry(contact_id: int, session: Session = Depends(get_session)):
+    """Generate a role-specific outreach draft for a bounce-retry, fetching news silently if needed."""
+    from datetime import datetime as _dt
     contact = session.get(Contact, contact_id)
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
@@ -674,49 +703,58 @@ def draft_bounce_retry(contact_id: int, session: Session = Depends(get_session))
     role = contact.title or ""
     intel = (company.intel_summary or "").strip() if company else ""
 
-    # If no curated intel yet, signal the card — don't draft with raw RSS noise
-    if not intel:
-        ns = determine_next_step(contact, company)
-        guessed_email = ns.get("guessed_email") or (contact.email if not contact.email_invalid else None)
-        return {
-            "needs_intel": True,
-            "company_id": company.id if company else None,
-            "guessed_email": guessed_email,
-            "contact_title": role,
-            "intel": "",
-        }
+    # Auto-populate intel if missing (free: RSS + DB reads, no Anthropic API)
+    if not intel and company:
+        try:
+            from app.services.company_intel import generate_company_brief
+            intel = await generate_company_brief(company, session)
+            company.intel_summary = intel
+            company.updated_at = _dt.utcnow().isoformat()
+            session.add(company)
+            session.commit()
+        except Exception:
+            intel = ""
 
-    # Build opener from the first substantive sentence of the curated intel
-    intel_sentence = _extract_intel_opener(intel, company_name)
-    if intel_sentence:
-        # Lowercase first char so it reads as continuation, e.g. "...a $1T payments platform."
-        intel_lc = intel_sentence[0].lower() + intel_sentence[1:] if intel_sentence else ""
-        intel_lc = intel_lc.rstrip(".")
-        opener = f"I have been following {company_name}, {intel_lc}."
+    # Fetch disambiguated news headlines for the opener
+    news_headlines: list = []
+    if company:
+        try:
+            from app.services.company_intel import fetch_news
+            suffix = " fintech payments" if company_name.lower() in _AMBIGUOUS_NAMES else ""
+            news_headlines = await fetch_news(company_name + suffix, max_items=8)
+        except Exception:
+            pass
+
+    # Build opener: fresh news > curated intel > MIT alum > generic
+    headline = _pick_headline(news_headlines, company_name)
+    curated = _extract_curated_opener(intel)
+
+    if headline:
+        opener = _humanize_headline(headline, company_name)
+    elif curated:
+        curated_lc = curated[0].lower() + curated[1:]
+        opener = f"I have been following {company_name}, {curated_lc.rstrip('.')}."
     elif getattr(contact, "is_mit_alum", False):
         opener = "I am a fellow MIT Sloan alum."
     else:
         opener = f"I have been following {company_name} and wanted to reach out directly."
 
-    # Role-specific question
+    # Role-specific question — comma instead of em dash
     expertise = _derive_expertise_from_title(role, company_name) if role else f"what you are building at {company_name}"
-    question = f"I was wondering if you would have 15 minutes to share your perspective on {expertise} — your vantage point at {company_name} would be genuinely valuable."
+    question = f"I was wondering if you would have 15 minutes to share your perspective on {expertise}, given your vantage point at {company_name}."
 
     # Subject: first 3 role words if available
     if role:
-        role_words = role.split()[:3]
-        subject = f"{' '.join(role_words)} perspective — {company_name}"
+        subject = f"{' '.join(role.split()[:3])} perspective — {company_name}"
     else:
         subject = f"{first} — quick question"
 
     body = f"Hi {first},\n\n{opener}\n\n{question}\n\nWorth a quick note back?"
 
-    # Next guessed email
     ns = determine_next_step(contact, company)
     guessed_email = ns.get("guessed_email") or (contact.email if not contact.email_invalid else None)
 
     return {
-        "needs_intel": False,
         "subject": subject,
         "body": body,
         "guessed_email": guessed_email,
