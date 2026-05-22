@@ -499,6 +499,8 @@ async def draft_followup(
     # Map followup_day to stage
     if req.followup_day == 0:
         stage = "post_meeting"
+    elif req.followup_day == -1:
+        stage = "post_meeting_2"
     elif req.followup_day == 3:
         stage = "day_3"
     else:
@@ -914,6 +916,17 @@ def build_mailto(
     contact = session.get(Contact, record.contact_id) if record.contact_id else None
     to_email = (contact.email or "") if contact else ""
 
+    # Fall back to sender email from conversation history if contact has no email on record
+    if not to_email:
+        reply_msg = session.exec(
+            select(ConversationMessage)
+            .where(ConversationMessage.outreach_record_id == record.id)
+            .where(ConversationMessage.message_type == "reply")
+            .order_by(ConversationMessage.message_date.desc())  # type: ignore[arg-type]
+        ).first()
+        if reply_msg and reply_msg.from_email:
+            to_email = reply_msg.from_email
+
     subject_enc = urllib.parse.quote(req.subject or "", safe="")
     body_enc = urllib.parse.quote(req.body or "", safe="")
     to_enc = urllib.parse.quote(to_email, safe="@.")
@@ -937,6 +950,9 @@ def mark_followup_sent(
     if req.followup_day == 0:
         record.post_meeting_followup_sent = True
         record.follow_up_3_sent = True
+        record.post_meeting_2_due = add_business_days(today, 3).isoformat()
+    elif req.followup_day == -1:
+        record.post_meeting_2_sent = True
     elif req.followup_day == 3:
         record.follow_up_3_sent = True
         record.follow_up_7_due = add_business_days(today, 4).isoformat()

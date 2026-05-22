@@ -539,9 +539,16 @@ def handle_outreach_reply(session: Session, msg_data: dict, record: OutreachReco
         thread_id=msg_data["thread_id"],
     )
     session.add(conv)
+
+    # Backfill contact email from reply sender if not already set
+    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    if contact and not contact.email and msg_data.get("from_email"):
+        contact.email = msg_data["from_email"]
+        contact.email_guessed = False
+        session.add(contact)
+
     session.commit()
 
-    contact = session.get(Contact, record.contact_id) if record.contact_id else None
     company = session.get(Company, record.company_id) if record.company_id else None
     return {
         "contact_name": contact.name if contact else None,

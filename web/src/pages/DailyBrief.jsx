@@ -88,6 +88,9 @@ function FollowUpModal({ action, onClose, onSent }) {
   const [keepwarmDays, setKeepwarmDays] = useState(30)
   const [keepwarmDate, setKeepwarmDate] = useState('')
   const [keepwarmDone, setKeepwarmDone] = useState(false)
+  const [postMeetingChoice, setPostMeetingChoice] = useState(null) // null | 'd3' | 'champion' | 'remind'
+  const [championNotes, setChampionNotes] = useState('')
+  const [championDate, setChampionDate] = useState('')
 
   useEffect(() => {
     setDrafting(true)
@@ -228,7 +231,7 @@ function FollowUpModal({ action, onClose, onSent }) {
     }
   }
 
-  const title = action.followup_day === 0 ? 'Post-Meeting Follow-up' : action.followup_day === 3 ? 'Day 3 Bump' : 'Day 7 Close'
+  const title = action.followup_day === 0 ? 'Post-Meeting Follow-up' : action.followup_day === -1 ? 'Reach Back Out' : action.followup_day === 3 ? 'Day 3 follow-up' : 'Day 7 close-out'
   const companyName = action.label?.replace(/Day \d+ (?:follow-up|close) — /, '') || ''
 
   return (
@@ -288,53 +291,104 @@ function FollowUpModal({ action, onClose, onSent }) {
             <div className="flex flex-col items-center py-6 gap-2 text-green-600 dark:text-green-400">
               <div className="text-3xl">✓</div>
               <div className="text-sm font-medium">Sent!</div>
-              {keepwarmDone ? (
-                <div className="text-xs text-muted text-center mt-1">
-                  Keepwarm reminder set. See you then.
-                </div>
-              ) : keepwarm ? (
-                <div className="w-full mt-3 text-body">
-                  <div className="text-sm font-medium mb-3 text-center text-body">Schedule a keepwarm reminder?</div>
-                  <div className="flex gap-2 mb-2">
-                    {[14, 30, 60].map(d => (
-                      <button
-                        key={d}
-                        onClick={() => { setKeepwarmDays(d); setKeepwarmDate(''); }}
-                        className={`flex-1 rounded-lg py-2 text-xs font-medium border transition-colors ${keepwarmDays === d && !keepwarmDate ? 'bg-blue-500 text-white border-blue-500' : 'border-theme text-body'}`}
-                      >
-                        +{d}d
+              {action.followup_day === 0 ? (
+                /* Post-meeting Email 1 sent — 3-option next step */
+                keepwarmDone ? (
+                  <div className="text-xs text-muted text-center mt-1">All set. See you then.</div>
+                ) : postMeetingChoice === 'd3' ? (
+                  <div className="text-xs text-muted text-center mt-1">D+3 follow-up scheduled. Card will surface in 3 business days.</div>
+                ) : postMeetingChoice === 'champion' ? (
+                  championDate ? (
+                    <div className="w-full mt-3 text-body" onClick={e => e.stopPropagation()}>
+                      <textarea rows={2} placeholder="How do you know them / what happened?" value={championNotes} onChange={e => setChampionNotes(e.target.value)}
+                        className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted resize-none focus:outline-none focus:ring-1 focus:ring-amber-500 mb-2" />
+                      <div className="flex gap-2">
+                        <input type="date" value={championDate} onChange={e => setChampionDate(e.target.value)}
+                          className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                        <button disabled={!championDate || sending} onClick={async e => { e.stopPropagation(); setSending(true); try { await api.updateContact(action.contact_id, { is_champion: true, champion_notes: championNotes.trim() || null, next_checkin_date: championDate }); setKeepwarmDone(true); } catch(err) { setError(err.message); } finally { setSending(false); } }}
+                          className="text-xs px-3 py-2 rounded-lg bg-amber-500 text-white font-medium disabled:opacity-40 hover:bg-amber-600">
+                          {sending ? 'Saving…' : 'Confirm'}
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); setPostMeetingChoice(null); }} className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full mt-3 text-body" onClick={e => e.stopPropagation()}>
+                      <div className="text-xs text-muted mb-2 text-center">Set next check-in date</div>
+                      <div className="flex gap-2">
+                        <input type="date" value={championDate} onChange={e => setChampionDate(e.target.value)}
+                          className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                        <button onClick={e => { e.stopPropagation(); setPostMeetingChoice(null); }} className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body">Cancel</button>
+                      </div>
+                    </div>
+                  )
+                ) : postMeetingChoice === 'remind' ? (
+                  <div className="w-full mt-3 text-body">
+                    <div className="flex gap-2 mb-2">
+                      {[14, 30, 60].map(d => (
+                        <button key={d} onClick={() => { setKeepwarmDays(d); setKeepwarmDate(''); }}
+                          className={`flex-1 rounded-lg py-2 text-xs font-medium border transition-colors ${keepwarmDays === d && !keepwarmDate ? 'bg-blue-500 text-white border-blue-500' : 'border-theme text-body'}`}>
+                          +{d}d
+                        </button>
+                      ))}
+                    </div>
+                    <input type="date" value={keepwarmDate} onChange={e => { setKeepwarmDate(e.target.value); setKeepwarmDays(0); }}
+                      className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body mb-3" />
+                    <div className="flex gap-2">
+                      <button onClick={() => setPostMeetingChoice(null)} className="flex-1 border border-theme text-body rounded-xl py-2.5 text-sm font-medium">Back</button>
+                      <button onClick={handleKeepwarm} disabled={sending || (!keepwarmDate && !keepwarmDays)}
+                        className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors">
+                        {sending ? 'Saving…' : 'Set reminder'}
                       </button>
-                    ))}
+                    </div>
                   </div>
-                  <input
-                    type="date"
-                    value={keepwarmDate}
-                    onChange={e => { setKeepwarmDate(e.target.value); setKeepwarmDays(0); }}
-                    className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body mb-3"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setKeepwarm(false)}
-                      className="flex-1 border border-theme text-body rounded-xl py-2.5 text-sm font-medium"
-                    >
-                      Skip
+                ) : (
+                  <div className="w-full mt-3 flex flex-col gap-2 text-body">
+                    <button onClick={async e => { e.stopPropagation(); setSending(true); try { const d = new Date(); d.setDate(d.getDate() + 3); await api.patchOutreach(action.payload_id, { post_meeting_2_due: d.toISOString().slice(0,10) }); setPostMeetingChoice('d3'); } catch(err) { setError(err.message); } finally { setSending(false); } }}
+                      disabled={sending}
+                      className="w-full border border-theme text-body rounded-xl py-2.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40">
+                      Schedule D+3 follow-up
                     </button>
-                    <button
-                      onClick={handleKeepwarm}
-                      disabled={sending || (!keepwarmDate && !keepwarmDays)}
-                      className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
-                    >
-                      {sending ? 'Saving…' : 'Set reminder'}
+                    <button onClick={e => { e.stopPropagation(); setPostMeetingChoice('champion'); }}
+                      className="w-full border border-amber-300 text-amber-600 dark:text-amber-400 rounded-xl py-2.5 text-sm font-medium hover:bg-amber-50 dark:hover:bg-amber-950/30">
+                      They were a great lead — mark as champion
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); setPostMeetingChoice('remind'); }}
+                      className="w-full text-xs text-muted hover:underline py-1">
+                      Remind me later
                     </button>
                   </div>
-                </div>
+                )
               ) : (
-                <button
-                  onClick={() => setKeepwarm(true)}
-                  className="mt-1 text-xs text-blue-500 hover:underline"
-                >
-                  Schedule a keepwarm reminder?
-                </button>
+                /* Non-post-meeting — original keepwarm flow */
+                keepwarmDone ? (
+                  <div className="text-xs text-muted text-center mt-1">Keepwarm reminder set. See you then.</div>
+                ) : keepwarm ? (
+                  <div className="w-full mt-3 text-body">
+                    <div className="text-sm font-medium mb-3 text-center text-body">Schedule a keepwarm reminder?</div>
+                    <div className="flex gap-2 mb-2">
+                      {[14, 30, 60].map(d => (
+                        <button key={d} onClick={() => { setKeepwarmDays(d); setKeepwarmDate(''); }}
+                          className={`flex-1 rounded-lg py-2 text-xs font-medium border transition-colors ${keepwarmDays === d && !keepwarmDate ? 'bg-blue-500 text-white border-blue-500' : 'border-theme text-body'}`}>
+                          +{d}d
+                        </button>
+                      ))}
+                    </div>
+                    <input type="date" value={keepwarmDate} onChange={e => { setKeepwarmDate(e.target.value); setKeepwarmDays(0); }}
+                      className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body mb-3" />
+                    <div className="flex gap-2">
+                      <button onClick={() => setKeepwarm(false)} className="flex-1 border border-theme text-body rounded-xl py-2.5 text-sm font-medium">Skip</button>
+                      <button onClick={handleKeepwarm} disabled={sending || (!keepwarmDate && !keepwarmDays)}
+                        className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors">
+                        {sending ? 'Saving…' : 'Set reminder'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setKeepwarm(true)} className="mt-1 text-xs text-blue-500 hover:underline">
+                    Schedule a keepwarm reminder?
+                  </button>
+                )
               )}
             </div>
           ) : !error || body ? (

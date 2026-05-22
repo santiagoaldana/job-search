@@ -118,6 +118,33 @@ def compute_daily_brief(session: Session) -> dict:
             "followup_day": 0,
         })
 
+    # Post-meeting second follow-up due (D+3 after thank-you sent — resources/recommendations ask)
+    met_2_records = session.exec(
+        select(OutreachRecord).where(
+            OutreachRecord.post_meeting_2_due != None,
+            OutreachRecord.post_meeting_2_sent == False,
+            OutreachRecord.post_meeting_2_due <= today,
+        )
+    ).all()
+
+    for record in met_2_records:
+        company = session.get(Company, record.company_id) if record.company_id else None
+        contact = session.get(Contact, record.contact_id) if record.contact_id else None
+        who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else "Unknown"))
+        outreach.append({
+            "action_type": "post_meeting_followup_2",
+            "label": f"Reach back out — {who}",
+            "detail": "Ask for resources and recommendations",
+            "cta": "Draft follow-up",
+            "company_id": record.company_id,
+            "contact_id": record.contact_id,
+            "contact_name": contact.name if contact else None,
+            "company_name": company.name if company else None,
+            "payload_id": record.id,
+            "payload_type": "outreach",
+            "followup_day": -1,
+        })
+
     # LinkedIn acceptances — surface persistently until DM is sent (follow_up_3_sent marks it done)
     recent_accepted = session.exec(
         select(OutreachRecord)
@@ -644,7 +671,7 @@ def compute_daily_brief(session: Session) -> dict:
     priority_ids: set = set(json.loads(config.priority_company_ids)) if config else set()
 
     _urgency = {
-        "new_reply": 50, "champion_checkin": 48, "post_meeting_followup": 45, "linkedin_accepted": 40,
+        "new_reply": 50, "champion_checkin": 48, "post_meeting_followup": 45, "post_meeting_followup_2": 44, "linkedin_accepted": 40,
         "follow_up_3": 30, "follow_up_7": 20,
         "warm_path": 15, "email_escalation": 12,
         "try_linkedin_dm": 10, "email_bounce_retry": 8,

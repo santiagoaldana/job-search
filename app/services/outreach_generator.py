@@ -132,11 +132,21 @@ FOLLOW_UP_TEMPLATES = {
     "post_meeting": {
         "en": {
             "subject": "Great talking with you",
-            "body": "Hi {first_name},\n\nReally enjoyed our conversation. Thank you for the time and insights.\n\nLooking forward to staying in touch.\n\nSantiago",
+            "body": "Hi {first_name},\n\nYou gave me a lot to think about. Thank you so much for your time.\n\nWould it be okay if I reached back out to you after I've had a chance to reflect?\n\nSantiago",
         },
         "es": {
             "subject": "Fue un placer hablar contigo",
-            "body": "Hola {first_name},\n\nMucho gusto hablar contigo. Gracias por el tiempo y los aprendizajes.\n\nQuedo en contacto.\n\nSantiago",
+            "body": "Hola {first_name},\n\nMe diste mucho en qué pensar. Muchas gracias por tu tiempo.\n\n¿Estaría bien si me comunico contigo una vez que haya reflexionado un poco?\n\nSantiago",
+        },
+    },
+    "post_meeting_2": {
+        "en": {
+            "subject": "Re: {original_subject}",
+            "body": "Hi {first_name},\n\nI've had a chance to reflect on our conversation. It was genuinely helpful.\n\nI wanted to ask: if you were in my position, are there any resources, people, or next steps you'd recommend?\n\nThanks again,\nSantiago",
+        },
+        "es": {
+            "subject": "Re: {original_subject}",
+            "body": "Hola {first_name},\n\nHe tenido tiempo para reflexionar sobre nuestra conversación. Fue muy útil.\n\nQuería preguntarte: si estuvieras en mi posición, ¿hay algún recurso, persona o próximo paso que recomendarías?\n\nGracias de nuevo,\nSantiago",
         },
     },
 }

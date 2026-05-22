@@ -158,6 +158,8 @@ class OutreachRecord(SQLModel, table=True):
 
     meeting_date: Optional[str] = Field(default=None)             # ISO date of confirmed networking meeting
     post_meeting_followup_sent: bool = Field(default=False)        # thank-you sent after meeting
+    post_meeting_2_due: Optional[str] = Field(default=None)        # ISO date: D+3 resources/recommendations ask
+    post_meeting_2_sent: bool = Field(default=False)               # second post-meeting follow-up sent
 
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
