@@ -1238,14 +1238,43 @@ def main():
         async def handle_mcp(scope, receive, send):
             await session_manager.handle_request(scope, receive, send)
 
+        async def handle_mcp_route(request):
+            from starlette.responses import Response
+            await session_manager.handle_request(request.scope, request.receive, request._send)
+            return Response()
+
         async def health(request):
             return JSONResponse({"status": "ok"})
+
+        async def oauth_protected_resource(request):
+            base = str(request.base_url).rstrip("/")
+            return JSONResponse({
+                "resource": f"{base}/mcp",
+                "authorization_servers": [],
+                "bearer_methods_supported": [],
+                "scopes_supported": [],
+            })
+
+        async def oauth_authorization_server(request):
+            return JSONResponse({
+                "issuer": str(request.base_url).rstrip("/"),
+                "authorization_endpoint": "",
+                "token_endpoint": "",
+                "response_types_supported": [],
+            })
+
+        async def oauth_register(request):
+            return JSONResponse({"client_id": "public", "client_secret": ""}, status_code=201)
 
         starlette_app = Starlette(
             lifespan=lifespan,
             routes=[
                 Route("/health", endpoint=health),
-                Mount("/mcp", app=handle_mcp),
+                Route("/mcp", endpoint=handle_mcp_route, methods=["GET", "POST", "DELETE"]),
+                Route("/.well-known/oauth-protected-resource", endpoint=oauth_protected_resource),
+                Route("/.well-known/oauth-protected-resource/mcp", endpoint=oauth_protected_resource),
+                Route("/.well-known/oauth-authorization-server", endpoint=oauth_authorization_server),
+                Route("/register", endpoint=oauth_register, methods=["POST"]),
             ],
             middleware=[
                 Middleware(
