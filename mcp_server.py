@@ -156,6 +156,7 @@ async def list_tools() -> list[types.Tool]:
                     "sent_date": {"type": "string", "description": "ISO date when outreach was sent, e.g. 2026-05-01. Defaults to today if not specified."},
                     "notes": {"type": "string", "description": "Optional notes about the outreach"},
                     "outreach_message": {"type": "string", "description": "The exact message text sent — used to track conversation continuity across channels"},
+                    "subject": {"type": "string", "description": "Subject line of the email sent — stored on the outreach record instead of a placeholder. Provide this for email channel outreach."},
                 },
                 "required": ["contact_id", "channel"],
             },
@@ -682,7 +683,7 @@ async def _dispatch(name: str, args: dict) -> dict:
             "contact_id": contact_id,
             "channel": channel,
             "sent_at": sent_at,
-            "subject": f"{'LinkedIn connection request' if channel == 'linkedin' else 'Email outreach'} — logged via MCP",
+            "subject": args.get("subject") or f"{'LinkedIn connection request' if channel == 'linkedin' else 'Email outreach'} — logged via MCP",
             "body": args.get("notes", f"Outreach via {channel} logged from Claude desktop."),
             "outreach_message": args.get("outreach_message"),
         })

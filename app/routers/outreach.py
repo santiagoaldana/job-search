@@ -510,7 +510,7 @@ async def draft_followup(
     raw_subject = record.subject or ""
     # Strip em/en dashes and hyphens; drop subjects that are contact-lookup artifacts
     clean_subject = _re.sub(r"[–—\-]+", " ", raw_subject).strip()
-    if not clean_subject or "LinkedIn connection" in clean_subject:
+    if not clean_subject or "LinkedIn connection" in clean_subject or "logged via MCP" in clean_subject.lower():
         clean_subject = f"{company.name} quick question" if company else "our conversation"
     outreach_dict = {
         "company": company.name if company else "Unknown",
@@ -886,6 +886,9 @@ def confirm_escalation(
         session.add(email_record)
     else:
         email_record = existing_email
+        if req.subject and (not email_record.subject or "logged via MCP" in (email_record.subject or "").lower()):
+            email_record.subject = req.subject
+            session.add(email_record)
 
     # Mark LinkedIn record so it stops showing in Daily Brief
     linkedin_record.follow_up_3_sent = True
