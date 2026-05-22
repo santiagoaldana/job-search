@@ -861,15 +861,38 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
 }
 
 function EmailBounceRetryCard({ action, onRefresh }) {
-  const [guessedEmail, setGuessedEmail] = useState(action.guessed_email)
-  const [emailSent, setEmailSent] = useState(false)
+  const [state, setState] = useState('loading') // loading | draft | sent | exhausted
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [guessedEmail, setGuessedEmail] = useState(action.guessed_email || null)
   const [busy, setBusy] = useState(false)
-  const [exhausted, setExhausted] = useState(false)
+  const [refining, setRefining] = useState(false)
+  const [refineCopied, setRefineCopied] = useState(false)
+  const [draftKey, setDraftKey] = useState(0)
 
-  const handleSend = () => {
-    const mailto = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(guessedEmail)}`
-    window.open(mailto, '_blank')
-    setEmailSent(true)
+  useEffect(() => {
+    const firstName = (action.contact_name || '').split(' ')[0] || 'there'
+    const co = action.company_name || 'your company'
+    api.draftTemplate(action.payload_id, 'escalation', action.payload_id)
+      .then(res => {
+        setSubject(res.subject || '')
+        setBody(res.body || '')
+        if (res.guessed_email) setGuessedEmail(res.guessed_email)
+        setState(res.guessed_email || guessedEmail ? 'draft' : 'exhausted')
+      })
+      .catch(() => {
+        setSubject(`${firstName} - reaching out directly`)
+        setBody(`Hi ${firstName},\n\nI reached out via email recently and wanted to try again. I would love to learn more about what you are building at ${co}.\n\nWorth a quick note back?`)
+        setState(guessedEmail ? 'draft' : 'exhausted')
+      })
+  }, [draftKey])
+
+  const handleSendViaGmail = () => {
+    window.open(
+      `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(guessedEmail || '')}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+      '_blank'
+    )
+    setState('sent')
   }
 
   const handleBounced = async () => {
@@ -879,12 +902,43 @@ function EmailBounceRetryCard({ action, onRefresh }) {
       const ns = res.next_step
       if (ns?.action === 'draft_email_guessed' && ns.guessed_email) {
         setGuessedEmail(ns.guessed_email)
-        setEmailSent(false)
+        setState('loading')
+        setDraftKey(k => k + 1)
       } else {
-        setExhausted(true)
+        setState('exhausted')
       }
     } catch (_) {}
     setBusy(false)
+  }
+
+  const handleRefine = async () => {
+    setRefining(true)
+    try {
+      const ctx = await api.getConversationContext(action.payload_id, { subject, body, stage: 'initial' })
+      const historyText = (ctx.conversation_history || [])
+        .slice(-5)
+        .map(m => `From: ${m.from_name || m.from_email}\nDate: ${m.date}\n---\n${m.body_preview}`)
+        .join('\n\n')
+      const prompt = [
+        '## Conversation history',
+        historyText || '(no prior messages)',
+        '',
+        '## My current draft',
+        `Subject: ${subject}`,
+        body,
+        '',
+        '## Instructions',
+        ctx.generation_instructions,
+      ].join('\n')
+      const fallback = () => { const ta = document.createElement('textarea'); ta.value = prompt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
+      navigator.clipboard.writeText(prompt).catch(fallback)
+      setRefineCopied(true)
+      setTimeout(() => setRefineCopied(false), 2000)
+    } catch (e) {
+      console.error('refine error', e)
+    } finally {
+      setRefining(false)
+    }
   }
 
   return (
@@ -893,31 +947,77 @@ function EmailBounceRetryCard({ action, onRefresh }) {
         <AlertCircle size={16} className="mt-0.5 flex-shrink-0 text-orange-500" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-body text-sm">{action.label}</div>
-          {guessedEmail && !exhausted && (
-            <div className="text-xs text-muted mt-0.5">
-              Next guess: <span className="font-mono text-body">{guessedEmail}</span> (unverified)
-            </div>
-          )}
+          {action.detail && <div className="text-xs text-muted mt-0.5">{action.detail}</div>}
         </div>
       </div>
 
-      {exhausted ? (
-        <div className="text-xs text-muted">All email patterns tried. Reach out via LinkedIn instead.</div>
-      ) : !emailSent ? (
-        <button onClick={handleSend} className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold">
-          Send via Gmail →
-        </button>
-      ) : (
-        <div className="flex gap-2">
-          <button onClick={handleBounced} disabled={busy}
-            className="flex-1 border border-red-300 text-red-600 rounded-lg py-2 text-xs font-medium disabled:opacity-50">
-            {busy ? '...' : 'Email bounced — try next'}
-          </button>
-          <button onClick={onRefresh}
-            className="flex-1 bg-green-500 text-white rounded-lg py-2 text-xs font-semibold">
-            Sent ✓
-          </button>
+      {state === 'loading' && (
+        <div className="text-xs text-muted">Preparing draft...</div>
+      )}
+
+      {state === 'draft' && (
+        <div className="space-y-2">
+          {guessedEmail && (
+            <div className="text-xs text-muted">
+              To: <span className="font-mono text-body">{guessedEmail}</span>{' '}
+              <span className="text-orange-500">(unverified)</span>
+            </div>
+          )}
+          <input
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
+            className="w-full text-xs border border-theme rounded-lg px-3 py-2 bg-card text-body"
+            placeholder="Subject"
+          />
+          <textarea
+            value={body}
+            onChange={e => setBody(e.target.value)}
+            rows={5}
+            className="w-full text-xs border border-theme rounded-lg px-3 py-2 bg-card text-body resize-none"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleSendViaGmail}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold"
+            >
+              Send via Gmail →
+            </button>
+            <button
+              onClick={handleRefine}
+              disabled={refining}
+              className="text-xs px-3 py-2 border border-purple-300 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/40 disabled:opacity-40"
+            >
+              {refining ? '...' : refineCopied ? 'Copied!' : '✨ Refine with AI'}
+            </button>
+          </div>
         </div>
+      )}
+
+      {state === 'sent' && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted">
+            Gmail opened with <span className="font-mono">{guessedEmail}</span>. Did you send it?
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleBounced}
+              disabled={busy}
+              className="flex-1 border border-red-300 text-red-600 rounded-lg py-2 text-xs font-medium disabled:opacity-50"
+            >
+              {busy ? '...' : 'Email bounced — try next'}
+            </button>
+            <button
+              onClick={onRefresh}
+              className="flex-1 bg-green-500 text-white rounded-lg py-2 text-xs font-semibold"
+            >
+              Sent ✓
+            </button>
+          </div>
+        </div>
+      )}
+
+      {state === 'exhausted' && (
+        <div className="text-xs text-muted">All email patterns tried. Reach out via LinkedIn instead.</div>
       )}
     </div>
   )
