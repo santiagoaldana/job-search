@@ -860,6 +860,69 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
   )
 }
 
+function EmailBounceRetryCard({ action, onRefresh }) {
+  const [guessedEmail, setGuessedEmail] = useState(action.guessed_email)
+  const [emailSent, setEmailSent] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [exhausted, setExhausted] = useState(false)
+
+  const handleSend = () => {
+    const mailto = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(guessedEmail)}`
+    window.open(mailto, '_blank')
+    setEmailSent(true)
+  }
+
+  const handleBounced = async () => {
+    setBusy(true)
+    try {
+      const res = await api.markEmailBounced(action.payload_id)
+      const ns = res.next_step
+      if (ns?.action === 'draft_email_guessed' && ns.guessed_email) {
+        setGuessedEmail(ns.guessed_email)
+        setEmailSent(false)
+      } else {
+        setExhausted(true)
+      }
+    } catch (_) {}
+    setBusy(false)
+  }
+
+  return (
+    <div className="p-4 rounded-xl border border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/40 space-y-3">
+      <div className="flex items-start gap-3">
+        <AlertCircle size={16} className="mt-0.5 flex-shrink-0 text-orange-500" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-body text-sm">{action.label}</div>
+          {guessedEmail && !exhausted && (
+            <div className="text-xs text-muted mt-0.5">
+              Next guess: <span className="font-mono text-body">{guessedEmail}</span> (unverified)
+            </div>
+          )}
+        </div>
+      </div>
+
+      {exhausted ? (
+        <div className="text-xs text-muted">All email patterns tried. Reach out via LinkedIn instead.</div>
+      ) : !emailSent ? (
+        <button onClick={handleSend} className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-xs font-semibold">
+          Send via Gmail →
+        </button>
+      ) : (
+        <div className="flex gap-2">
+          <button onClick={handleBounced} disabled={busy}
+            className="flex-1 border border-red-300 text-red-600 rounded-lg py-2 text-xs font-medium disabled:opacity-50">
+            {busy ? '...' : 'Email bounced — try next'}
+          </button>
+          <button onClick={onRefresh}
+            className="flex-1 bg-green-500 text-white rounded-lg py-2 text-xs font-semibold">
+            Sent ✓
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function LinkedInNotAcceptedCard({ action, onRefresh }) {
   const [state, setState] = useState('loading') // loading | draft | sent | exhausted | done
   const [subject, setSubject] = useState('')
@@ -1555,6 +1618,9 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
               if (action.action_type === 'linkedin_not_accepted') {
                 return <LinkedInNotAcceptedCard key={stableKey} action={action} onRefresh={onRefresh} />
               }
+              if (action.action_type === 'email_bounce_retry') {
+                return <EmailBounceRetryCard key={stableKey} action={action} onRefresh={onRefresh} />
+              }
               if (action.action_type === 'new_reply') {
                 return <NewReplyCard key={stableKey} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
               }
@@ -1777,7 +1843,7 @@ export default function DailyBrief() {
       }
     } else if (action.action_type === 'contact_gap') {
       navigate(`/company/${action.company_id}?tab=Contacts`)
-    } else if (action.action_type === 'email_bounce_retry' || action.action_type === 'try_linkedin_dm') {
+    } else if (action.action_type === 'try_linkedin_dm') {
       if (action.company_id) navigate(`/company/${action.company_id}?tab=Contacts`)
     } else if (action.payload_type === 'company') {
       navigate(`/company/${action.company_id || action.payload_id}`)
