@@ -62,7 +62,18 @@ def _extract_curated_opener(intel: str) -> str:
         line = line.strip()
         if not line or any(line.lower().startswith(p) for p in _SKIP_PREFIXES) or line.startswith("-"):
             continue
+        # Strip markdown heading prefix and any trailing section label before prose
+        # e.g. "## Company Pulse (2026) Airwallex is no longer..." → "Airwallex is no longer..."
+        if line.startswith("#"):
+            line = re.sub(r"^#+\s*", "", line)  # remove #s
+            # Remove a section label: title-cased words + optional year in parens, then space
+            line = re.sub(r"^(?:[A-Z][a-zA-Z]*\s*)+(?:\(\d{4}\)\s*)?", "", line).strip()
+        if not line:
+            continue
+        # Split on first sentence boundary
         sentence = re.split(r"(?<=[.!?])\s", line)[0].strip()
+        # Strip em/en dashes within the sentence
+        sentence = re.sub(r"\s*--+\s*", ", ", sentence).strip()
         if len(sentence) > 30:
             return sentence
     return ""

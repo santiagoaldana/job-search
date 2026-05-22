@@ -799,12 +799,18 @@ async def draft_template(
         if headline:
             opener = _humanize_headline(headline, company_name)
         elif curated:
-            curated_lc = curated[0].lower() + curated[1:]
-            opener = f"I have been following {company_name}, {curated_lc.rstrip('.')}."
+            # If sentence starts with the company name, use it directly; otherwise embed after "following X,"
+            if curated.lower().startswith(company_name.lower()):
+                opener = curated if curated.endswith(".") else curated + "."
+            else:
+                curated_lc = curated[0].lower() + curated[1:]
+                opener = f"I have been following {company_name}, {curated_lc.rstrip('.')}."
         elif is_mit:
             opener = "I am a fellow MIT Sloan alum."
         else:
-            opener = f"I have been following {company_name}'s work on {expertise_q} and wanted to reach out directly."
+            # Strip " at {company_name}" suffix from expertise_q to avoid repeating the company name
+            expertise_short = expertise_q.replace(f" at {company_name}", "").strip()
+            opener = f"I have been following {company_name}'s work on {expertise_short} and wanted to reach out directly."
 
         linkedin_bridge = (
             "I sent you a connection request on LinkedIn recently. Thought reaching out directly might be easier.\n\n"
