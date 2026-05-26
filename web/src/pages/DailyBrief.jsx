@@ -91,13 +91,14 @@ function FollowUpModal({ action, onClose, onSent }) {
   const [postMeetingChoice, setPostMeetingChoice] = useState(null) // null | 'd3' | 'champion' | 'remind'
   const [championNotes, setChampionNotes] = useState('')
   const [championDate, setChampionDate] = useState('')
+  const [newElement, setNewElement] = useState('')
+  const [suggestingElement, setSuggestingElement] = useState(false)
 
   useEffect(() => {
     setDrafting(true)
     setError(null)
     api.draftFollowup(action.payload_id, action.followup_day, language)
       .then(d => {
-        console.log('[FollowUpModal] API response:', { conversation_text_length: d.conversation_text?.length, has_conversation_context: d.has_conversation_context, conversation_history_count: d.conversation_history?.length })
         const draftSubject = d.subject || ''
         const draftBody = d.body || ''
         setSubject(draftSubject)
@@ -124,6 +125,14 @@ function FollowUpModal({ action, onClose, onSent }) {
             ].join('\n'))
           })
           .catch(() => {})
+        // For Day 3 bumps, fetch a suggested new element to pre-fill the input
+        if (action.followup_day === 3) {
+          setSuggestingElement(true)
+          api.suggestBumpElement(action.payload_id)
+            .then(r => { if (r.suggestion) setNewElement(r.suggestion) })
+            .catch(() => {})
+            .finally(() => setSuggestingElement(false))
+        }
       })
       .catch(e => {
         setError(e.message)
@@ -410,6 +419,37 @@ function FollowUpModal({ action, onClose, onSent }) {
                   placeholder="Subject"
                 />
               </div>
+              {action.followup_day === 3 && (
+                <div>
+                  <label className="text-xs text-muted mb-1 block">
+                    New element — what you noticed since you sent this
+                    {suggestingElement && <span className="ml-1 text-blue-400">suggesting…</span>}
+                  </label>
+                  <textarea
+                    value={newElement}
+                    onChange={e => setNewElement(e.target.value)}
+                    rows={2}
+                    placeholder="A question that occurred to you, a data point, or a reframe of the original ask…"
+                    className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none placeholder-faint"
+                  />
+                  {newElement && (
+                    <button
+                      onClick={async () => {
+                        setDrafting(true)
+                        try {
+                          const d = await api.draftFollowup(action.payload_id, action.followup_day, language, newElement)
+                          setBody(d.body || '')
+                        } catch (e) { setError(e.message) }
+                        finally { setDrafting(false) }
+                      }}
+                      disabled={drafting}
+                      className="mt-1.5 text-xs text-blue-500 hover:text-blue-600 disabled:opacity-40"
+                    >
+                      Regenerate with this element
+                    </button>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs text-muted mb-1 block">Body</label>
                 <textarea

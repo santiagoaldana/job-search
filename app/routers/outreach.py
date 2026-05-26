@@ -465,6 +465,7 @@ class ConfirmEscalationRequest(BaseModel):
 class FollowUpDraftRequest(BaseModel):
     followup_day: int  # 3 or 7
     language: str = "en"  # "en" or "es"
+    new_element: Optional[str] = None  # MSG-3: user-edited suggestion for the bump
 
 
 class SendFollowUpRequest(BaseModel):
@@ -523,31 +524,59 @@ async def draft_followup(
         "notes": record.notes or "",
     }
 
-    # Generate template-based draft (no API call)
-    from app.services.outreach_generator import draft_followup_from_template
+    # Generate template-based draft as baseline (no API call)
+    from app.services.outreach_generator import (
+        draft_followup_from_template, generate_bump_draft, generate_close_draft,
+    )
     draft = draft_followup_from_template(stage, outreach_dict, language=req.language)
 
     if "error" in draft:
         raise HTTPException(status_code=400, detail=draft["error"])
 
+    ai_reasoning = None
+
+    # MSG-3: AI bump when new_element is provided
+    if stage == "day_3" and req.new_element and req.new_element.strip():
+        original_body = record.outreach_message or record.body or ""
+        contact_name = contact.name if contact else "there"
+        contact_title = contact.title or ""
+        company_name_str = company.name if company else "Unknown"
+        ai_result = await generate_bump_draft(
+            contact_name, contact_title, company_name_str,
+            original_body, req.new_element.strip(),
+        )
+        if ai_result:
+            draft["body"] = ai_result["body"]
+            draft["template_used"] = False
+            ai_reasoning = ai_result.get("reasoning")
+
+    # MSG-4: AI close always
+    elif stage == "day_7":
+        original_body = record.outreach_message or record.body or ""
+        contact_name = contact.name if contact else "there"
+        contact_title = contact.title or ""
+        company_name_str = company.name if company else "Unknown"
+        ai_result = await generate_close_draft(
+            contact_name, contact_title, company_name_str, original_body,
+        )
+        if ai_result:
+            draft["body"] = ai_result["body"]
+            draft["template_used"] = False
+            ai_reasoning = ai_result.get("reasoning")
+
     # Fetch conversation history (zero API cost — just database read)
     from skills.outreach_tracker import get_conversation_history
     history = get_conversation_history(record_id) if record_id else []
-    print(f"[DEBUG] draft_followup: record_id={record_id}, history_count={len(history)}", flush=True)
 
     # Format conversation for display
     conversation_text = ""
     if history:
-        print(f"[DEBUG] Formatting {len(history)} messages into conversation_text", flush=True)
-        for msg in reversed(history[-5:]):  # Last 5 messages, reversed for chronological order
+        for msg in reversed(history[-5:]):
             conversation_text += f"\n{'='*60}\n"
             conversation_text += f"From: {msg.get('from_name', msg.get('from_email', 'Unknown'))}\n"
             conversation_text += f"Date: {msg.get('date', 'Unknown')}\n"
             conversation_text += f"Subject: {msg.get('subject', '(no subject)')}\n"
             conversation_text += f"---\n{msg.get('body_preview', '')}\n"
-        print(f"[DEBUG] conversation_text length: {len(conversation_text)}", flush=True)
-    else:
-        print(f"[DEBUG] No history returned, conversation_text will be empty", flush=True)
 
     return {
         "subject": draft.get("subject"),
@@ -555,13 +584,35 @@ async def draft_followup(
         "stage": draft.get("stage"),
         "template_used": draft.get("template_used", True),
         "has_conversation_context": len(history) > 0,
-        "conversation_history": history,  # Full structured history for UI to display
-        "conversation_text": conversation_text,  # Plain text version for easy reading
+        "conversation_history": history,
+        "conversation_text": conversation_text,
         "followup_day": req.followup_day,
         "company_name": company.name if company else "Unknown",
         "contact_name": contact.name if contact else "Unknown",
-        "reasoning": draft.get("reasoning", "Generated from template"),
+        "reasoning": ai_reasoning or draft.get("reasoning", "Generated from template"),
     }
+
+
+@router.get("/{record_id}/suggest-bump-element")
+async def suggest_bump_element_endpoint(
+    record_id: int,
+    session: Session = Depends(get_session),
+):
+    """
+    Generate a one-sentence suggested new element for the Day 3 bump.
+    Fast Haiku call — pre-fills the UI input before Santiago edits it.
+    """
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    company = session.get(Company, record.company_id) if record.company_id else None
+    original_body = record.outreach_message or record.body or ""
+    intel_summary = (company.intel_summary or "") if company else ""
+
+    from app.services.outreach_generator import suggest_bump_element
+    suggestion = await suggest_bump_element(original_body, intel_summary)
+    return {"suggestion": suggestion}
 
 
 class EnhanceWithContextRequest(BaseModel):
@@ -778,7 +829,7 @@ async def draft_template(
                 intel = ""
 
         # Try AI-powered personalized draft first
-        ai_draft = await generate_escalation_draft(contact, company, prior_message, "cold")
+        ai_draft = await generate_escalation_draft(contact, company, prior_message, "linkedin_escalation")
         if ai_draft:
             subject = ai_draft["subject"]
             body = ai_draft["body"]
@@ -818,24 +869,27 @@ async def draft_template(
                 expertise_short = expertise_q.replace(f" at {company_name}", "").strip()
                 opener = f"I have been following {company_name}'s work on {expertise_short} and wanted to reach out directly."
 
-            linkedin_bridge = (
-                "I sent you a connection request on LinkedIn recently. Thought reaching out directly might be easier.\n\n"
+            linkedin_bridge_clause = (
+                f"since we connected on LinkedIn, {company_name}'s work on {expertise_q.replace(f' at {company_name}', '').strip()} has stayed on my mind"
                 if prior_message else ""
             )
 
-            question = f"I was wondering if you would have 15 minutes to share your perspective on {expertise_q}, given your vantage point at {company_name}."
+            if prior_message and linkedin_bridge_clause:
+                question = f"I dropped you a note on LinkedIn last week — {linkedin_bridge_clause} — and wanted to ask directly: would you have 15 minutes to share how you are thinking about {expertise_q}?"
+            else:
+                question = f"Would you have 15 minutes to share how you are thinking about {expertise_q} from your seat at {company_name}?"
 
             if contact and contact.title:
-                subject = f"{' '.join(contact.title.split()[:3])} perspective — {company_name}"
+                title_words = ' '.join(contact.title.split()[:3])
+                subject = f"A question for the {title_words} at {company_name}"
             else:
-                subject = _build_escalation_subject(contact, company, first, is_mit)
+                subject = f"A question about {company_name}"
 
+            opener_block = f"{opener}\n\n" if opener else ""
             body = (
                 f"Hi {first},\n\n"
-                f"{opener}\n\n"
-                f"{linkedin_bridge}"
-                f"{question}\n\n"
-                f"Worth a quick note back?"
+                f"{opener_block}"
+                f"{question}"
             )
 
     elif followup_type == "day3":

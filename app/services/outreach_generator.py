@@ -67,6 +67,27 @@ TYPE_INSTRUCTIONS = {
         "End with: 'Would value the connection.' "
         "No em dashes, en dashes, or hyphens."
     ),
+    "linkedin_escalation": (
+        "This email follows a LinkedIn DM that received no reply after 7+ days. "
+        "The prior LinkedIn message is provided in prior_message — read it carefully. "
+        "Your job is NOT to write a fresh outreach. Your job is to resurface the same "
+        "conversation through a channel the contact is more likely to act on.\n\n"
+        "CONSTRUCTION (in this order):\n"
+        "1. NEWS HOOK (optional, one sentence): Only include if the intel_summary contains "
+        "news that directly reinforces the same topic raised in prior_message. "
+        "Do not introduce a new topic even if better news is available. "
+        "If no reinforcing news exists, skip this sentence entirely.\n"
+        "2. LINKEDIN BRIDGE (woven into the ask sentence, not standalone): Reference the "
+        "LinkedIn connection naturally — 'I dropped you a note on LinkedIn last week' or "
+        "'since we connected on LinkedIn' — woven into the sentence with the ask, not "
+        "standing alone as an apology or explanation.\n"
+        "3. ASK (one sentence): Restate the core question from prior_message rephrased for "
+        "email register. Same topic, same intent, not verbatim. End with '?'.\n"
+        "4. CALL OFFER (one sentence): Offer 15 minutes. Direct, no filler close.\n\n"
+        "Subject line: frame around the topic from prior_message — not 'Reaching out directly' "
+        "and no hyphens as punctuation. "
+        "Do not mention that they failed to reply. Do not apologize for following up."
+    ),
 }
 
 DALTON_RULES = (
@@ -190,6 +211,151 @@ async def generate_escalation_draft(
         raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         result = json.loads(raw)
         if "subject" in result and "body" in result:
+            return result
+    except Exception:
+        pass
+
+    return None
+
+
+async def suggest_bump_element(
+    original_body: str,
+    intel_summary: str,
+) -> str:
+    """
+    Generate a one-sentence suggested new element for the Day 3 bump.
+    Fast Haiku call — pre-fills the UI input field before Santiago edits it.
+    Returns plain text (one sentence), empty string on failure.
+    """
+    import anthropic
+
+    prompt = (
+        "Given this outreach message Santiago sent and the company intel below, "
+        "suggest one short observation that Santiago could use as a new element "
+        "in a Day 3 follow-up. It should be a question that naturally follows, "
+        "a reframe of the ask that makes it easier to answer, or a news detail "
+        "that reinforces the same topic. One sentence only. "
+        "Do not repeat what the original message already said. "
+        "Do not introduce an unrelated topic. "
+        "Return plain text only. One sentence. No JSON.\n\n"
+        f"ORIGINAL MESSAGE:\n{original_body}\n\n"
+        f"COMPANY INTEL:\n{(intel_summary or '')[:1000]}"
+    )
+
+    try:
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=80,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip()
+    except Exception:
+        return ""
+
+
+async def generate_bump_draft(
+    contact_name: str,
+    contact_title: str,
+    company_name: str,
+    original_body: str,
+    new_element: str,
+) -> Optional[dict]:
+    """
+    Generate AI-powered Day 3 bump (MSG-3).
+    Returns {"body": ..., "reasoning": ...} or None on failure.
+    """
+    import json
+    import anthropic
+
+    prompt = (
+        f"Write a Day 3 follow-up reply from Santiago to {contact_name}, "
+        f"{contact_title} at {company_name}. "
+        f"This is a reply in the same thread. No subject line.\n\n"
+        f"ORIGINAL MESSAGE:\n{original_body}\n\n"
+        f"NEW ELEMENT Santiago noticed since sending (use this as sentence 1):\n{new_element}\n\n"
+        "CONSTRUCTION RULES:\n"
+        "Three sentences maximum.\n"
+        "1. NEW ELEMENT (sentence 1): Use the new element above. Do not repeat the original hook verbatim.\n"
+        "2. ASK RESTATEMENT (sentence 2): Restate the core ask from the original, rephrased and shorter. End with '?'.\n"
+        "3. LOGISTICS (sentence 3, optional): Only if the ask benefits from a time anchor. "
+        "'Happy to find 15 minutes if easier than a reply.' Omit if answerable in writing.\n\n"
+        "HARD CONSTRAINTS:\n"
+        "- 40 words maximum.\n"
+        "- No subject line. No signature block.\n"
+        "- No apology for following up.\n"
+        "- No 'just wanted to', 'wanted to make sure', 'circling back', 'touching base', "
+        "'following up', 'bumping this', 'would love to'.\n"
+        "- No em dashes, en dashes, or hyphens.\n"
+        "- Do not name the job search.\n\n"
+        'Return ONLY valid JSON: {"body": "<bump text, plain text>", "reasoning": "<one sentence: what new element you used and why>"}'
+    )
+
+    try:
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(raw)
+        if "body" in result:
+            return result
+    except Exception:
+        pass
+
+    return None
+
+
+async def generate_close_draft(
+    contact_name: str,
+    contact_title: str,
+    company_name: str,
+    original_body: str,
+) -> Optional[dict]:
+    """
+    Generate AI-powered Day 7 polite close (MSG-4).
+    Returns {"body": ..., "reasoning": ...} or None on failure.
+    """
+    import json
+    import anthropic
+
+    prompt = (
+        f"Write a Day 7 final follow-up reply from Santiago to {contact_name}, "
+        f"{contact_title} at {company_name}. "
+        f"This is the last message in the thread. No subject line.\n\n"
+        f"ORIGINAL MESSAGE:\n{original_body}\n\n"
+        "CONSTRUCTION RULES:\n"
+        "Two sentences only.\n"
+        "1. RELEASE (sentence 1): Signal clearly this is the last follow-up, without apology "
+        "and without framing silence as rejection. The contact should feel released from "
+        "obligation. Do not use 'I'll take that as a no.' Do not say 'I don't mean to be a bother.'\n"
+        "2. DOOR OPEN (sentence 2): One warm sentence keeping the relationship alive without "
+        "asking for anything. Reference the topic from the original message in one clause. "
+        "End with a period, not a question mark.\n\n"
+        "HARD CONSTRAINTS:\n"
+        "- 35 words maximum.\n"
+        "- No subject line. No signature block.\n"
+        "- No apology. No 'bother', 'inconvenience', 'pestering'.\n"
+        "- No 'circling back', 'touching base', 'following up', 'bumping'.\n"
+        "- No em dashes, en dashes, or hyphens.\n"
+        "- Do not name the job search.\n\n"
+        'Return ONLY valid JSON: {"body": "<closing text, plain text>", "reasoning": "<one sentence: how you framed the release>"}'
+    )
+
+    try:
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=150,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(raw)
+        if "body" in result:
             return result
     except Exception:
         pass
