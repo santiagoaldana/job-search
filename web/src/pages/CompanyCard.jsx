@@ -1219,6 +1219,7 @@ function OutreachTab({ company, onReload, defaultContactId }) {
   const [refineCopied, setRefineCopied] = useState(false)
   const [undoId, setUndoId] = useState(null)
   const [awaitingConfirm, setAwaitingConfirm] = useState(null) // 'gmail' | 'dm' | null
+  const [customizeOpen, setCustomizeOpen] = useState(false)
 
   const selectedContactObj = company.contacts?.find(c => c.id === selectedContact) || null
   const contactEmail = selectedContactObj?.email || null
@@ -1377,7 +1378,7 @@ function OutreachTab({ company, onReload, defaultContactId }) {
           { value: 'followup', label: 'Follow-up' },
           { value: 'linkedin_dm', label: 'LinkedIn DM' },
         ].map(t => (
-          <button key={t.value} onClick={() => { setEmailType(t.value); setDraft(null); setAwaitingConfirm(null) }}
+          <button key={t.value} onClick={() => { setEmailType(t.value); setDraft(null); setAwaitingConfirm(null); setCustomizeOpen(t.value === 'event_met') }}
             className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               emailType === t.value
                 ? 'bg-white dark:bg-slate-700 text-body shadow-sm'
@@ -1532,47 +1533,67 @@ function OutreachTab({ company, onReload, defaultContactId }) {
             className="flex-1 border border-theme text-body rounded-xl py-3 text-sm font-medium transition-colors">
             Write myself
           </button>
-          <button onClick={handleGenerate} disabled={generating}
+          <button
+            onClick={emailType === 'event_met' && !context.trim() ? () => setCustomizeOpen(true) : handleGenerate}
+            disabled={generating}
+            title={emailType === 'event_met' && !context.trim() ? 'Add meeting notes before drafting' : undefined}
             className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2">
-            {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : <><Send size={14} /> Draft</>}
+            {generating
+              ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</>
+              : emailType === 'event_met' && !context.trim()
+                ? <><ChevronRight size={14} /> Add meeting notes</>
+                : <><Send size={14} /> Draft</>}
           </button>
         </div>
       )}
 
       {/* Customize disclosure */}
-      <details className="group">
-        <summary className="text-xs text-blue-500 cursor-pointer list-none flex items-center gap-1 select-none">
-          <ChevronRight size={12} className="group-open:rotate-90 transition-transform" /> Customize draft
-        </summary>
-        <div className="mt-2 space-y-2">
-          <textarea
-            id="outreach-context"
-            value={context}
-            onChange={e => setContext(e.target.value)}
-            placeholder={emailType === 'event_met'
-              ? 'How you met, what you discussed, what they said…'
-              : 'Any context about your connection or shared interest…'}
-            rows={2}
-            className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint resize-none outline-none leading-relaxed"
-          />
-          <input
-            value={hook}
-            onChange={e => setHook(e.target.value)}
-            placeholder='Specific angle or topic to lead with'
-            className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint outline-none"
-          />
-          <input
-            value={ask}
-            onChange={e => setAsk(e.target.value)}
-            placeholder='What you want from this message'
-            className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint outline-none"
-          />
-          <button onClick={handleGenerate} disabled={generating}
-            className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2">
-            {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : 'Regenerate with context'}
-          </button>
-        </div>
-      </details>
+      <div>
+        <button
+          onClick={() => setCustomizeOpen(o => !o)}
+          className="text-xs text-blue-500 flex items-center gap-1 select-none"
+        >
+          <ChevronRight size={12} className={`transition-transform ${customizeOpen ? 'rotate-90' : ''}`} />
+          {emailType === 'event_met' ? 'Meeting notes (required)' : 'Customize draft'}
+        </button>
+        {customizeOpen && (
+          <div className="mt-2 space-y-2">
+            <textarea
+              id="outreach-context"
+              value={context}
+              onChange={e => setContext(e.target.value)}
+              placeholder={emailType === 'event_met'
+                ? 'What did they say that was specific or interesting? What topic did you discuss?'
+                : 'Any context about your connection or shared interest…'}
+              rows={emailType === 'event_met' ? 3 : 2}
+              className={`w-full bg-card border rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint resize-none outline-none leading-relaxed ${
+                emailType === 'event_met' && !context.trim()
+                  ? 'border-orange-400 dark:border-orange-500'
+                  : 'border-theme'
+              }`}
+            />
+            {emailType === 'event_met' && !context.trim() && (
+              <p className="text-xs text-orange-500">Add meeting notes so the draft can reference your actual conversation.</p>
+            )}
+            <input
+              value={hook}
+              onChange={e => setHook(e.target.value)}
+              placeholder='Specific angle or topic to lead with'
+              className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint outline-none"
+            />
+            <input
+              value={ask}
+              onChange={e => setAsk(e.target.value)}
+              placeholder='What you want from this message'
+              className="w-full bg-card border border-theme rounded-xl px-3 py-2.5 text-sm text-body placeholder-faint outline-none"
+            />
+            <button onClick={handleGenerate} disabled={generating}
+              className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2">
+              {generating ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</> : 'Regenerate with context'}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Undo banner */}
       {undoId && (

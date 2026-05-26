@@ -8,20 +8,64 @@ from typing import Optional, List
 # ── Outreach Context Assembly ─────────────────────────────────────────────────
 
 TYPE_INSTRUCTIONS = {
-    "cold": "Open with a genuine, specific connection point (MIT Sloan, FinTech community, Boston, mutual work). Do not fabricate shared history.",
-    "event_met": "Reference the in-person meeting specifically — where, when, what you discussed.",
+    "cold": (
+        "This is a cold email to someone who does not know Santiago. "
+        "Do NOT open with a generic connection claim. Instead, lead with a specific, current detail "
+        "about what this company is doing or facing right now — pulled from the intel_summary — "
+        "filtered through the lens of what matters most to someone in this contact's specific role. "
+        "The intel may arrive as structured sections (RECENT NEWS, CONTACTS, OUTREACH, OPEN ROLES) "
+        "or as narrative prose. In either case, extract one concrete fact, not a category label. "
+        "Apply a role-relevance filter: a product launch matters more to a CPO than a CFO; "
+        "a funding round matters more to a CFO than a CTO. If no detail passes that filter, "
+        "infer the most likely pressure point for this title given the company stage and sector. "
+        "Do not fabricate shared history."
+    ),
+    "event_met": (
+        "This is a follow-up email to someone Santiago met in person. They already know who he is. "
+        "Do NOT re-establish credentials — his profile does that. "
+        "Open by anchoring on one specific thing from the meeting note: something the contact said, "
+        "a question they raised, or a point that landed. The recipient should recognize exactly "
+        "which conversation this is from. Then bridge to a peer-level observation from Santiago's "
+        "experience that connects to what they discussed. End with a question that continues the "
+        "thread, not one that opens a new topic. Offer a 30-minute call — not 15. "
+        "Do not use 'Great meeting you' or 'Really enjoyed our conversation' as openers."
+    ),
     "followup": "Acknowledge briefly that you reached out before, add new value, re-ask.",
     "linkedin_dm": (
-        "This is a LinkedIn DIRECT MESSAGE, not an email. Keep it under 75 words. "
-        "Casual, warm tone. End with 'Open to a quick call?'"
+        "This is a LinkedIn DIRECT MESSAGE after a connection was accepted. "
+        "The recipient can see Santiago's full LinkedIn profile — do not use words to establish "
+        "credentials that his profile already shows. Use that space for substance instead. "
+        "Conversational register, short sentences, no corporate vocabulary. "
+        "Lead with one specific, current detail about their company filtered through their role "
+        "(same dual-format intel handling and role-relevance filter as cold email). "
+        "Follow with a direct question asking for their perspective on that topic. "
+        "End with an offer of a 20-minute call framed as continuing the topic, not a separate ask. "
+        "Do NOT end with 'Open to a quick call?' — that phrase marks the message as a template. "
+        "No subject line. No em dashes, en dashes, or hyphens. No signature block."
+    ),
+    "connection_request": (
+        "LinkedIn CONNECTION REQUEST NOTE. HARD LIMIT: 300 characters total including spaces. "
+        "One sentence only. Reference one specific thing about their work or company right now "
+        "that someone in their role would recognize as true about their own situation. "
+        "Do not introduce Santiago by name or title. Do not ask for a call. Do not end with a question. "
+        "End with: 'Would value the connection.' "
+        "No em dashes, en dashes, or hyphens."
     ),
     "connection_request_a": (
-        "LinkedIn CONNECTION REQUEST NOTE. HARD LIMIT: 300 characters total. "
-        "Reference something specific about their work or company. Do NOT ask for a job. End warmly."
+        "LinkedIn CONNECTION REQUEST NOTE. HARD LIMIT: 300 characters total including spaces. "
+        "One sentence only. Reference one specific thing about their work or company right now "
+        "that someone in their role would recognize as true about their own situation. "
+        "Do not introduce Santiago by name or title. Do not ask for a call. Do not end with a question. "
+        "End with: 'Would value the connection.' "
+        "No em dashes, en dashes, or hyphens."
     ),
     "connection_request_b": (
-        "LinkedIn CONNECTION REQUEST NOTE. HARD LIMIT: 300 characters total. "
-        "Brief Dalton style, light ask for perspective. Do NOT ask for a job. End warmly."
+        "LinkedIn CONNECTION REQUEST NOTE. HARD LIMIT: 300 characters total including spaces. "
+        "One sentence only. Reference one specific thing about their work or company right now "
+        "that someone in their role would recognize as true about their own situation. "
+        "Do not introduce Santiago by name or title. Do not ask for a call. Do not end with a question. "
+        "End with: 'Would value the connection.' "
+        "No em dashes, en dashes, or hyphens."
     ),
 }
 
@@ -114,22 +158,31 @@ async def generate_escalation_draft(
         "stage": getattr(company, "stage", None),
     }
 
+    # For event_met, inject the meeting note from prior_message field if present.
+    # The caller passes context (meeting note) via prior_message for this type.
     context = {
         "company": company_info,
         "contact": contact_info,
-        "prior_message": prior_message,
         "email_type": email_type,
-        "type_instructions": "Open with a genuine, specific connection point. Do not fabricate shared history.",
+        "type_instructions": TYPE_INSTRUCTIONS.get(email_type, TYPE_INSTRUCTIONS["cold"]),
         "santiago_profile": SANTIAGO_PROFILE,
-        "generation_instructions": GENERATION_INSTRUCTIONS,
     }
+    if email_type == "event_met":
+        context["meeting_note"] = prior_message or ""
+    else:
+        context["prior_message"] = prior_message
+
+    # Use Sonnet for high-stakes single-shot moments (cold, event_met, linkedin_dm).
+    # Haiku is sufficient for escalation drafts where the fallback template is strong.
+    sonnet_types = {"cold", "event_met", "linkedin_dm"}
+    model = "claude-sonnet-4-6" if email_type in sonnet_types else "claude-haiku-4-5-20251001"
 
     prompt = f"Here is the outreach context:\n\n{json.dumps(context, indent=2)}\n\n{GENERATION_INSTRUCTIONS}"
 
     try:
         client = anthropic.AsyncAnthropic()
         response = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=model,
             max_tokens=400,
             messages=[{"role": "user", "content": prompt}],
         )
