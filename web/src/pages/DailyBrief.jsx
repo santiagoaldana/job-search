@@ -81,9 +81,6 @@ function FollowUpModal({ action, onClose, onSent }) {
   const [language, setLanguage] = useState('en')
   const [snoozing, setSnoozing] = useState(false)
   const [snoozeDays, setSnoozeDays] = useState(3)
-  const [refining, setRefining] = useState(false)
-  const [refinePanel, setRefinePanel] = useState(null)
-  const [refineCopied, setRefineCopied] = useState(false)
   const [keepwarm, setKeepwarm] = useState(false)
   const [keepwarmDays, setKeepwarmDays] = useState(30)
   const [keepwarmDate, setKeepwarmDate] = useState('')
@@ -116,26 +113,6 @@ function FollowUpModal({ action, onClose, onSent }) {
           setMeetingNote(d.meeting_note)
         }
         setDrafting(false)
-        const stage = action.followup_day === 0 ? 'post_meeting' : action.followup_day === 3 ? 'day_3' : 'day_7'
-        api.getConversationContext(action.payload_id, { subject: draftSubject, body: draftBody, stage })
-          .then(ctx => {
-            const historyText = (ctx.conversation_history || [])
-              .slice(-5)
-              .map(m => `From: ${m.from_name || m.from_email}\nDate: ${m.date}\n---\n${m.body_preview}`)
-              .join('\n\n')
-            setRefinePanel([
-              '## Conversation history',
-              historyText || '(no prior messages found)',
-              '',
-              '## My current draft',
-              `Subject: ${draftSubject}`,
-              draftBody,
-              '',
-              '## Instructions',
-              ctx.generation_instructions,
-            ].join('\n'))
-          })
-          .catch(() => {})
         // For Day 3 bumps, fetch a suggested new element to pre-fill the input
         if (action.followup_day === 3) {
           setSuggestingElement(true)
@@ -206,34 +183,7 @@ function FollowUpModal({ action, onClose, onSent }) {
     }
   }
 
-  const handleRefine = async () => {
-    setRefining(true)
-    setRefinePanel(null)
-    try {
-      const stage = action.followup_day === 0 ? 'post_meeting' : action.followup_day === 3 ? 'day_3' : 'day_7'
-      const ctx = await api.getConversationContext(action.payload_id, { subject, body, stage })
-      const historyText = (ctx.conversation_history || [])
-        .slice(-5)
-        .map(m => `From: ${m.from_name || m.from_email}\nDate: ${m.date}\n---\n${m.body_preview}`)
-        .join('\n\n')
-      const prompt = [
-        '## Conversation history',
-        historyText || '(no prior messages found)',
-        '',
-        '## My current draft',
-        `Subject: ${subject}`,
-        body,
-        '',
-        '## Instructions',
-        ctx.generation_instructions,
-      ].join('\n')
-      setRefinePanel(prompt)
-    } catch (e) {
-      setError('Could not load context: ' + e.message)
-    } finally {
-      setRefining(false)
-    }
-  }
+
 
   const handleKeepwarm = async () => {
     setSending(true)
@@ -544,49 +494,6 @@ function FollowUpModal({ action, onClose, onSent }) {
                   className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none"
                 />
               </div>
-              <div className="mt-2 flex justify-end">
-                <button
-                  onClick={handleRefine}
-                  disabled={refining || !body}
-                  className="text-xs text-purple-600 dark:text-purple-400 hover:underline disabled:opacity-40 flex items-center gap-1"
-                >
-                  {refining ? 'Loading context…' : refinePanel ? '↻ Refresh context' : '✨ Refine with AI'}
-                </button>
-              </div>
-              {refinePanel && (
-                <div className="mt-2 p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">Paste this into Claude to refine your draft</span>
-                    <button
-                      onClick={() => {
-                        const fallback = () => {
-                          const ta = document.createElement('textarea')
-                          ta.value = refinePanel
-                          ta.style.position = 'fixed'
-                          ta.style.opacity = '0'
-                          document.body.appendChild(ta)
-                          ta.focus()
-                          ta.select()
-                          document.execCommand('copy')
-                          document.body.removeChild(ta)
-                        }
-                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                          navigator.clipboard.writeText(refinePanel).catch(fallback)
-                        } else {
-                          fallback()
-                        }
-                        setRefineCopied(true)
-                        setTimeout(() => setRefineCopied(false), 2000)
-                      }}
-                      className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
-                    >{refineCopied ? 'Copied!' : 'Copy'}</button>
-                  </div>
-                  <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-32 overflow-y-auto font-mono leading-relaxed">
-                    {refinePanel}
-                  </pre>
-                  <p className="text-xs text-muted mt-2">Paste Claude's suggested body back into the field above.</p>
-                </div>
-              )}
               {/* Snooze — always visible in scroll area */}
               {!snoozing && (
                 <div className="mt-3 pt-3 border-t border-theme flex gap-3 justify-center">

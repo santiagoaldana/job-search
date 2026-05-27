@@ -270,14 +270,16 @@ def generate_bump_draft(
 ) -> Optional[dict]:
     """
     MSG-3 Day 3 bump — template-based, no API call.
-    Sentence 1: the new element. Sentence 2: restated ask. Sentence 3: logistics offer.
+    Sentence 1: the new element (user-provided, used as-is). Sentence 2: short re-ask.
     """
     first_name = (contact_name or "there").split()[0]
-    element = new_element.strip().rstrip(".") if new_element.strip() else f"the work happening at {company_name}"
+    element = new_element.strip().rstrip(".") if new_element.strip() else f"Noticed something interesting happening at {company_name} lately"
+    # Ensure element ends with a period
+    element_sentence = element if element.endswith((".", "?", "!")) else f"{element}."
     body = (
         f"Hi {first_name},\n\n"
-        f"{element}.\n\n"
-        f"Wanted to make sure my earlier note reached you. Still curious whether a 15-minute exchange would be useful."
+        f"{element_sentence}\n\n"
+        f"Still curious whether 15 minutes would be useful."
     )
     return {
         "body": body,
@@ -347,23 +349,27 @@ def generate_thankyou_draft(
 ) -> Optional[dict]:
     """
     MSG-5 post-meeting thank you — template-based, no API call.
-    Anchors on meeting_note. Sentence 1: specific callback. Sentence 2: peer reflection.
-    Sentence 3: permission ask for 30-min follow-up.
+    Uses meeting_note as the anchor. The [brackets] mark spots to personalize before sending.
     """
     first_name = (contact_name or "there").split()[0]
-    note = meeting_note.strip() if meeting_note.strip() else "our conversation"
-    # Keep the subject concise: strip trailing punctuation from meeting note
-    subject_hint = note[:60].rstrip(".,;") if len(note) > 10 else f"our conversation"
+    note = meeting_note.strip() if meeting_note.strip() else None
+    # Pull a short anchor phrase from the meeting note (first sentence or first 60 chars)
+    if note:
+        first_sentence = note.split(".")[0].split("\n")[0].strip()
+        anchor = first_sentence[:80] if len(first_sentence) > 5 else note[:80]
+    else:
+        anchor = f"what you shared about {company_name}"
+    subject = f"Re: our conversation"
     body = (
         f"Hi {first_name},\n\n"
-        f"Your point about {note} stayed with me. "
-        f"It connects to something I ran into scaling payments at SoyYo — the same tension shows up differently once you're past product-market fit. "
+        f"Your point about {anchor} stayed with me. "
+        f"[One observation from your own experience that connects to it — peer-to-peer, not a pitch.] "
         f"Would a 30-minute call to continue that thread be useful?"
     )
     return {
-        "subject": subject_hint,
+        "subject": subject,
         "body": body,
-        "reasoning": f"Anchored on meeting note: {note[:60]}",
+        "reasoning": f"Anchored on: {anchor[:60]}",
     }
 
 
@@ -375,22 +381,25 @@ def generate_reflection_draft(
 ) -> Optional[dict]:
     """
     MSG-6 post-meeting referral ask — template-based, no API call.
-    Sentence 1: thread anchor from meeting note. Sentence 2: peer intro ask.
-    Sentence 3: ease clause.
+    Sentence 1: thread anchor. Sentence 2: peer intro ask. Sentence 3: ease clause.
     """
     first_name = (contact_name or "there").split()[0]
-    note = meeting_note.strip() if meeting_note.strip() else "our conversation"
-    subject_hint = note[:60].rstrip(".,;") if len(note) > 10 else "our conversation"
+    note = meeting_note.strip() if meeting_note.strip() else None
+    if note:
+        first_sentence = note.split(".")[0].split("\n")[0].strip()
+        anchor = first_sentence[:80] if len(first_sentence) > 5 else note[:80]
+    else:
+        anchor = f"what we talked about"
     body = (
         f"Hi {first_name},\n\n"
-        f"I keep coming back to what you shared about {note}. "
-        f"Is there one or two people in your network who think about this problem the same way you do and might find a similar exchange useful? "
+        f"I keep coming back to {anchor}. "
+        f"Is there one or two people in your network who think about this the same way and might find a similar exchange useful? "
         f"Totally fine if no one comes to mind."
     )
     return {
-        "subject": subject_hint,
+        "subject": f"Re: our conversation",
         "body": body,
-        "reasoning": f"Anchored on meeting note: {note[:60]}",
+        "reasoning": f"Anchored on: {anchor[:60]}",
     }
 
 
@@ -403,20 +412,23 @@ def generate_referral_pivot_draft(
 ) -> Optional[dict]:
     """
     MSG-9 referral pivot — template-based, no API call.
-    Anchors on the specific intro the contact offered. Sentence 1: anchor.
-    Sentence 2: pivot ask framed as continuing their thread. Sentence 3: ease clause.
+    Anchors on what the contact specifically offered. Three sentences.
     """
     first_name = (contact_name or "there").split()[0]
-    mention = reply_summary.strip() if reply_summary.strip() else (meeting_note.strip() or "the connection you mentioned")
+    raw = reply_summary.strip() or meeting_note.strip()
+    if raw:
+        first_sentence = raw.split(".")[0].split("\n")[0].strip()
+        mention = first_sentence[:100] if len(first_sentence) > 5 else raw[:100]
+    else:
+        mention = "the introduction you mentioned"
     body = (
         f"Hi {first_name},\n\n"
-        f"I wanted to follow up on {mention}. "
+        f"Wanted to follow up on {mention}. "
         f"Would you be open to making that connection? "
-        f"Happy to draft a quick note for you if that makes it easier."
+        f"Happy to draft a note for you if that makes it easier."
     )
-    subject_hint = mention[:60].rstrip(".,;") if len(mention) > 10 else "following up"
     return {
-        "subject": subject_hint,
+        "subject": f"Re: our conversation",
         "body": body,
         "reasoning": f"Anchored on: {mention[:60]}",
     }
@@ -432,20 +444,24 @@ def generate_champion_briefing_draft(
 ) -> Optional[dict]:
     """
     MSG-8 champion briefing note — template-based, no API call.
-    Gives the champion concrete language to introduce Santiago to the target.
+    Gives the champion copy-paste language to introduce Santiago to the target.
     """
     champion_first = (champion_name or "there").split()[0]
-    company_type_phrase = f", a {target_company_type}" if target_company_type.strip() else ""
-    context_note = f"\n\n{champion_notes.strip()}" if champion_notes.strip() else ""
+    company_type_phrase = f" ({target_company_type})" if target_company_type.strip() else ""
+    notes_line = f"\n\n{champion_notes.strip()}" if champion_notes.strip() else ""
+    target_first = (target_person_name or "them").split()[0]
     body = (
-        f"Hi {champion_first},{context_note}\n\n"
-        f"Here's how I'd frame the intro to {target_person_name} at {target_company_name}{company_type_phrase}:\n\n"
-        f"\"I want to connect you with Santiago Aldana. He's spent 20+ years building payments and digital identity infrastructure in emerging markets "
-        f"(sold two companies, ran digital at Avianca). He's been thinking about what {target_company_name} is working on and I think you'd find the conversation useful. "
-        f"Happy to make the intro over email or LinkedIn, whichever is easier.\""
+        f"Hi {champion_first},{notes_line}\n\n"
+        f"Here's how I'd frame the intro to {target_first} at {target_company_name}{company_type_phrase} — feel free to adapt:\n\n"
+        f"\"{target_first}, I want to connect you with Santiago Aldana. "
+        f"He's spent 20+ years building payments and digital identity infrastructure at scale "
+        f"(CEO of SoyYo, CDTO at Avianca, MIT Sloan MBA). "
+        f"He's been looking closely at what {target_company_name} is doing and I think you'd find the conversation genuinely useful. "
+        f"Happy to make the intro by email or LinkedIn, whatever works.\"\n\n"
+        f"Thanks for doing this."
     )
     return {
-        "subject": f"Framing for the {target_person_name} intro",
+        "subject": f"Intro framing: Santiago Aldana for {target_person_name}",
         "body": body,
         "reasoning": f"Standard intro framing for {target_person_name} at {target_company_name}",
     }
