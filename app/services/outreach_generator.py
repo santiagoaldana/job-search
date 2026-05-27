@@ -447,23 +447,40 @@ def generate_champion_briefing_draft(
     Gives the champion copy-paste language to introduce Santiago to the target.
     """
     champion_first = (champion_name or "there").split()[0]
-    company_type_phrase = f" ({target_company_type})" if target_company_type.strip() else ""
-    notes_line = f"\n\n{champion_notes.strip()}" if champion_notes.strip() else ""
-    target_first = (target_person_name or "them").split()[0]
+    target_first = target_person_name.split()[0] if target_person_name.strip() else None
+    company_label = target_company_name.strip() or target_company_type.strip() or "the company"
+    company_type_phrase = f" ({target_company_type})" if target_company_type.strip() and target_company_name.strip() else ""
+
+    # Opening of the forwarded intro note
+    if target_first:
+        intro_open = f"{target_first}, I want to connect you with Santiago Aldana."
+        intro_to = f"to {target_first} at {company_label}{company_type_phrase}"
+    else:
+        intro_open = f"I want to connect you with Santiago Aldana."
+        intro_to = f"to your contact at {company_label}{company_type_phrase}"
+
+    # Company-specific sentence only if we have a name
+    company_sentence = (
+        f"He's been looking closely at what {company_label} is doing and I think you'd find the conversation genuinely useful. "
+        if company_label != "the company" else
+        "I think you'd genuinely enjoy the conversation. "
+    )
+
     body = (
-        f"Hi {champion_first},{notes_line}\n\n"
-        f"Here's how I'd frame the intro to {target_first} at {target_company_name}{company_type_phrase} — feel free to adapt:\n\n"
-        f"\"{target_first}, I want to connect you with Santiago Aldana. "
+        f"Hi {champion_first},\n\n"
+        f"Here's how I'd frame the intro {intro_to} — feel free to adapt:\n\n"
+        f"\"{intro_open} "
         f"He's spent 20+ years building payments and digital identity infrastructure at scale "
         f"(CEO of SoyYo, CDTO at Avianca, MIT Sloan MBA). "
-        f"He's been looking closely at what {target_company_name} is doing and I think you'd find the conversation genuinely useful. "
+        f"{company_sentence}"
         f"Happy to make the intro by email or LinkedIn, whatever works.\"\n\n"
         f"Thanks for doing this."
     )
+    subject_target = target_person_name.strip() or f"contact at {company_label}"
     return {
-        "subject": f"Intro framing: Santiago Aldana for {target_person_name}",
+        "subject": f"Intro framing: Santiago Aldana for {subject_target}",
         "body": body,
-        "reasoning": f"Standard intro framing for {target_person_name} at {target_company_name}",
+        "reasoning": f"Champion briefing note for {subject_target}",
     }
 
 
