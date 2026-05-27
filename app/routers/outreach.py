@@ -753,33 +753,54 @@ async def get_conversation_context(
         for msg in history
     )
 
+    # Shared Santiago background for both variants
+    santiago_background = (
+        "Santiago Aldana. MIT Sloan MBA. 20+ years FinTech/AI/payments leadership. "
+        "CEO SoyYo (digital identity, 3M users, sold to Redeban). "
+        "CDTO Avianca ($110M IT budget, 47% of sales to digital). "
+        "CEO Uff! Movil (LatAm's first MVNO, sold to Bancolombia). "
+        "Currently Chief Product Solutions Officer at SMCU (leading SBA credit union lender in Massachusetts). "
+        "Target roles: CEO, COO, CPO, SVP Payments, SVP Embedded Banking at growth-stage FinTech."
+    )
+
+    # Fetch intel summary for Variant B context injection
+    intel_summary = ""
+    if not has_inbound_reply and record.company_id:
+        company_obj = session.get(Company, record.company_id)
+        if company_obj:
+            intel_summary = (getattr(company_obj, "intel_summary", None) or "")[:1000]
+
     if has_inbound_reply:
+        # Variant A: contact replied — anchor on their reply, do not name the job search
         generation_instructions = (
-            "You are helping Santiago Aldana, an executive with 20+ years in FinTech, payments, "
-            "digital identity and LATAM markets, currently Chief Product Solutions Officer at SMCU "
-            "(number one SBA credit union lender in Massachusetts). "
-            "He is actively searching for C-suite or SVP roles at companies in payments infrastructure, "
-            "BaaS, embedded banking, agentic AI, and digital identity. "
-            "Companies he is actively connecting with include Infinant, Firmly, Grasshopper Bank, Synctera, and Sardine. "
-            "\n\n"
-            "Read the conversation history above carefully. Then rewrite the draft to:\n"
-            "1. Reference something specific from the prior exchange, not generically.\n"
-            "2. If the prior thread involved a referral or closed process, acknowledge its outcome warmly.\n"
-            "3. Update the contact on Santiago's current search focus if it adds value.\n"
-            "4. End with a light specific ask or offer. Never use 'pick your brain' or 'circle back'.\n"
+            f"Santiago Aldana background: {santiago_background}\n\n"
+            "Read the conversation history above carefully. The contact has replied. "
+            "Rewrite the draft to:\n"
+            "1. Reference something specific from the contact's reply — their phrasing, a question they asked, "
+            "or a point they made. Make it clear you read what they wrote.\n"
+            "2. If the reply mentions a referral, a closed process, or a specific situation, acknowledge it warmly "
+            "before pivoting.\n"
+            "3. End with one light, specific ask that continues the thread they opened. "
+            "Do not introduce a new topic.\n"
+            "4. Never name Santiago's job search, job title aspirations, or ask for introductions in general terms.\n"
             "5. Never use em dashes, en dashes, or hyphens as punctuation.\n"
             "Keep body under 100 words. Do NOT add a signature block. "
-            'Return JSON: {"subject": "...", "body": "...", "reasoning": "why this version is better"}'
+            'Return JSON: {"subject": "...", "body": "...", "reasoning": "which specific part of their reply you anchored on"}'
         )
     else:
+        # Variant B: no reply yet — refine using intel_summary
+        intel_block = f"\nCompany intel: {intel_summary}" if intel_summary else ""
         generation_instructions = (
-            "Refine the draft using the Dalton method: lead with a specific fact about the recipient "
-            "or their company, make it about them not Santiago, end with a single light ask. "
-            "Maintain warm conversational tone. Keep body under 80 words. "
+            f"Santiago Aldana background: {santiago_background}{intel_block}\n\n"
+            "Refine the draft using the Dalton method:\n"
+            "1. Lead with one specific, current fact about the recipient's company or role — use the intel above if present.\n"
+            "2. Make at least half the words about them, not Santiago.\n"
+            "3. Weave in the one Santiago credential most relevant to their specific situation.\n"
+            "4. End with a single, specific open question. No statement closes.\n"
             "Do NOT use corporate jargon, 'synergy', 'circle back', or 'pick your brain'. "
             "Never use em dashes, en dashes, or hyphens as punctuation. "
-            "Do NOT add a signature block. "
-            'Return JSON: {"subject": "...", "body": "...", "reasoning": "why this version is better"}'
+            "Do NOT add a signature block. Keep body under 80 words. "
+            'Return JSON: {"subject": "...", "body": "...", "reasoning": "which intel detail you used as hook"}'
         )
 
     return {
