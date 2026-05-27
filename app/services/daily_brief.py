@@ -316,6 +316,7 @@ def compute_daily_brief(session: Session) -> dict:
             "company_name": company.name if company else None,
             "champion_notes": contact.champion_notes,
             "next_checkin_date": contact.next_checkin_date,
+            "contact_email": contact.email if not getattr(contact, "email_invalid", False) else None,
             "payload_id": contact.id,
             "payload_type": "contact",
         })

@@ -1740,11 +1740,22 @@ function ChampionCheckinCard({ action, onRefresh }) {
               </div>
               <div className="text-xs text-muted font-medium">{introDraft.subject}</div>
               <pre className="text-xs text-body whitespace-pre-wrap break-words leading-relaxed">{introDraft.body}</pre>
-              <button
-                onClick={handleDraftIntro}
-                disabled={drafting}
-                className="text-xs text-amber-600 hover:underline disabled:opacity-40 text-left"
-              >Regenerate</button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const to = encodeURIComponent(action.contact_email || '')
+                    const su = encodeURIComponent(introDraft.subject || '')
+                    const body = encodeURIComponent(introDraft.body || '')
+                    window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, '_blank')
+                  }}
+                  className="flex-1 text-xs px-3 py-2 rounded-lg bg-amber-500 text-white font-semibold hover:bg-amber-600"
+                >Send via Gmail →</button>
+                <button
+                  onClick={handleDraftIntro}
+                  disabled={drafting}
+                  className="text-xs text-amber-600 hover:underline disabled:opacity-40"
+                >Regenerate</button>
+              </div>
             </div>
           ) : (
             <button
