@@ -161,6 +161,7 @@ export const api = {
   draftLinkedinMessage: (id) => post(`/contacts/${id}/draft-dm`),
   getContactNextStep: (id) => get(`/contacts/${id}/next-step`),
   draftChampionIntro: (contactId, data) => post(`/contacts/${contactId}/draft-champion-intro`, data),
+  draftReferralPivot: (id, data) => post(`/outreach/${id}/draft-referral-pivot`, data),
   getNetworkPath: (companyId, refresh = false) => get(`/companies/${companyId}/network-path${refresh ? '?refresh=true' : ''}`),
 
   // References

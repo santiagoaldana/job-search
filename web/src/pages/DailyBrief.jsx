@@ -1508,6 +1508,90 @@ function WarmPathChampionToggle({ action, onRefresh, contactId: contactIdProp })
   )
 }
 
+function ReferralPivotCard({ action }) {
+  const [open, setOpen] = useState(false)
+  const [replySummary, setReplySummary] = useState('')
+  const [drafting, setDrafting] = useState(false)
+  const [draft, setDraft] = useState(null)
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleDraft = async (e) => {
+    e.stopPropagation()
+    if (!replySummary.trim()) return
+    setDrafting(true)
+    setError(null)
+    try {
+      const result = await api.draftReferralPivot(action.payload_id, { reply_summary: replySummary.trim() })
+      setDraft(result)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDrafting(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <div className="mt-2 pt-2 border-t border-theme">
+        <button
+          onClick={e => { e.stopPropagation(); setOpen(true) }}
+          className="text-xs text-blue-500 hover:underline"
+        >
+          Did they mention someone to connect you with? Draft referral ask →
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-theme flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+      <label className="text-xs font-medium text-body">What did they say they could do?</label>
+      <textarea
+        rows={2}
+        placeholder="e.g. They mentioned their colleague at Sardine who runs partnerships…"
+        value={replySummary}
+        onChange={e => setReplySummary(e.target.value)}
+        className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      {draft ? (
+        <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Referral pivot draft</span>
+            <button
+              onClick={() => {
+                const text = `Subject: ${draft.subject}\n\n${draft.body}`
+                navigator.clipboard?.writeText(text).catch(() => {})
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >{copied ? 'Copied!' : 'Copy'}</button>
+          </div>
+          <div className="text-xs text-muted font-medium">{draft.subject}</div>
+          <pre className="text-xs text-body whitespace-pre-wrap break-words leading-relaxed">{draft.body}</pre>
+          <button onClick={handleDraft} disabled={drafting} className="text-xs text-blue-500 hover:underline disabled:opacity-40 text-left">
+            Regenerate
+          </button>
+        </div>
+      ) : (
+        <button
+          disabled={!replySummary.trim() || drafting}
+          onClick={handleDraft}
+          className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-40 hover:bg-blue-600"
+        >
+          {drafting ? 'Drafting…' : 'Draft referral ask'}
+        </button>
+      )}
+      <button onClick={e => { e.stopPropagation(); setOpen(false) }} className="text-xs text-muted hover:underline text-left">
+        Cancel
+      </button>
+    </div>
+  )
+}
+
+
 function ChampionCheckinCard({ action, onRefresh }) {
   const [notes, setNotes] = useState('')
   const [date, setDate] = useState('')
@@ -2045,6 +2129,9 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                   )}
                   {isChampionCheckin && onRefresh && (
                     <ChampionCheckinCard action={action} onRefresh={onRefresh} />
+                  )}
+                  {action.action_type === 'post_meeting_followup_2' && (
+                    <ReferralPivotCard action={action} />
                   )}
                   {action.action_type === 'try_linkedin_dm' && onRefresh && (
                     <EscalationControls action={action} onRefresh={onRefresh} />

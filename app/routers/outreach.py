@@ -648,6 +648,40 @@ async def suggest_bump_element_endpoint(
     return {"suggestion": suggestion}
 
 
+class ReferralPivotRequest(BaseModel):
+    reply_summary: str  # what the contact mentioned / their reply signal
+    meeting_note: Optional[str] = None  # meeting context, falls back to record.notes
+
+
+@router.post("/{record_id}/draft-referral-pivot")
+async def draft_referral_pivot(
+    record_id: int,
+    req: ReferralPivotRequest,
+    session: Session = Depends(get_session),
+):
+    """Draft MSG-9 referral pivot — follow up on a specific introduction the contact offered."""
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    company = session.get(Company, record.company_id) if record.company_id else None
+
+    meeting_note = req.meeting_note or record.notes or ""
+
+    from app.services.outreach_generator import generate_referral_pivot_draft
+    result = await generate_referral_pivot_draft(
+        contact_name=contact.name if contact else "there",
+        contact_title=contact.title or "" if contact else "",
+        company_name=company.name if company else "Unknown",
+        reply_summary=req.reply_summary,
+        meeting_note=meeting_note,
+    )
+    if not result:
+        raise HTTPException(status_code=500, detail="Draft generation failed")
+    return result
+
+
 class ChampionIntroRequest(BaseModel):
     target_person_name: str
     target_company_name: str

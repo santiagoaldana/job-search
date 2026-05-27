@@ -481,6 +481,73 @@ async def generate_reflection_draft(
     return None
 
 
+async def generate_referral_pivot_draft(
+    contact_name: str,
+    contact_title: str,
+    company_name: str,
+    reply_summary: str,
+    meeting_note: str = "",
+) -> Optional[dict]:
+    """
+    Generate AI-powered referral pivot follow-up (MSG-9).
+    Used after a meeting where the contact mentioned a specific person/company
+    they could connect Santiago with.
+    Returns {"subject": ..., "body": ..., "reasoning": ...} or None on failure.
+    """
+    import json
+    import anthropic
+
+    context_parts = []
+    if meeting_note.strip():
+        context_parts.append(f"WHAT WAS DISCUSSED IN THE MEETING:\n{meeting_note}")
+    if reply_summary.strip():
+        context_parts.append(f"WHAT THE CONTACT MENTIONED / REPLY SIGNAL:\n{reply_summary}")
+    context_block = "\n\n".join(context_parts)
+
+    prompt = (
+        f"Write a follow-up email from Santiago to {contact_name}, {contact_title} at {company_name}, "
+        f"after they mentioned a specific person or company during their conversation.\n\n"
+        f"{context_block}\n\n"
+        "CONTEXT: This contact mentioned someone they could connect Santiago with. "
+        "Santiago wants to follow up on that specific mention and ask them to make the connection. "
+        "This is not a generic referral ask — it references the specific person or opportunity "
+        "the contact already brought up.\n\n"
+        "CONSTRUCTION RULES (in this order):\n"
+        "1. ANCHOR (one sentence): Refer back to the specific mention from the contact. "
+        "Use their exact language or reference the topic they raised. "
+        "Do not re-thank them for the meeting.\n"
+        "2. PIVOT ASK (one sentence): Ask if they would be willing to make that introduction. "
+        "Frame it as continuing the thread they opened, not a new ask. "
+        "Do not use 'refer', 'introduce me to', 'connect me with' — find a natural phrasing.\n"
+        "3. EASE CLAUSE (one sentence): Make it low-friction. One brief sentence. "
+        "Do not say 'No worries if not' or 'No pressure'.\n\n"
+        "HARD CONSTRAINTS:\n"
+        "- Body 60 words maximum.\n"
+        "- No em dashes, en dashes, or hyphens.\n"
+        "- No signature block.\n"
+        "- Do not name the job search.\n"
+        "- Do not open with 'Hope you are well' or 'Just circling back'.\n\n"
+        'Return ONLY valid JSON: {"subject": "<reply-thread subject>", "body": "<60 words max, plain text>", "reasoning": "<one sentence: how you framed the ask>"}'
+    )
+
+    try:
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(raw)
+        if "body" in result:
+            return result
+    except Exception:
+        pass
+
+    return None
+
+
 async def generate_champion_briefing_draft(
     champion_name: str,
     champion_title: str,
