@@ -1157,9 +1157,9 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
         <UserPlus size={16} className="mt-0.5 flex-shrink-0 text-orange-500" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-body text-sm">{action.label}</div>
-          {action.contact_title && (
-            <div className="text-xs text-muted mt-0.5">{action.contact_title} · {action.company_name}</div>
-          )}
+          <div className="text-xs text-muted mt-0.5">
+            {[action.contact_name, action.contact_title, action.company_name].filter(Boolean).join(' · ')}
+          </div>
           <div className="text-xs text-muted mt-0.5">{action.detail}</div>
         </div>
       </div>
@@ -1263,10 +1263,22 @@ function WarmPathIntel({ action }) {
   }
 
   if (intel) {
+    // Strip snapshot header and split into readable lines
+    const cleaned = intel
+      .replace(/^Intel snapshot as of \d{4}-\d{2}-\d{2}\s*/i, '')
+      .replace(/\b(RECENT NEWS|CONTACTS|OUTREACH|FUNDING|NOTES):\s*/g, '\n$1: ')
+      .replace(/\s*-\s+/g, '\n• ')
+      .trim()
+    const lines = cleaned.split('\n').filter(l => l.trim())
+
     return (
       <div className="mt-2">
-        <div className={`text-xs text-muted italic leading-relaxed ${expanded ? '' : 'line-clamp-3'}`}>
-          {intel}
+        <div className={`text-xs text-muted leading-relaxed space-y-0.5 ${expanded ? '' : 'line-clamp-3'}`}>
+          {lines.map((line, i) => (
+            <div key={i} className={/^[A-Z ]+:/.test(line) ? 'font-semibold text-body mt-1' : ''}>
+              {line}
+            </div>
+          ))}
         </div>
         <button
           onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
