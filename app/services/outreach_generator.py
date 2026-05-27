@@ -684,11 +684,11 @@ FOLLOW_UP_TEMPLATES = {
     "day_7": {
         "en": {
             "subject": "Re: {original_subject}",
-            "body": "Hi {first_name},\n\nI don't mean to be a bother. If I don't hear back, I'll take that as a no and won't follow up again. I genuinely appreciated the chance to reach out.",
+            "body": "Hi {first_name},\n\nNo need to respond — I'll leave the door open on my end. If the topic of {topic_hint} ever becomes relevant, I'd welcome a quick exchange.",
         },
         "es": {
             "subject": "Re: {original_subject}",
-            "body": "Hola {first_name},\n\nNo quiero ser un inconveniente. Si no recibo respuesta, lo tomaré como un no y no volveré a escribir. Genuinamente aprecié la oportunidad de contactarte.",
+            "body": "Hola {first_name},\n\nNo es necesario que respondas. Si el tema de {topic_hint} llega a ser relevante en algún momento, estaré disponible para conversar.",
         },
     },
     "harvest": {
@@ -757,6 +757,10 @@ def draft_followup_from_template(stage: str, outreach_record: dict, language: st
     except (ValueError, TypeError):
         days_since = 0
 
+    # Derive a short topic hint for day_7 close from the subject or context
+    raw_subject = outreach_record.get("generated_subject", "") or ""
+    topic_hint = raw_subject.replace("Re: ", "").replace("re: ", "").strip() or brief_context or "your work"
+
     subject = subject_template.format(
         original_subject=original_subject,
         first_name=first_name,
@@ -765,6 +769,7 @@ def draft_followup_from_template(stage: str, outreach_record: dict, language: st
         first_name=first_name,
         brief_context=brief_context,
         days_since=f"{days_since} days" if days_since != 1 else "1 day",
+        topic_hint=topic_hint,
     )
 
     return {

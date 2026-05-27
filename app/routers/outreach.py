@@ -527,7 +527,7 @@ async def draft_followup(
 
     # Generate template-based draft as baseline (no API call)
     from app.services.outreach_generator import (
-        draft_followup_from_template, generate_bump_draft, generate_close_draft,
+        draft_followup_from_template, generate_bump_draft,
         generate_thankyou_draft, generate_reflection_draft,
     )
     draft = draft_followup_from_template(stage, outreach_dict, language=req.language)
@@ -582,19 +582,7 @@ async def draft_followup(
             draft["template_used"] = False
             ai_reasoning = ai_result.get("reasoning")
 
-    # MSG-4: AI close always
-    elif stage == "day_7":
-        original_body = record.outreach_message or record.body or ""
-        contact_name = contact.name if contact else "there"
-        contact_title = contact.title or ""
-        company_name_str = company.name if company else "Unknown"
-        ai_result = await generate_close_draft(
-            contact_name, contact_title, company_name_str, original_body,
-        )
-        if ai_result:
-            draft["body"] = ai_result["body"]
-            draft["template_used"] = False
-            ai_reasoning = ai_result.get("reasoning")
+    # MSG-4: template handles day_7 — no API call needed
 
     # Fetch conversation history (zero API cost — just database read)
     from skills.outreach_tracker import get_conversation_history
