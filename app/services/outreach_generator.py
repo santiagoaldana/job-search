@@ -612,14 +612,20 @@ def draft_followup_from_template(stage: str, outreach_record: dict, language: st
         days_since = 0
 
     # Derive a short topic hint for day_7 close — strip Re:/company name/generic phrases
+    import re as _re
     raw_subject = outreach_record.get("generated_subject", "") or ""
     company_name = outreach_record.get("company_name", "")
     _topic = raw_subject.replace("Re: ", "").replace("re: ", "").strip()
     if company_name:
-        _topic = _topic.replace(company_name + ", ", "").replace(company_name + " — ", "").replace(company_name, "").strip(", ").strip()
-    _topic = _topic.strip(" —,.")
+        # Strip company name with any following punctuation/spaces
+        _topic = _re.sub(r'^' + _re.escape(company_name) + r'[\s,\-—]+', '', _topic, flags=_re.IGNORECASE).strip()
+    # Collapse multiple spaces
+    _topic = _re.sub(r'\s+', ' ', _topic).strip(" —,.")
     _GENERIC = {"quick question", "quick note", "a quick question", "question"}
     topic_hint = _topic if _topic and _topic.lower() not in _GENERIC else (brief_context or "your work")
+
+    # Also clean up original_subject for use in the Re: subject line
+    original_subject = _re.sub(r'\s+', ' ', original_subject).strip()
 
     subject = subject_template.format(
         original_subject=original_subject,
