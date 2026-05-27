@@ -454,20 +454,43 @@ def compute_daily_brief(session: Session) -> dict:
             select(Contact).where(Contact.company_id != None)
         ).all()
     }
+    company_ids_with_active_leads = {
+        l.company_id for l in session.exec(
+            select(Lead).where(Lead.status == "active", Lead.company_id != None)
+        ).all()
+    }
     gap_companies = session.exec(
         select(Company).where(
             Company.motivation >= 7,
             Company.is_archived == False,
-        ).order_by(Company.lamp_score.desc())
+        )
     ).all()
-    gap_count = 0
-    for company in gap_companies:
-        if gap_count >= 3:
-            break
-        if company.id in active_company_ids_with_outreach:
-            continue
-        if company.id in company_ids_with_contacts:
-            continue
+
+    _PILLAR_KEYWORDS = {"payment", "embed", "bank", "agenti", "ai", "identity", "fraud", "fintech", "crypto", "stablecoin"}
+    _PREFERRED_STAGES = {"series_b", "series_c"}
+    _OK_STAGES = {"series_a", "series_d"}
+
+    def _gap_score(c: Company) -> float:
+        score = c.lamp_score + c.motivation * 2.0
+        name_lower = c.name.lower()
+        intel_lower = (c.intel_summary or "").lower()
+        if any(kw in name_lower or kw in intel_lower for kw in _PILLAR_KEYWORDS):
+            score += 2.0
+        fs = (c.funding_stage or "").lower()
+        if fs in _PREFERRED_STAGES:
+            score += 2.0
+        elif fs in _OK_STAGES:
+            score += 1.0
+        if c.id in company_ids_with_active_leads:
+            score += 1.0
+        return score
+
+    gap_companies_sorted = sorted(
+        [c for c in gap_companies
+         if c.id not in active_company_ids_with_outreach and c.id not in company_ids_with_contacts],
+        key=_gap_score, reverse=True
+    )
+    for company in gap_companies_sorted[:3]:
         positions.append({
             "action_type": "contact_gap",
             "label": f"No contact at {company.name} — find someone to reach out to",
@@ -477,7 +500,6 @@ def compute_daily_brief(session: Session) -> dict:
             "payload_id": company.id,
             "payload_type": "company",
         })
-        gap_count += 1
 
     # ══════════════════════════════════════════════════════════════════════════
     # POSITIONS SECTION
