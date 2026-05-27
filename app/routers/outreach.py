@@ -1161,14 +1161,18 @@ def build_mailto(
     session: Session = Depends(get_session),
 ):
     """Build and return a mailto URL without marking the follow-up as sent."""
+    from app.services.email_finder import determine_next_step as _determine_next_step
+
     record = session.get(OutreachRecord, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
 
     contact = session.get(Contact, record.contact_id) if record.contact_id else None
-    to_email = (contact.email or "") if contact else ""
+    company = session.get(Company, record.company_id) if record.company_id else None
+    to_email = (contact.email or "") if contact and not getattr(contact, "email_invalid", False) else ""
+    email_is_guessed = False
 
-    # Fall back to sender email from conversation history if contact has no email on record
+    # Fall back to reply sender email from conversation history
     if not to_email:
         reply_msg = session.exec(
             select(ConversationMessage)
@@ -1179,12 +1183,23 @@ def build_mailto(
         if reply_msg and reply_msg.from_email:
             to_email = reply_msg.from_email
 
+    # Auto-guess email from domain if still unknown
+    if not to_email and contact and company:
+        ns = _determine_next_step(contact, company)
+        if ns.get("guessed_email"):
+            to_email = ns["guessed_email"]
+            email_is_guessed = True
+            # Persist the guess on the contact so future sends don't re-guess
+            contact.email = to_email
+            session.add(contact)
+            session.commit()
+
     subject_enc = urllib.parse.quote(req.subject or "", safe="")
     body_enc = urllib.parse.quote(req.body or "", safe="")
     to_enc = urllib.parse.quote(to_email, safe="@.")
     gmail_url = f"https://mail.google.com/mail/?view=cm&to={to_enc}&su={subject_enc}&body={body_enc}"
 
-    return {"mailto_url": gmail_url, "to_email": to_email or None}
+    return {"mailto_url": gmail_url, "to_email": to_email or None, "email_is_guessed": email_is_guessed}
 
 
 @router.post("/{record_id}/mark-followup-sent")

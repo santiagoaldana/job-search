@@ -139,6 +139,9 @@ function FollowUpModal({ action, onClose, onSent }) {
         setSending(false)
         return
       }
+      if (result.email_is_guessed) {
+        setError(`Sending to guessed email: ${result.to_email} — verify in Gmail before sending.`)
+      }
       if (url) window.open(url, '_blank')
       setAwaitingConfirm(true)
     } catch (e) {
