@@ -1650,7 +1650,6 @@ function ChampionCheckinCard({ action, onRefresh }) {
 
   const handleDraftIntro = async (e) => {
     e.stopPropagation()
-    if (!introTarget.trim() || !introCompany.trim()) return
     setDrafting(true)
     setDraftError(null)
     try {
