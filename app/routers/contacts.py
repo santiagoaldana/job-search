@@ -443,16 +443,21 @@ def log_interaction(req: LogInteractionRequest, session: Session = Depends(get_s
         if prior and prior.outreach_message:
             prior_message = prior.outreach_message
 
+        now = datetime.now(_EASTERN).isoformat()
         record = OutreachRecord(
             company_id=contact.company_id,
             contact_id=contact.id,
             channel=req.channel,
-            sent_at=datetime.now(_EASTERN).isoformat(),
+            sent_at=now,
             body=req.note,
             outreach_message=prior_message,
             response_status="positive" if req.had_reply else "pending",
             follow_up_3_due=follow_up_3,
             follow_up_7_due=follow_up_7,
+            follow_up_3_sent=False,
+            follow_up_7_sent=False,
+            created_at=now,
+            updated_at=now,
         )
         session.add(record)
         session.commit()
