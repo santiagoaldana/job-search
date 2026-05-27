@@ -449,6 +449,9 @@ function SearchResultCard({ company, onNavigate, onLogOutreach, onUpdated, fetch
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             <Badge color={stageColor}>{company.stage}</Badge>
             <Badge color={funding.color}>{funding.label}</Badge>
+            {(company.motivation < 7 || company.is_archived) && (
+              <Badge color="slate">hidden</Badge>
+            )}
             <MotivationEdit company={company} onUpdated={onUpdated} />
           </div>
           {company.intel_summary
