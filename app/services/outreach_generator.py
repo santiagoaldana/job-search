@@ -538,7 +538,7 @@ FOLLOW_UP_TEMPLATES = {
     "day_7": {
         "en": {
             "subject": "Re: {original_subject}",
-            "body": "Hi {first_name},\n\nNo need to respond — I'll leave the door open on my end. If the topic of {topic_hint} ever becomes relevant, I'd welcome a quick exchange.",
+            "body": "Hi {first_name},\n\nNo need to respond. I'll leave the door open on my end. If the topic of {topic_hint} ever becomes relevant, I'd welcome a quick exchange.",
         },
         "es": {
             "subject": "Re: {original_subject}",

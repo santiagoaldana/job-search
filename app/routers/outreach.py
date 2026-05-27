@@ -28,10 +28,55 @@ def add_business_days(start: date, days: int) -> date:
             added += 1
     return current
 
-from app.database import get_session
-from app.models import OutreachRecord, Company, Contact
+from app.database import get_session, engine
+from app.models import OutreachRecord, Company, Contact, ConversationMessage
 
 router = APIRouter()
+
+
+def _get_conversation_history(outreach_id: int) -> list:
+    """Retrieve conversation history for an outreach record. DB-only, no API calls."""
+    try:
+        with Session(engine) as s:
+            messages = s.exec(
+                select(ConversationMessage).where(
+                    ConversationMessage.outreach_record_id == outreach_id
+                ).order_by(ConversationMessage.message_date.asc())
+            ).all()
+
+            if not messages:
+                record = s.exec(
+                    select(OutreachRecord).where(OutreachRecord.id == outreach_id)
+                ).first()
+                if record and (record.subject or record.body):
+                    return [{
+                        "date": record.sent_at or record.created_at,
+                        "from_email": "santiago@aidatasolutions.co",
+                        "from_name": "Santiago Aldana",
+                        "subject": record.subject or "(no subject)",
+                        "body_preview": record.body or "(original email body not stored)",
+                        "message_type": "outreach",
+                    }]
+                return []
+
+            result = []
+            total_chars = 0
+            for msg in reversed(messages[-10:]):
+                msg_dict = {
+                    "date": msg.message_date,
+                    "from_email": msg.from_email,
+                    "from_name": msg.from_name or "Unknown",
+                    "subject": msg.subject or "(no subject)",
+                    "body_preview": msg.body_full or "",
+                    "message_type": msg.message_type,
+                }
+                total_chars += len(str(msg_dict))
+                if total_chars > 3000:
+                    break
+                result.append(msg_dict)
+            return result
+    except Exception:
+        return []
 
 
 class OutreachCreate(BaseModel):
@@ -585,8 +630,7 @@ async def draft_followup(
     # MSG-4: template handles day_7 — no API call needed
 
     # Fetch conversation history (zero API cost — just database read)
-    from skills.outreach_tracker import get_conversation_history
-    history = get_conversation_history(record_id) if record_id else []
+    history = _get_conversation_history(record_id) if record_id else []
 
     # Format conversation for display
     conversation_text = ""
@@ -726,8 +770,7 @@ async def get_conversation_context(
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
 
-    from skills.outreach_tracker import get_conversation_history
-    history = get_conversation_history(record_id)
+    history = _get_conversation_history(record_id)
 
     if not history:
         raise HTTPException(
