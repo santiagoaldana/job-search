@@ -648,6 +648,42 @@ async def suggest_bump_element_endpoint(
     return {"suggestion": suggestion}
 
 
+class ChampionIntroRequest(BaseModel):
+    target_person_name: str
+    target_company_name: str
+    target_company_type: str = ""
+    champion_notes: Optional[str] = None  # override from UI; falls back to contact.champion_notes
+
+
+@router.post("/{record_id}/draft-champion-intro")
+async def draft_champion_intro(
+    record_id: int,
+    req: ChampionIntroRequest,
+    session: Session = Depends(get_session),
+):
+    """Draft MSG-8 briefing note for a champion, coaching them on how to introduce Santiago."""
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    if not contact:
+        raise HTTPException(status_code=400, detail="No contact on this record")
+
+    champion_name = contact.name or "your champion"
+    champion_title = contact.title or ""
+    notes = req.champion_notes or contact.champion_notes or ""
+
+    from app.services.outreach_generator import generate_champion_briefing_draft
+    result = await generate_champion_briefing_draft(
+        champion_name, champion_title, notes,
+        req.target_person_name, req.target_company_name, req.target_company_type,
+    )
+    if not result:
+        raise HTTPException(status_code=500, detail="Draft generation failed")
+    return result
+
+
 class EnhanceWithContextRequest(BaseModel):
     subject: str
     body: str

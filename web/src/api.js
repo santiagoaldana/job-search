@@ -160,6 +160,7 @@ export const api = {
   confirmBounceRetrySent: (contactId, data) => post(`/contacts/${contactId}/confirm-bounce-retry-sent`, data),
   draftLinkedinMessage: (id) => post(`/contacts/${id}/draft-dm`),
   getContactNextStep: (id) => get(`/contacts/${id}/next-step`),
+  draftChampionIntro: (contactId, data) => post(`/contacts/${contactId}/draft-champion-intro`, data),
   getNetworkPath: (companyId, refresh = false) => get(`/companies/${companyId}/network-path${refresh ? '?refresh=true' : ''}`),
 
   // References

@@ -67,6 +67,13 @@ TYPE_INSTRUCTIONS = {
         "End with: 'Would value the connection.' "
         "No em dashes, en dashes, or hyphens."
     ),
+    "champion_intro": (
+        "This is a briefing note to a champion contact, coaching them on how to frame Santiago "
+        "to a target person they agreed to introduce him to. "
+        "Write in a way the champion can copy and send directly. "
+        "Focus on what the target person cares about, not Santiago's job search. "
+        "No em dashes, en dashes, or hyphens. No signature block. 100 words maximum."
+    ),
     "linkedin_escalation": (
         "This email follows a LinkedIn DM that received no reply after 7+ days. "
         "The prior LinkedIn message is provided in prior_message — read it carefully. "
@@ -461,6 +468,71 @@ async def generate_reflection_draft(
         response = await client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(raw)
+        if "body" in result:
+            return result
+    except Exception:
+        pass
+
+    return None
+
+
+async def generate_champion_briefing_draft(
+    champion_name: str,
+    champion_title: str,
+    champion_notes: str,
+    target_person_name: str,
+    target_company_name: str,
+    target_company_type: str,
+) -> Optional[dict]:
+    """
+    Generate AI-powered champion briefing note (MSG-8).
+    Returns {"subject": ..., "body": ..., "reasoning": ...} or None on failure.
+    """
+    import json
+    import anthropic
+
+    prompt = (
+        f"Write a briefing note from Santiago to his champion {champion_name} ({champion_title}), "
+        f"coaching them on how to frame Santiago to {target_person_name} at {target_company_name} "
+        f"({target_company_type}).\n\n"
+        f"CHAMPION CONTEXT (background on the relationship and any agreed intro):\n{champion_notes}\n\n"
+        "SANTIAGO'S PROFILE:\n"
+        "Santiago Aldana. MIT Sloan MBA. 20+ years FinTech/AI/payments leadership.\n"
+        "CEO SoyYo (digital identity, 3M users, sold to Redeban). "
+        "CDTO Avianca ($110M IT budget, 47% of sales to digital). "
+        "CEO Uff! Movil (LatAm's first MVNO, sold to Bancolombia). "
+        "Managing Partner AI Data Solutions (LATAM Maven AGI distribution).\n"
+        "Target roles: CEO, COO, CPO, SVP Payments, SVP Embedded Banking at Series B-D FinTech.\n\n"
+        "CONSTRUCTION RULES:\n"
+        "1. FRAMING SENTENCE (one sentence): Tell the champion what angle to lead with when "
+        "introducing Santiago to this specific person. The angle should be tuned to what "
+        f"{target_person_name} at {target_company_name} is most likely working on right now — "
+        "not a generic introduction. Reference the most relevant Santiago credential for this context.\n"
+        "2. WHAT TO SAY (two to three sentences): Give the champion concrete language they can "
+        "use or adapt. This should be first-person from the champion's voice, not Santiago's. "
+        "It should explain why Santiago is worth a conversation for THIS specific person. "
+        "Do not make it sound like a job application.\n"
+        "3. LOGISTICS (one sentence): Suggest how to make the intro (e-mail CC, LinkedIn note, "
+        "direct message). Keep it light — no obligation framing.\n\n"
+        "HARD CONSTRAINTS:\n"
+        "- 100 words maximum total.\n"
+        "- No em dashes, en dashes, or hyphens.\n"
+        "- No signature block.\n"
+        "- Do not name the job search explicitly.\n"
+        "- Subject line: frame around the intro itself, e.g. 'Framing for the [Name] intro'.\n\n"
+        'Return ONLY valid JSON: {"subject": "<subject line>", "body": "<100 words max, plain text>", "reasoning": "<one sentence: which angle you chose and why>"}'
+    )
+
+    try:
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=400,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = response.content[0].text.strip()

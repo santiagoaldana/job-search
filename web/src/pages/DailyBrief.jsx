@@ -1513,6 +1513,14 @@ function ChampionCheckinCard({ action, onRefresh }) {
   const [date, setDate] = useState('')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+  const [agreeIntro, setAgreeIntro] = useState(false)
+  const [introTarget, setIntroTarget] = useState('')
+  const [introCompany, setIntroCompany] = useState('')
+  const [introCompanyType, setIntroCompanyType] = useState('')
+  const [drafting, setDrafting] = useState(false)
+  const [introDraft, setIntroDraft] = useState(null)
+  const [introCopied, setIntroCopied] = useState(false)
+  const [draftError, setDraftError] = useState(null)
 
   const save = async (e) => {
     e.stopPropagation()
@@ -1549,6 +1557,26 @@ function ChampionCheckinCard({ action, onRefresh }) {
     }
   }
 
+  const handleDraftIntro = async (e) => {
+    e.stopPropagation()
+    if (!introTarget.trim() || !introCompany.trim()) return
+    setDrafting(true)
+    setDraftError(null)
+    try {
+      const result = await api.draftChampionIntro(action.payload_id, {
+        target_person_name: introTarget.trim(),
+        target_company_name: introCompany.trim(),
+        target_company_type: introCompanyType.trim(),
+        champion_notes: notes.trim() || action.champion_notes || '',
+      })
+      setIntroDraft(result)
+    } catch (err) {
+      setDraftError(err.message)
+    } finally {
+      setDrafting(false)
+    }
+  }
+
   if (done) {
     return (
       <div className="mt-3 pt-3 border-t border-theme text-xs text-green-600 dark:text-green-400">
@@ -1571,6 +1599,74 @@ function ChampionCheckinCard({ action, onRefresh }) {
         onChange={e => setNotes(e.target.value)}
         className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
       />
+      <label className="flex items-center gap-2 text-xs text-body cursor-pointer">
+        <input
+          type="checkbox"
+          checked={agreeIntro}
+          onChange={e => setAgreeIntro(e.target.checked)}
+          className="rounded border-theme"
+        />
+        They agreed to introduce me to someone
+      </label>
+      {agreeIntro && (
+        <div className="flex flex-col gap-2 mt-1">
+          <input
+            type="text"
+            placeholder="Target person name"
+            value={introTarget}
+            onChange={e => setIntroTarget(e.target.value)}
+            className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-amber-500"
+          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Their company"
+              value={introCompany}
+              onChange={e => setIntroCompany(e.target.value)}
+              className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-amber-500"
+            />
+            <input
+              type="text"
+              placeholder="Company type (e.g. BaaS, FinTech)"
+              value={introCompanyType}
+              onChange={e => setIntroCompanyType(e.target.value)}
+              className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-amber-500"
+            />
+          </div>
+          {draftError && <p className="text-xs text-red-500">{draftError}</p>}
+          {introDraft ? (
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Briefing note for {action.contact_name}</span>
+                <button
+                  onClick={() => {
+                    const text = `Subject: ${introDraft.subject}\n\n${introDraft.body}`
+                    navigator.clipboard?.writeText(text).catch(() => {})
+                    setIntroCopied(true)
+                    setTimeout(() => setIntroCopied(false), 2000)
+                  }}
+                  className="text-xs text-amber-600 dark:text-amber-400 hover:underline"
+                >{introCopied ? 'Copied!' : 'Copy'}</button>
+              </div>
+              <div className="text-xs text-muted font-medium">{introDraft.subject}</div>
+              <pre className="text-xs text-body whitespace-pre-wrap break-words leading-relaxed">{introDraft.body}</pre>
+              <button
+                onClick={handleDraftIntro}
+                disabled={drafting}
+                className="text-xs text-amber-600 hover:underline disabled:opacity-40 text-left"
+              >Regenerate</button>
+            </div>
+          ) : (
+            <button
+              disabled={!introTarget.trim() || !introCompany.trim() || drafting}
+              onClick={handleDraftIntro}
+              className="text-xs px-3 py-2 rounded-lg bg-amber-500 text-white font-medium disabled:opacity-40 hover:bg-amber-600 text-left"
+            >
+              {drafting ? 'Drafting…' : 'Draft activation note'}
+            </button>
+          )}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <input
           type="date"

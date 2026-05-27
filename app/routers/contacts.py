@@ -762,6 +762,38 @@ def confirm_bounce_retry_sent(
     return {"ok": True}
 
 
+class ChampionIntroRequest(BaseModel):
+    target_person_name: str
+    target_company_name: str
+    target_company_type: str = ""
+    champion_notes: Optional[str] = None
+
+
+@router.post("/{contact_id}/draft-champion-intro")
+async def draft_champion_intro(
+    contact_id: int,
+    req: ChampionIntroRequest,
+    session: Session = Depends(get_session),
+):
+    """Draft MSG-8 briefing note for a champion contact to introduce Santiago to a target."""
+    contact = session.get(Contact, contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    from app.services.outreach_generator import generate_champion_briefing_draft
+    result = await generate_champion_briefing_draft(
+        champion_name=contact.name or "your champion",
+        champion_title=contact.title or "",
+        champion_notes=req.champion_notes or contact.champion_notes or "",
+        target_person_name=req.target_person_name,
+        target_company_name=req.target_company_name,
+        target_company_type=req.target_company_type,
+    )
+    if not result:
+        raise HTTPException(status_code=500, detail="Draft generation failed")
+    return result
+
+
 @router.get("/{contact_id}/next-step")
 def get_contact_next_step(contact_id: int, session: Session = Depends(get_session)):
     """Return the recommended next outreach action for a contact."""
