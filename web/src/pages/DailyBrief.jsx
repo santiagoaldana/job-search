@@ -1508,6 +1508,86 @@ function WarmPathChampionToggle({ action, onRefresh, contactId: contactIdProp })
   )
 }
 
+function PublishContentCard({ action, onRefresh }) {
+  const [slot, setSlot] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [done, setDone] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    api.getNextSlot()
+      .then(({ scheduled_at, label }) => setSlot({ iso: scheduled_at, label }))
+      .catch(() => {
+        const d = new Date()
+        d.setDate(d.getDate() + ((4 - d.getDay() + 7) % 7 || 7))
+        d.setHours(16, 0, 0, 0)
+        setSlot({ iso: d.toISOString(), label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' 4pm' })
+      })
+  }, [])
+
+  const handleSchedule = async (e) => {
+    e.stopPropagation()
+    if (!slot) return
+    setSaving(true)
+    setError(null)
+    try {
+      await api.schedulePost(action.payload_id, slot.iso)
+      setDone('scheduled')
+      setTimeout(() => onRefresh && onRefresh(), 1200)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handlePublishNow = async (e) => {
+    e.stopPropagation()
+    setSaving(true)
+    setError(null)
+    try {
+      await api.publishNow(action.payload_id)
+      setDone('published')
+      setTimeout(() => onRefresh && onRefresh(), 1200)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="mt-2 pt-2 border-t border-theme text-xs text-green-600 dark:text-green-400">
+        {done === 'scheduled' ? `Scheduled for ${slot?.label} ✓` : 'Published ✓'}
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-theme flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          disabled={!slot || saving}
+          onClick={handleSchedule}
+          className="flex-1 text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-40 hover:bg-blue-600"
+        >
+          {saving ? 'Scheduling…' : slot ? `Schedule for ${slot.label}` : 'Loading slot…'}
+        </button>
+        <button
+          disabled={saving}
+          onClick={handlePublishNow}
+          className="text-xs px-3 py-2 rounded-lg border border-theme text-body hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40"
+        >
+          Post now
+        </button>
+      </div>
+    </div>
+  )
+}
+
+
 function ReferralPivotCard({ action }) {
   const [open, setOpen] = useState(false)
   const [replySummary, setReplySummary] = useState('')
@@ -2132,6 +2212,9 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                   )}
                   {action.action_type === 'post_meeting_followup_2' && (
                     <ReferralPivotCard action={action} />
+                  )}
+                  {action.action_type === 'publish_content' && (
+                    <PublishContentCard action={action} onRefresh={onRefresh} />
                   )}
                   {action.action_type === 'try_linkedin_dm' && onRefresh && (
                     <EscalationControls action={action} onRefresh={onRefresh} />
