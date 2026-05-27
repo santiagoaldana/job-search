@@ -1280,7 +1280,6 @@ def skip_outreach(record_id: int, session: Session = Depends(get_session)):
     record.follow_up_3_sent = True
     record.follow_up_7_sent = True
     record.response_status = "ghosted"
-    record.updated_at = datetime.utcnow().isoformat()
     session.add(record)
     session.commit()
     session.refresh(record)
