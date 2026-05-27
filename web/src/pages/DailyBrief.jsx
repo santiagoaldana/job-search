@@ -134,6 +134,11 @@ function FollowUpModal({ action, onClose, onSent }) {
       const result = await api.buildMailto(action.payload_id, { subject, body, followup_day: action.followup_day })
       const url = result.mailto_url
       setMailtoUrl(url)
+      if (!result.to_email) {
+        setError('No email address on file for this contact. Add one in the company card first.')
+        setSending(false)
+        return
+      }
       if (url) window.open(url, '_blank')
       setAwaitingConfirm(true)
     } catch (e) {

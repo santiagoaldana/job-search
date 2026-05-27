@@ -611,9 +611,15 @@ def draft_followup_from_template(stage: str, outreach_record: dict, language: st
     except (ValueError, TypeError):
         days_since = 0
 
-    # Derive a short topic hint for day_7 close from the subject or context
+    # Derive a short topic hint for day_7 close — strip Re:/company name/generic phrases
     raw_subject = outreach_record.get("generated_subject", "") or ""
-    topic_hint = raw_subject.replace("Re: ", "").replace("re: ", "").strip() or brief_context or "your work"
+    company_name = outreach_record.get("company_name", "")
+    _topic = raw_subject.replace("Re: ", "").replace("re: ", "").strip()
+    if company_name:
+        _topic = _topic.replace(company_name + ", ", "").replace(company_name + " — ", "").replace(company_name, "").strip(", ").strip()
+    _topic = _topic.strip(" —,.")
+    _GENERIC = {"quick question", "quick note", "a quick question", "question"}
+    topic_hint = _topic if _topic and _topic.lower() not in _GENERIC else (brief_context or "your work")
 
     subject = subject_template.format(
         original_subject=original_subject,
