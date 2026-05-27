@@ -1749,7 +1749,7 @@ function ChampionCheckinCard({ action, onRefresh }) {
             </div>
           ) : (
             <button
-              disabled={!introTarget.trim() || !introCompany.trim() || drafting}
+              disabled={!introTarget.trim() || drafting}
               onClick={handleDraftIntro}
               className="text-xs px-3 py-2 rounded-lg bg-amber-500 text-white font-medium disabled:opacity-40 hover:bg-amber-600 text-left"
             >
