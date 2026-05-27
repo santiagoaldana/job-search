@@ -786,7 +786,7 @@ async def draft_champion_intro(
         raise HTTPException(status_code=404, detail="Contact not found")
 
     from app.services.outreach_generator import generate_champion_briefing_draft
-    result = await generate_champion_briefing_draft(
+    result = generate_champion_briefing_draft(
         champion_name=contact.name or "your champion",
         champion_title=contact.title or "",
         champion_notes=req.champion_notes or contact.champion_notes or "",

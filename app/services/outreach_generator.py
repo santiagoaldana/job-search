@@ -261,7 +261,7 @@ async def suggest_bump_element(
         return ""
 
 
-async def generate_bump_draft(
+def generate_bump_draft(
     contact_name: str,
     contact_title: str,
     company_name: str,
@@ -269,51 +269,20 @@ async def generate_bump_draft(
     new_element: str,
 ) -> Optional[dict]:
     """
-    Generate AI-powered Day 3 bump (MSG-3).
-    Returns {"body": ..., "reasoning": ...} or None on failure.
+    MSG-3 Day 3 bump — template-based, no API call.
+    Sentence 1: the new element. Sentence 2: restated ask. Sentence 3: logistics offer.
     """
-    import json
-    import anthropic
-
-    prompt = (
-        f"Write a Day 3 follow-up reply from Santiago to {contact_name}, "
-        f"{contact_title} at {company_name}. "
-        f"This is a reply in the same thread. No subject line.\n\n"
-        f"ORIGINAL MESSAGE:\n{original_body}\n\n"
-        f"NEW ELEMENT Santiago noticed since sending (use this as sentence 1):\n{new_element}\n\n"
-        "CONSTRUCTION RULES:\n"
-        "Three sentences maximum.\n"
-        "1. NEW ELEMENT (sentence 1): Use the new element above. Do not repeat the original hook verbatim.\n"
-        "2. ASK RESTATEMENT (sentence 2): Restate the core ask from the original, rephrased and shorter. End with '?'.\n"
-        "3. LOGISTICS (sentence 3, optional): Only if the ask benefits from a time anchor. "
-        "'Happy to find 15 minutes if easier than a reply.' Omit if answerable in writing.\n\n"
-        "HARD CONSTRAINTS:\n"
-        "- 40 words maximum.\n"
-        "- No subject line. No signature block.\n"
-        "- No apology for following up.\n"
-        "- No 'just wanted to', 'wanted to make sure', 'circling back', 'touching base', "
-        "'following up', 'bumping this', 'would love to'.\n"
-        "- No em dashes, en dashes, or hyphens.\n"
-        "- Do not name the job search.\n\n"
-        'Return ONLY valid JSON: {"body": "<bump text, plain text>", "reasoning": "<one sentence: what new element you used and why>"}'
+    first_name = (contact_name or "there").split()[0]
+    element = new_element.strip().rstrip(".") if new_element.strip() else f"the work happening at {company_name}"
+    body = (
+        f"Hi {first_name},\n\n"
+        f"{element}.\n\n"
+        f"Wanted to make sure my earlier note reached you. Still curious whether a 15-minute exchange would be useful."
     )
-
-    try:
-        client = anthropic.AsyncAnthropic()
-        response = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=200,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = response.content[0].text.strip()
-        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        result = json.loads(raw)
-        if "body" in result:
-            return result
-    except Exception:
-        pass
-
-    return None
+    return {
+        "body": body,
+        "reasoning": f"New element: {element[:60]}",
+    }
 
 
 async def generate_close_draft(
@@ -370,118 +339,62 @@ async def generate_close_draft(
     return None
 
 
-async def generate_thankyou_draft(
+def generate_thankyou_draft(
     contact_name: str,
     contact_title: str,
     company_name: str,
     meeting_note: str,
 ) -> Optional[dict]:
     """
-    Generate AI-powered post-meeting thank you (MSG-5).
-    Returns {"subject": ..., "body": ..., "reasoning": ...} or None on failure.
+    MSG-5 post-meeting thank you — template-based, no API call.
+    Anchors on meeting_note. Sentence 1: specific callback. Sentence 2: peer reflection.
+    Sentence 3: permission ask for 30-min follow-up.
     """
-    import json
-    import anthropic
-
-    prompt = (
-        f"Write a post-meeting thank you email from Santiago to {contact_name}, "
-        f"{contact_title} at {company_name}.\n\n"
-        f"MEETING NOTE (what was discussed):\n{meeting_note}\n\n"
-        "CONSTRUCTION RULES (in this order):\n"
-        "1. SPECIFIC CALLBACK (one sentence): Reference exactly one thing the contact said or "
-        "asked during the meeting. Use phrasing like 'Your point about...' or 'When you mentioned...'. "
-        "This should be recognizable to the contact as their own specific thought, not a paraphrase "
-        "of a generic topic.\n"
-        "2. REFLECTION SIGNAL (one sentence): Add one observation from Santiago's own experience "
-        "that connects directly to what the contact raised. This is peer-to-peer, not a pitch.\n"
-        "3. PERMISSION ASK (one sentence): End with a question that invites continued dialogue on "
-        "the same topic. Offer a 30-minute follow-up call framed as continuing the thread. "
-        "Do not say 'Great talking with you.' Do not say 'Hope we can connect again.'\n\n"
-        "HARD CONSTRAINTS:\n"
-        "- Body 60 words maximum.\n"
-        "- No subject line variation that starts with 'Great talking' or 'Thanks for your time'.\n"
-        "- Subject line: derive from the specific topic discussed, not the meeting itself.\n"
-        "- No em dashes, en dashes, or hyphens.\n"
-        "- No signature block.\n"
-        "- Do not name the job search.\n\n"
-        'Return ONLY valid JSON: {"subject": "<topic-derived subject>", "body": "<60 words max, plain text>", "reasoning": "<one sentence: which specific thing you anchored on>"}'
+    first_name = (contact_name or "there").split()[0]
+    note = meeting_note.strip() if meeting_note.strip() else "our conversation"
+    # Keep the subject concise: strip trailing punctuation from meeting note
+    subject_hint = note[:60].rstrip(".,;") if len(note) > 10 else f"our conversation"
+    body = (
+        f"Hi {first_name},\n\n"
+        f"Your point about {note} stayed with me. "
+        f"It connects to something I ran into scaling payments at SoyYo — the same tension shows up differently once you're past product-market fit. "
+        f"Would a 30-minute call to continue that thread be useful?"
     )
-
-    try:
-        client = anthropic.AsyncAnthropic()
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = response.content[0].text.strip()
-        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        result = json.loads(raw)
-        if "body" in result:
-            return result
-    except Exception:
-        pass
-
-    return None
+    return {
+        "subject": subject_hint,
+        "body": body,
+        "reasoning": f"Anchored on meeting note: {note[:60]}",
+    }
 
 
-async def generate_reflection_draft(
+def generate_reflection_draft(
     contact_name: str,
     contact_title: str,
     company_name: str,
     meeting_note: str,
 ) -> Optional[dict]:
     """
-    Generate AI-powered post-meeting referral pivot (MSG-6).
-    Returns {"subject": ..., "body": ..., "reasoning": ...} or None on failure.
+    MSG-6 post-meeting referral ask — template-based, no API call.
+    Sentence 1: thread anchor from meeting note. Sentence 2: peer intro ask.
+    Sentence 3: ease clause.
     """
-    import json
-    import anthropic
-
-    prompt = (
-        f"Write a second post-meeting follow-up from Santiago to {contact_name}, "
-        f"{contact_title} at {company_name}.\n\n"
-        f"MEETING NOTE (what was discussed in the original meeting):\n{meeting_note}\n\n"
-        "CONTEXT: Santiago and this contact met and had a substantive conversation. "
-        "Santiago sent a thank you already. Now, several business days later, he is asking "
-        "whether this contact might connect him to one or two specific people in their network "
-        "who could benefit from a similar conversation.\n\n"
-        "CONSTRUCTION RULES (in this order):\n"
-        "1. THREAD ANCHOR (one sentence): Reference the core topic from the meeting note to "
-        "re-establish which conversation this continues. Do not re-thank them.\n"
-        "2. REFERRAL ASK (one sentence): Ask if they know one or two people who work on that "
-        "same topic and might value a similar exchange. Frame it as a peer introduction, not "
-        "a job referral. Do not use the words 'job', 'opportunity', 'refer', or 'introduce me to'.\n"
-        "3. EASE CLAUSE (one sentence): Make it easy to decline. One brief sentence signaling "
-        "no obligation. Do not say 'No worries if not.'\n\n"
-        "HARD CONSTRAINTS:\n"
-        "- Body 60 words maximum.\n"
-        "- No em dashes, en dashes, or hyphens.\n"
-        "- No signature block.\n"
-        "- Do not name the job search.\n"
-        "- Do not open with 'Hope you are well' or 'Just wanted to follow up'.\n\n"
-        'Return ONLY valid JSON: {"subject": "<reply-thread subject>", "body": "<60 words max, plain text>", "reasoning": "<one sentence: how you framed the referral ask>"}'
+    first_name = (contact_name or "there").split()[0]
+    note = meeting_note.strip() if meeting_note.strip() else "our conversation"
+    subject_hint = note[:60].rstrip(".,;") if len(note) > 10 else "our conversation"
+    body = (
+        f"Hi {first_name},\n\n"
+        f"I keep coming back to what you shared about {note}. "
+        f"Is there one or two people in your network who think about this problem the same way you do and might find a similar exchange useful? "
+        f"Totally fine if no one comes to mind."
     )
-
-    try:
-        client = anthropic.AsyncAnthropic()
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = response.content[0].text.strip()
-        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        result = json.loads(raw)
-        if "body" in result:
-            return result
-    except Exception:
-        pass
-
-    return None
+    return {
+        "subject": subject_hint,
+        "body": body,
+        "reasoning": f"Anchored on meeting note: {note[:60]}",
+    }
 
 
-async def generate_referral_pivot_draft(
+def generate_referral_pivot_draft(
     contact_name: str,
     contact_title: str,
     company_name: str,
@@ -489,66 +402,27 @@ async def generate_referral_pivot_draft(
     meeting_note: str = "",
 ) -> Optional[dict]:
     """
-    Generate AI-powered referral pivot follow-up (MSG-9).
-    Used after a meeting where the contact mentioned a specific person/company
-    they could connect Santiago with.
-    Returns {"subject": ..., "body": ..., "reasoning": ...} or None on failure.
+    MSG-9 referral pivot — template-based, no API call.
+    Anchors on the specific intro the contact offered. Sentence 1: anchor.
+    Sentence 2: pivot ask framed as continuing their thread. Sentence 3: ease clause.
     """
-    import json
-    import anthropic
-
-    context_parts = []
-    if meeting_note.strip():
-        context_parts.append(f"WHAT WAS DISCUSSED IN THE MEETING:\n{meeting_note}")
-    if reply_summary.strip():
-        context_parts.append(f"WHAT THE CONTACT MENTIONED / REPLY SIGNAL:\n{reply_summary}")
-    context_block = "\n\n".join(context_parts)
-
-    prompt = (
-        f"Write a follow-up email from Santiago to {contact_name}, {contact_title} at {company_name}, "
-        f"after they mentioned a specific person or company during their conversation.\n\n"
-        f"{context_block}\n\n"
-        "CONTEXT: This contact mentioned someone they could connect Santiago with. "
-        "Santiago wants to follow up on that specific mention and ask them to make the connection. "
-        "This is not a generic referral ask — it references the specific person or opportunity "
-        "the contact already brought up.\n\n"
-        "CONSTRUCTION RULES (in this order):\n"
-        "1. ANCHOR (one sentence): Refer back to the specific mention from the contact. "
-        "Use their exact language or reference the topic they raised. "
-        "Do not re-thank them for the meeting.\n"
-        "2. PIVOT ASK (one sentence): Ask if they would be willing to make that introduction. "
-        "Frame it as continuing the thread they opened, not a new ask. "
-        "Do not use 'refer', 'introduce me to', 'connect me with' — find a natural phrasing.\n"
-        "3. EASE CLAUSE (one sentence): Make it low-friction. One brief sentence. "
-        "Do not say 'No worries if not' or 'No pressure'.\n\n"
-        "HARD CONSTRAINTS:\n"
-        "- Body 60 words maximum.\n"
-        "- No em dashes, en dashes, or hyphens.\n"
-        "- No signature block.\n"
-        "- Do not name the job search.\n"
-        "- Do not open with 'Hope you are well' or 'Just circling back'.\n\n"
-        'Return ONLY valid JSON: {"subject": "<reply-thread subject>", "body": "<60 words max, plain text>", "reasoning": "<one sentence: how you framed the ask>"}'
+    first_name = (contact_name or "there").split()[0]
+    mention = reply_summary.strip() if reply_summary.strip() else (meeting_note.strip() or "the connection you mentioned")
+    body = (
+        f"Hi {first_name},\n\n"
+        f"I wanted to follow up on {mention}. "
+        f"Would you be open to making that connection? "
+        f"Happy to draft a quick note for you if that makes it easier."
     )
-
-    try:
-        client = anthropic.AsyncAnthropic()
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = response.content[0].text.strip()
-        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        result = json.loads(raw)
-        if "body" in result:
-            return result
-    except Exception:
-        pass
-
-    return None
+    subject_hint = mention[:60].rstrip(".,;") if len(mention) > 10 else "following up"
+    return {
+        "subject": subject_hint,
+        "body": body,
+        "reasoning": f"Anchored on: {mention[:60]}",
+    }
 
 
-async def generate_champion_briefing_draft(
+def generate_champion_briefing_draft(
     champion_name: str,
     champion_title: str,
     champion_notes: str,
@@ -557,60 +431,24 @@ async def generate_champion_briefing_draft(
     target_company_type: str,
 ) -> Optional[dict]:
     """
-    Generate AI-powered champion briefing note (MSG-8).
-    Returns {"subject": ..., "body": ..., "reasoning": ...} or None on failure.
+    MSG-8 champion briefing note — template-based, no API call.
+    Gives the champion concrete language to introduce Santiago to the target.
     """
-    import json
-    import anthropic
-
-    prompt = (
-        f"Write a briefing note from Santiago to his champion {champion_name} ({champion_title}), "
-        f"coaching them on how to frame Santiago to {target_person_name} at {target_company_name} "
-        f"({target_company_type}).\n\n"
-        f"CHAMPION CONTEXT (background on the relationship and any agreed intro):\n{champion_notes}\n\n"
-        "SANTIAGO'S PROFILE:\n"
-        "Santiago Aldana. MIT Sloan MBA. 20+ years FinTech/AI/payments leadership.\n"
-        "CEO SoyYo (digital identity, 3M users, sold to Redeban). "
-        "CDTO Avianca ($110M IT budget, 47% of sales to digital). "
-        "CEO Uff! Movil (LatAm's first MVNO, sold to Bancolombia). "
-        "Managing Partner AI Data Solutions (LATAM Maven AGI distribution).\n"
-        "Target roles: CEO, COO, CPO, SVP Payments, SVP Embedded Banking at Series B-D FinTech.\n\n"
-        "CONSTRUCTION RULES:\n"
-        "1. FRAMING SENTENCE (one sentence): Tell the champion what angle to lead with when "
-        "introducing Santiago to this specific person. The angle should be tuned to what "
-        f"{target_person_name} at {target_company_name} is most likely working on right now — "
-        "not a generic introduction. Reference the most relevant Santiago credential for this context.\n"
-        "2. WHAT TO SAY (two to three sentences): Give the champion concrete language they can "
-        "use or adapt. This should be first-person from the champion's voice, not Santiago's. "
-        "It should explain why Santiago is worth a conversation for THIS specific person. "
-        "Do not make it sound like a job application.\n"
-        "3. LOGISTICS (one sentence): Suggest how to make the intro (e-mail CC, LinkedIn note, "
-        "direct message). Keep it light — no obligation framing.\n\n"
-        "HARD CONSTRAINTS:\n"
-        "- 100 words maximum total.\n"
-        "- No em dashes, en dashes, or hyphens.\n"
-        "- No signature block.\n"
-        "- Do not name the job search explicitly.\n"
-        "- Subject line: frame around the intro itself, e.g. 'Framing for the [Name] intro'.\n\n"
-        'Return ONLY valid JSON: {"subject": "<subject line>", "body": "<100 words max, plain text>", "reasoning": "<one sentence: which angle you chose and why>"}'
+    champion_first = (champion_name or "there").split()[0]
+    company_type_phrase = f", a {target_company_type}" if target_company_type.strip() else ""
+    context_note = f"\n\n{champion_notes.strip()}" if champion_notes.strip() else ""
+    body = (
+        f"Hi {champion_first},{context_note}\n\n"
+        f"Here's how I'd frame the intro to {target_person_name} at {target_company_name}{company_type_phrase}:\n\n"
+        f"\"I want to connect you with Santiago Aldana. He's spent 20+ years building payments and digital identity infrastructure in emerging markets "
+        f"(sold two companies, ran digital at Avianca). He's been thinking about what {target_company_name} is working on and I think you'd find the conversation useful. "
+        f"Happy to make the intro over email or LinkedIn, whichever is easier.\""
     )
-
-    try:
-        client = anthropic.AsyncAnthropic()
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=400,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = response.content[0].text.strip()
-        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        result = json.loads(raw)
-        if "body" in result:
-            return result
-    except Exception:
-        pass
-
-    return None
+    return {
+        "subject": f"Framing for the {target_person_name} intro",
+        "body": body,
+        "reasoning": f"Standard intro framing for {target_person_name} at {target_company_name}",
+    }
 
 
 def build_outreach_context(

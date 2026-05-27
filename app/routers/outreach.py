@@ -542,7 +542,7 @@ async def draft_followup(
         contact_name = contact.name if contact else "there"
         contact_title = contact.title or ""
         company_name_str = company.name if company else "Unknown"
-        ai_result = await generate_thankyou_draft(
+        ai_result = generate_thankyou_draft(
             contact_name, contact_title, company_name_str, req.new_element.strip(),
         )
         if ai_result:
@@ -558,7 +558,7 @@ async def draft_followup(
             contact_name = contact.name if contact else "there"
             contact_title = contact.title or ""
             company_name_str = company.name if company else "Unknown"
-            ai_result = await generate_reflection_draft(
+            ai_result = generate_reflection_draft(
                 contact_name, contact_title, company_name_str, meeting_note,
             )
             if ai_result:
@@ -573,7 +573,7 @@ async def draft_followup(
         contact_name = contact.name if contact else "there"
         contact_title = contact.title or ""
         company_name_str = company.name if company else "Unknown"
-        ai_result = await generate_bump_draft(
+        ai_result = generate_bump_draft(
             contact_name, contact_title, company_name_str,
             original_body, req.new_element.strip(),
         )
@@ -658,7 +658,7 @@ async def draft_referral_pivot(
     meeting_note = req.meeting_note or record.notes or ""
 
     from app.services.outreach_generator import generate_referral_pivot_draft
-    result = await generate_referral_pivot_draft(
+    result = generate_referral_pivot_draft(
         contact_name=contact.name if contact else "there",
         contact_title=contact.title or "" if contact else "",
         company_name=company.name if company else "Unknown",
@@ -697,7 +697,7 @@ async def draft_champion_intro(
     notes = req.champion_notes or contact.champion_notes or ""
 
     from app.services.outreach_generator import generate_champion_briefing_draft
-    result = await generate_champion_briefing_draft(
+    result = generate_champion_briefing_draft(
         champion_name, champion_title, notes,
         req.target_person_name, req.target_company_name, req.target_company_type,
     )
