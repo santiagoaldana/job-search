@@ -1222,6 +1222,9 @@ function OutreachTab({ company, onReload, defaultContactId }) {
   const [undoId, setUndoId] = useState(null)
   const [awaitingConfirm, setAwaitingConfirm] = useState(null) // 'gmail' | 'dm' | null
   const [customizeOpen, setCustomizeOpen] = useState(false)
+  const [editingContactInfo, setEditingContactInfo] = useState(false)
+  const [contactInfoEdit, setContactInfoEdit] = useState({ email: '', linkedin_url: '' })
+  const [savingContactInfo, setSavingContactInfo] = useState(false)
 
   const selectedContactObj = company.contacts?.find(c => c.id === selectedContact) || null
   const contactEmail = selectedContactObj?.email || null
@@ -1430,6 +1433,69 @@ function OutreachTab({ company, onReload, defaultContactId }) {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Inline contact info editor */}
+      {selectedContactObj && selectedContact && (
+        <div className="bg-card border border-theme rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted font-medium">Contact info</span>
+            <button
+              onClick={() => {
+                setEditingContactInfo(e => !e)
+                setContactInfoEdit({ email: selectedContactObj.email || '', linkedin_url: selectedContactObj.linkedin_url || '' })
+              }}
+              className="text-xs text-blue-500"
+            >
+              {editingContactInfo ? 'Cancel' : 'Edit'}
+            </button>
+          </div>
+          {editingContactInfo ? (
+            <div className="space-y-2">
+              <input
+                value={contactInfoEdit.email}
+                onChange={e => setContactInfoEdit(p => ({ ...p, email: e.target.value }))}
+                placeholder="Email address"
+                className="w-full text-sm bg-input border border-theme rounded-lg px-3 py-2 text-body"
+              />
+              <input
+                value={contactInfoEdit.linkedin_url}
+                onChange={e => setContactInfoEdit(p => ({ ...p, linkedin_url: e.target.value }))}
+                placeholder="LinkedIn URL"
+                className="w-full text-sm bg-input border border-theme rounded-lg px-3 py-2 text-body"
+              />
+              <button
+                disabled={savingContactInfo}
+                onClick={async () => {
+                  setSavingContactInfo(true)
+                  try {
+                    await api.updateContact(selectedContact, {
+                      email: contactInfoEdit.email || null,
+                      linkedin_url: contactInfoEdit.linkedin_url || null,
+                    })
+                    onReload()
+                    setEditingContactInfo(false)
+                  } catch (e) { alert(e.message || 'Save failed') }
+                  finally { setSavingContactInfo(false) }
+                }}
+                className="w-full bg-blue-500 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
+              >
+                {savingContactInfo ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              <div className="text-xs text-body">
+                {selectedContactObj.email
+                  ? <span className="text-blue-500">{selectedContactObj.email}</span>
+                  : <span className="text-orange-400">No email — tap Edit to add</span>}
+              </div>
+              {selectedContactObj.linkedin_url && (
+                <a href={selectedContactObj.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 block">LinkedIn →</a>
+              )}
+            </div>
+          )}
         </div>
       )}
 
