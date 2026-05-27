@@ -312,15 +312,15 @@ export default function Funnel() {
                 setSelectedForMerge(prev =>
                   prev.some(s => s.id === c.id)
                     ? prev.filter(s => s.id !== c.id)
-                    : prev.length < 2 ? [...prev, c] : prev
+                    : [...prev, c]
                 )
                 setMergeKeepId(null)
               }}
             />
           ))}
-          {selectedForMerge.length === 2 && (
+          {selectedForMerge.length >= 2 && (
             <div className="space-y-2 border-t border-theme pt-3">
-              <p className="text-xs font-medium text-body">Which company to keep?</p>
+              <p className="text-xs font-medium text-body">Which company to keep? ({selectedForMerge.length} selected)</p>
               {selectedForMerge.map(c => (
                 <button
                   key={c.id}
@@ -333,17 +333,19 @@ export default function Funnel() {
               <button
                 disabled={!mergeKeepId || mergeSaving}
                 onClick={async () => {
-                  const discard = selectedForMerge.find(c => c.id !== mergeKeepId)
+                  const discards = selectedForMerge.filter(c => c.id !== mergeKeepId)
                   setMergeSaving(true)
                   try {
-                    await api.mergeCompanies(mergeKeepId, discard.id)
+                    for (const discard of discards) {
+                      await api.mergeCompanies(mergeKeepId, discard.id)
+                    }
                     setSelectedForMerge([]); setMergeKeepId(null); setSearchQ(''); loadFunnel()
                   } catch (e) { alert(e.message || 'Merge failed') }
                   finally { setMergeSaving(false) }
                 }}
                 className="w-full bg-red-500 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
               >
-                {mergeSaving ? 'Merging…' : `Delete ${selectedForMerge.find(c => c.id !== mergeKeepId)?.name || '…'}`}
+                {mergeSaving ? 'Merging…' : `Delete ${selectedForMerge.filter(c => c.id !== mergeKeepId).length} duplicate${selectedForMerge.filter(c => c.id !== mergeKeepId).length > 1 ? 's' : ''}`}
               </button>
             </div>
           )}

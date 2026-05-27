@@ -322,7 +322,7 @@ export default function CompanyCard() {
                                 setSelectedContacts(prev =>
                                   prev.some(s => s.id === c.id)
                                     ? prev.filter(s => s.id !== c.id)
-                                    : prev.length < 2 ? [...prev, c] : prev
+                                    : [...prev, c]
                                 )
                                 setContactMergeKeepId(null)
                               }}
@@ -363,9 +363,9 @@ export default function CompanyCard() {
             )}
 
             {/* Contact merge bar */}
-            {selectedContacts.length === 2 && (
+            {selectedContacts.length >= 2 && (
               <div className="border border-theme rounded-xl p-3 space-y-2 mt-2">
-                <p className="text-xs font-medium text-body">Which contact to keep?</p>
+                <p className="text-xs font-medium text-body">Which contact to keep? ({selectedContacts.length} selected)</p>
                 {selectedContacts.map(c => (
                   <button
                     key={c.id}
@@ -378,17 +378,19 @@ export default function CompanyCard() {
                 <button
                   disabled={!contactMergeKeepId || mergeSaving}
                   onClick={async () => {
-                    const discard = selectedContacts.find(c => c.id !== contactMergeKeepId)
+                    const discards = selectedContacts.filter(c => c.id !== contactMergeKeepId)
                     setMergeSaving(true)
                     try {
-                      await api.mergeContacts(contactMergeKeepId, discard.id)
+                      for (const discard of discards) {
+                        await api.mergeContacts(contactMergeKeepId, discard.id)
+                      }
                       setSelectedContacts([]); setContactMergeKeepId(null); load()
                     } catch (e) { alert(e.message || 'Merge failed') }
                     finally { setMergeSaving(false) }
                   }}
                   className="w-full bg-red-500 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
                 >
-                  {mergeSaving ? 'Merging…' : `Delete ${selectedContacts.find(c => c.id !== contactMergeKeepId)?.name || '…'}`}
+                  {mergeSaving ? 'Merging…' : `Delete ${selectedContacts.filter(c => c.id !== contactMergeKeepId).length} duplicate${selectedContacts.filter(c => c.id !== contactMergeKeepId).length > 1 ? 's' : ''}`}
                 </button>
               </div>
             )}
