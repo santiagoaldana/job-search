@@ -1225,6 +1225,7 @@ function OutreachTab({ company, onReload, defaultContactId }) {
   const [editingContactInfo, setEditingContactInfo] = useState(false)
   const [contactInfoEdit, setContactInfoEdit] = useState({ email: '', linkedin_url: '' })
   const [savingContactInfo, setSavingContactInfo] = useState(false)
+  const [championTarget, setChampionTarget] = useState({ person: '', company: '', type: '' })
 
   const selectedContactObj = company.contacts?.find(c => c.id === selectedContact) || null
   const contactEmail = selectedContactObj?.email || null
@@ -1234,6 +1235,16 @@ function OutreachTab({ company, onReload, defaultContactId }) {
     setDraft(null)
     setAwaitingConfirm(null)
     try {
+      if (emailType === 'champion_intro') {
+        const result = await api.draftChampionIntro(selectedContact, {
+          target_person_name: championTarget.person,
+          target_company_name: championTarget.company,
+          target_company_type: championTarget.type,
+          champion_notes: context || undefined,
+        })
+        setDraft({ subject: result.subject || '', body: result.body || result.draft || '', word_count: result.word_count })
+        return
+      }
       const result = await api.generateOutreach({
         company_id: company.id,
         contact_id: selectedContact || undefined,
@@ -1376,12 +1387,13 @@ function OutreachTab({ company, onReload, defaultContactId }) {
   return (
     <div className="space-y-4">
       {/* Email type selector */}
-      <div className="flex gap-1 bg-card2 border border-theme rounded-xl p-1">
+      <div className="flex gap-1 bg-card2 border border-theme rounded-xl p-1 flex-wrap">
         {[
           { value: 'cold', label: 'Cold' },
           { value: 'event_met', label: 'Met at event' },
           { value: 'followup', label: 'Follow-up' },
           { value: 'linkedin_dm', label: 'LinkedIn DM' },
+          ...(selectedContactObj?.is_champion ? [{ value: 'champion_intro', label: 'Champion intro' }] : []),
         ].map(t => (
           <button key={t.value} onClick={() => { setEmailType(t.value); setDraft(null); setAwaitingConfirm(null); setCustomizeOpen(t.value === 'event_met') }}
             className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -1596,23 +1608,59 @@ function OutreachTab({ company, onReload, defaultContactId }) {
         </div>
       ) : (
         /* No draft yet — show generate buttons */
-        <div className="flex gap-2">
-          <button onClick={handleWriteMyself}
-            className="flex-1 border border-theme text-body rounded-xl py-3 text-sm font-medium transition-colors">
-            Write myself
-          </button>
-          <button
-            onClick={emailType === 'event_met' && !context.trim() ? () => setCustomizeOpen(true) : handleGenerate}
-            disabled={generating}
-            title={emailType === 'event_met' && !context.trim() ? 'Add meeting notes before drafting' : undefined}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2">
-            {generating
-              ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</>
-              : emailType === 'event_met' && !context.trim()
-                ? <><ChevronRight size={14} /> Add meeting notes</>
-                : <><Send size={14} /> Draft</>}
-          </button>
-        </div>
+        <>
+          {emailType === 'champion_intro' && (
+            <div className="space-y-2 border border-orange-300 dark:border-orange-700 rounded-xl p-3">
+              <p className="text-xs font-medium text-body">Who should {selectedContactObj?.name || 'your champion'} introduce you to?</p>
+              <input
+                value={championTarget.person}
+                onChange={e => setChampionTarget(p => ({ ...p, person: e.target.value }))}
+                placeholder="Target person name"
+                className="w-full text-sm bg-input border border-theme rounded-lg px-3 py-2 text-body"
+              />
+              <input
+                value={championTarget.company}
+                onChange={e => setChampionTarget(p => ({ ...p, company: e.target.value }))}
+                placeholder="Target company"
+                className="w-full text-sm bg-input border border-theme rounded-lg px-3 py-2 text-body"
+              />
+              <input
+                value={championTarget.type}
+                onChange={e => setChampionTarget(p => ({ ...p, type: e.target.value }))}
+                placeholder="Company type (e.g. fintech startup, payments infra)"
+                className="w-full text-sm bg-input border border-theme rounded-lg px-3 py-2 text-body"
+              />
+              <textarea
+                value={context}
+                onChange={e => setContext(e.target.value)}
+                placeholder="Notes for champion (e.g. they agreed to intro after MIT event)"
+                rows={2}
+                className="w-full bg-input border border-theme rounded-lg px-3 py-2 text-sm text-body resize-none"
+              />
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button onClick={handleWriteMyself}
+              className="flex-1 border border-theme text-body rounded-xl py-3 text-sm font-medium transition-colors">
+              Write myself
+            </button>
+            <button
+              onClick={emailType === 'event_met' && !context.trim() ? () => setCustomizeOpen(true)
+                : emailType === 'champion_intro' && !championTarget.person.trim() ? undefined
+                : handleGenerate}
+              disabled={generating || (emailType === 'champion_intro' && !championTarget.person.trim())}
+              title={emailType === 'event_met' && !context.trim() ? 'Add meeting notes before drafting'
+                : emailType === 'champion_intro' && !championTarget.person.trim() ? 'Enter target person name first'
+                : undefined}
+              className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2">
+              {generating
+                ? <><RefreshCw size={14} className="animate-spin" /> Drafting…</>
+                : emailType === 'event_met' && !context.trim()
+                  ? <><ChevronRight size={14} /> Add meeting notes</>
+                  : <><Send size={14} /> Draft</>}
+            </button>
+          </div>
+        </>
       )}
 
       {/* Customize disclosure */}
