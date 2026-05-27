@@ -363,6 +363,117 @@ async def generate_close_draft(
     return None
 
 
+async def generate_thankyou_draft(
+    contact_name: str,
+    contact_title: str,
+    company_name: str,
+    meeting_note: str,
+) -> Optional[dict]:
+    """
+    Generate AI-powered post-meeting thank you (MSG-5).
+    Returns {"subject": ..., "body": ..., "reasoning": ...} or None on failure.
+    """
+    import json
+    import anthropic
+
+    prompt = (
+        f"Write a post-meeting thank you email from Santiago to {contact_name}, "
+        f"{contact_title} at {company_name}.\n\n"
+        f"MEETING NOTE (what was discussed):\n{meeting_note}\n\n"
+        "CONSTRUCTION RULES (in this order):\n"
+        "1. SPECIFIC CALLBACK (one sentence): Reference exactly one thing the contact said or "
+        "asked during the meeting. Use phrasing like 'Your point about...' or 'When you mentioned...'. "
+        "This should be recognizable to the contact as their own specific thought, not a paraphrase "
+        "of a generic topic.\n"
+        "2. REFLECTION SIGNAL (one sentence): Add one observation from Santiago's own experience "
+        "that connects directly to what the contact raised. This is peer-to-peer, not a pitch.\n"
+        "3. PERMISSION ASK (one sentence): End with a question that invites continued dialogue on "
+        "the same topic. Offer a 30-minute follow-up call framed as continuing the thread. "
+        "Do not say 'Great talking with you.' Do not say 'Hope we can connect again.'\n\n"
+        "HARD CONSTRAINTS:\n"
+        "- Body 60 words maximum.\n"
+        "- No subject line variation that starts with 'Great talking' or 'Thanks for your time'.\n"
+        "- Subject line: derive from the specific topic discussed, not the meeting itself.\n"
+        "- No em dashes, en dashes, or hyphens.\n"
+        "- No signature block.\n"
+        "- Do not name the job search.\n\n"
+        'Return ONLY valid JSON: {"subject": "<topic-derived subject>", "body": "<60 words max, plain text>", "reasoning": "<one sentence: which specific thing you anchored on>"}'
+    )
+
+    try:
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(raw)
+        if "body" in result:
+            return result
+    except Exception:
+        pass
+
+    return None
+
+
+async def generate_reflection_draft(
+    contact_name: str,
+    contact_title: str,
+    company_name: str,
+    meeting_note: str,
+) -> Optional[dict]:
+    """
+    Generate AI-powered post-meeting referral pivot (MSG-6).
+    Returns {"subject": ..., "body": ..., "reasoning": ...} or None on failure.
+    """
+    import json
+    import anthropic
+
+    prompt = (
+        f"Write a second post-meeting follow-up from Santiago to {contact_name}, "
+        f"{contact_title} at {company_name}.\n\n"
+        f"MEETING NOTE (what was discussed in the original meeting):\n{meeting_note}\n\n"
+        "CONTEXT: Santiago and this contact met and had a substantive conversation. "
+        "Santiago sent a thank you already. Now, several business days later, he is asking "
+        "whether this contact might connect him to one or two specific people in their network "
+        "who could benefit from a similar conversation.\n\n"
+        "CONSTRUCTION RULES (in this order):\n"
+        "1. THREAD ANCHOR (one sentence): Reference the core topic from the meeting note to "
+        "re-establish which conversation this continues. Do not re-thank them.\n"
+        "2. REFERRAL ASK (one sentence): Ask if they know one or two people who work on that "
+        "same topic and might value a similar exchange. Frame it as a peer introduction, not "
+        "a job referral. Do not use the words 'job', 'opportunity', 'refer', or 'introduce me to'.\n"
+        "3. EASE CLAUSE (one sentence): Make it easy to decline. One brief sentence signaling "
+        "no obligation. Do not say 'No worries if not.'\n\n"
+        "HARD CONSTRAINTS:\n"
+        "- Body 60 words maximum.\n"
+        "- No em dashes, en dashes, or hyphens.\n"
+        "- No signature block.\n"
+        "- Do not name the job search.\n"
+        "- Do not open with 'Hope you are well' or 'Just wanted to follow up'.\n\n"
+        'Return ONLY valid JSON: {"subject": "<reply-thread subject>", "body": "<60 words max, plain text>", "reasoning": "<one sentence: how you framed the referral ask>"}'
+    )
+
+    try:
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(raw)
+        if "body" in result:
+            return result
+    except Exception:
+        pass
+
+    return None
+
+
 def build_outreach_context(
     company,
     contact=None,

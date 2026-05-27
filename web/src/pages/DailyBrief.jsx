@@ -93,10 +93,17 @@ function FollowUpModal({ action, onClose, onSent }) {
   const [championDate, setChampionDate] = useState('')
   const [newElement, setNewElement] = useState('')
   const [suggestingElement, setSuggestingElement] = useState(false)
+  const [meetingNote, setMeetingNote] = useState('')
+  const [meetingNoteSubmitted, setMeetingNoteSubmitted] = useState(false)
 
   useEffect(() => {
     setDrafting(true)
     setError(null)
+    // For MSG-5 (followup_day=0), don't auto-draft — wait for meeting note
+    if (action.followup_day === 0) {
+      setDrafting(false)
+      return
+    }
     api.draftFollowup(action.payload_id, action.followup_day, language)
       .then(d => {
         const draftSubject = d.subject || ''
@@ -104,6 +111,10 @@ function FollowUpModal({ action, onClose, onSent }) {
         setSubject(draftSubject)
         setBody(draftBody)
         setConversation(d.conversation_text || '')
+        // Pre-fill meeting note for MSG-6 from record.notes
+        if (action.followup_day === -1 && d.meeting_note) {
+          setMeetingNote(d.meeting_note)
+        }
         setDrafting(false)
         const stage = action.followup_day === 0 ? 'post_meeting' : action.followup_day === 3 ? 'day_3' : 'day_7'
         api.getConversationContext(action.payload_id, { subject: draftSubject, body: draftBody, stage })
@@ -159,7 +170,9 @@ function FollowUpModal({ action, onClose, onSent }) {
     setSending(true)
     setError(null)
     try {
-      await api.markFollowupSent(action.payload_id, { followup_day: action.followup_day })
+      const payload = { followup_day: action.followup_day }
+      if (action.followup_day === 0 && meetingNote.trim()) payload.meeting_note = meetingNote.trim()
+      await api.markFollowupSent(action.payload_id, payload)
       setDone(true)
       onSent && onSent(action.payload_id, action.followup_day)
     } catch (e) {
@@ -402,12 +415,84 @@ function FollowUpModal({ action, onClose, onSent }) {
             </div>
           ) : !error || body ? (
             <>
+              {/* MSG-5: meeting note gate — show before draft for followup_day=0 */}
+              {action.followup_day === 0 && !meetingNoteSubmitted ? (
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-body mb-1 block">
+                      Meeting notes <span className="text-orange-500">*</span>
+                    </label>
+                    <p className="text-xs text-muted mb-2">What did you discuss? What did they say that stood out? The AI will anchor the thank-you on a specific thing they raised.</p>
+                    <textarea
+                      value={meetingNote}
+                      onChange={e => setMeetingNote(e.target.value)}
+                      rows={4}
+                      placeholder="e.g. They raised the challenge of onboarding fintech partners quickly. Asked about my experience with API integrations at Avianca…"
+                      className={`w-full rounded-lg px-3 py-2 text-sm bg-card text-body resize-none placeholder-faint focus:outline-none focus:ring-1 border ${meetingNote.trim() ? 'border-theme focus:ring-blue-500' : 'border-orange-400 focus:ring-orange-500'}`}
+                    />
+                    {!meetingNote.trim() && (
+                      <p className="text-xs text-orange-500 mt-1">Add meeting notes to draft the thank-you</p>
+                    )}
+                  </div>
+                  <button
+                    disabled={!meetingNote.trim() || drafting}
+                    onClick={async () => {
+                      setDrafting(true)
+                      setError(null)
+                      try {
+                        const d = await api.draftFollowup(action.payload_id, action.followup_day, language, meetingNote.trim())
+                        setSubject(d.subject || '')
+                        setBody(d.body || '')
+                        setConversation(d.conversation_text || '')
+                        setMeetingNoteSubmitted(true)
+                      } catch (e) { setError(e.message) }
+                      finally { setDrafting(false) }
+                    }}
+                    className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
+                  >
+                    {drafting ? 'Drafting…' : 'Draft thank-you'}
+                  </button>
+                </div>
+              ) : (
+              <>
               {conversation && (
                 <div className="mb-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
                   <label className="text-xs font-semibold text-muted mb-2 block">📧 Previous Conversation</label>
                   <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-20 overflow-y-auto font-mono leading-relaxed">
                     {conversation}
                   </pre>
+                </div>
+              )}
+              {/* MSG-6: editable meeting note pre-filled from record.notes */}
+              {action.followup_day === -1 && (
+                <div className="mb-2">
+                  <label className="text-xs text-muted mb-1 block">
+                    Meeting notes {meetingNote ? <span className="text-green-500">(pre-filled from your thank-you)</span> : <span className="text-orange-400">(not found — add to improve the draft)</span>}
+                  </label>
+                  <textarea
+                    value={meetingNote}
+                    onChange={e => setMeetingNote(e.target.value)}
+                    rows={3}
+                    placeholder="What did you discuss? The AI will use this to frame the referral ask."
+                    className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none placeholder-faint"
+                  />
+                  {meetingNote && (
+                    <button
+                      onClick={async () => {
+                        setDrafting(true)
+                        try {
+                          const d = await api.draftFollowup(action.payload_id, action.followup_day, language, meetingNote.trim())
+                          setSubject(d.subject || '')
+                          setBody(d.body || '')
+                        } catch (e) { setError(e.message) }
+                        finally { setDrafting(false) }
+                      }}
+                      disabled={drafting}
+                      className="mt-1.5 text-xs text-blue-500 hover:text-blue-600 disabled:opacity-40"
+                    >
+                      Regenerate with updated notes
+                    </button>
+                  )}
                 </div>
               )}
               <div className="mb-2">
@@ -543,11 +628,13 @@ function FollowUpModal({ action, onClose, onSent }) {
                 </div>
               )}
             </>
+            )}
+            </>
           ) : null}
         </div>
 
         {/* Footer */}
-        {!drafting && !done && !awaitingConfirm && (
+        {!drafting && !done && !awaitingConfirm && !(action.followup_day === 0 && !meetingNoteSubmitted) && (
           <div className="px-4 pb-4 pt-2 border-t border-theme flex-shrink-0">
             <button
               onClick={handleOpenGmail}

@@ -476,6 +476,7 @@ class SendFollowUpRequest(BaseModel):
 
 class MarkFollowUpSentRequest(BaseModel):
     followup_day: int  # 3 or 7
+    meeting_note: Optional[str] = None  # MSG-5: persisted to record.notes for MSG-6
 
 
 @router.post("/{record_id}/draft-followup")
@@ -527,6 +528,7 @@ async def draft_followup(
     # Generate template-based draft as baseline (no API call)
     from app.services.outreach_generator import (
         draft_followup_from_template, generate_bump_draft, generate_close_draft,
+        generate_thankyou_draft, generate_reflection_draft,
     )
     draft = draft_followup_from_template(stage, outreach_dict, language=req.language)
 
@@ -535,8 +537,38 @@ async def draft_followup(
 
     ai_reasoning = None
 
+    # MSG-5: AI thank you when meeting_note (new_element) is provided
+    if stage == "post_meeting" and req.new_element and req.new_element.strip():
+        contact_name = contact.name if contact else "there"
+        contact_title = contact.title or ""
+        company_name_str = company.name if company else "Unknown"
+        ai_result = await generate_thankyou_draft(
+            contact_name, contact_title, company_name_str, req.new_element.strip(),
+        )
+        if ai_result:
+            draft["subject"] = ai_result.get("subject", draft.get("subject"))
+            draft["body"] = ai_result["body"]
+            draft["template_used"] = False
+            ai_reasoning = ai_result.get("reasoning")
+
+    # MSG-6: AI referral pivot — prefer req.new_element (user-edited), fall back to record.notes
+    elif stage == "post_meeting_2":
+        meeting_note = (req.new_element or record.notes or "").strip()
+        if meeting_note:
+            contact_name = contact.name if contact else "there"
+            contact_title = contact.title or ""
+            company_name_str = company.name if company else "Unknown"
+            ai_result = await generate_reflection_draft(
+                contact_name, contact_title, company_name_str, meeting_note,
+            )
+            if ai_result:
+                draft["subject"] = ai_result.get("subject", draft.get("subject"))
+                draft["body"] = ai_result["body"]
+                draft["template_used"] = False
+                ai_reasoning = ai_result.get("reasoning")
+
     # MSG-3: AI bump when new_element is provided
-    if stage == "day_3" and req.new_element and req.new_element.strip():
+    elif stage == "day_3" and req.new_element and req.new_element.strip():
         original_body = record.outreach_message or record.body or ""
         contact_name = contact.name if contact else "there"
         contact_title = contact.title or ""
@@ -590,6 +622,7 @@ async def draft_followup(
         "company_name": company.name if company else "Unknown",
         "contact_name": contact.name if contact else "Unknown",
         "reasoning": ai_reasoning or draft.get("reasoning", "Generated from template"),
+        "meeting_note": record.notes or "",
     }
 
 
@@ -1048,6 +1081,8 @@ def mark_followup_sent(
         record.post_meeting_followup_sent = True
         record.follow_up_3_sent = True
         record.post_meeting_2_due = add_business_days(today, 3).isoformat()
+        if req.meeting_note and req.meeting_note.strip():
+            record.notes = req.meeting_note.strip()
     elif req.followup_day == -1:
         record.post_meeting_2_sent = True
     elif req.followup_day == 3:
