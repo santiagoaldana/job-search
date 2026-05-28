@@ -1079,6 +1079,14 @@ async def draft_template(
     guessed_email = None
     if contact and contact.email:
         guessed_email = contact.email
+    elif contact and contact.relationship_notes:
+        import re as _re
+        _match = _re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", contact.relationship_notes)
+        if _match:
+            guessed_email = _match.group(0)
+            contact.email = guessed_email
+            session.add(contact)
+            session.commit()
     elif contact and company:
         ns = _contact_next_step(contact, company)
         guessed_email = ns.get("guessed_email")
@@ -1182,6 +1190,16 @@ def build_mailto(
         ).first()
         if reply_msg and reply_msg.from_email:
             to_email = reply_msg.from_email
+
+    # Extract email from relationship_notes if still unknown
+    if not to_email and contact and contact.relationship_notes:
+        import re as _re
+        _match = _re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", contact.relationship_notes)
+        if _match:
+            to_email = _match.group(0)
+            contact.email = to_email
+            session.add(contact)
+            session.commit()
 
     # Auto-guess email from domain if still unknown
     if not to_email and contact and company:
