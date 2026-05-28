@@ -269,21 +269,60 @@ def generate_bump_draft(
     new_element: str,
 ) -> Optional[dict]:
     """
-    MSG-3 Day 3 bump — template-based, no API call.
-    Sentence 1: the new element (user-provided, used as-is). Sentence 2: short re-ask.
+    MSG-3 Day 3 bump — AI-powered, uses new_element as the hook.
+    Synthesizes the new_element into a relevant observation rather than pasting it verbatim.
+    Falls back to template on failure.
     """
+    import json
+    import anthropic
+
     first_name = (contact_name or "there").split()[0]
-    element = new_element.strip().rstrip(".") if new_element.strip() else f"Noticed something interesting happening at {company_name} lately"
-    # Ensure element ends with a period
-    element_sentence = element if element.endswith((".", "?", "!")) else f"{element}."
-    body = (
-        f"Hi {first_name},\n\n"
-        f"{element_sentence}\n\n"
-        f"Still curious whether 15 minutes would be useful."
+
+    prompt = (
+        f"Write a Day 3 follow-up bump email from Santiago Aldana to {first_name} ({contact_title or 'executive'} at {company_name}).\n\n"
+        f"ORIGINAL MESSAGE SANTIAGO SENT:\n{original_body}\n\n"
+        f"NEW CONTEXT (use this as the hook — synthesize it, do not copy it verbatim):\n{new_element.strip()}\n\n"
+        "CONSTRUCTION RULES:\n"
+        "1. HOOK (sentence 1-2): Turn the new context into a specific, insightful observation "
+        "that is relevant to this contact's role and company. Connect the market news to what it "
+        "means for them specifically. Do not just repeat the raw fact — add a point of view.\n"
+        "2. RE-ASK (final sentence): Light ask for 15 minutes. Do not use 'circling back', "
+        "'touching base', 'following up', or 'bumping'.\n\n"
+        "HARD CONSTRAINTS:\n"
+        "- 50 words maximum (body only, no greeting/signature).\n"
+        "- No subject line. No signature block.\n"
+        "- Start with 'Hi {first_name},' on the first line, then a blank line, then the body.\n"
+        "- No em dashes, en dashes, or hyphens.\n"
+        "- No apology. No 'bother', 'inconvenience'.\n"
+        "- Do not name the job search.\n\n"
+        f'Return ONLY valid JSON: {{"body": "<full email starting with Hi {first_name},>", "reasoning": "<one sentence: what angle you used>"}}'
     )
+
+    try:
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(raw)
+        if "body" in result:
+            return result
+    except Exception:
+        pass
+
+    # Template fallback
+    element = new_element.strip().rstrip(".")
+    element_sentence = element if element.endswith((".", "?", "!")) else f"{element}."
     return {
-        "body": body,
-        "reasoning": f"New element: {element[:60]}",
+        "body": (
+            f"Hi {first_name},\n\n"
+            f"{element_sentence}\n\n"
+            f"Still curious whether 15 minutes would be useful."
+        ),
+        "reasoning": f"Template fallback. New element: {element[:60]}",
     }
 
 
