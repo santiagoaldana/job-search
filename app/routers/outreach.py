@@ -417,6 +417,7 @@ class OutreachUpdate(BaseModel):
     linkedin_accepted: Optional[bool] = None
     contact_id: Optional[int] = None
     outreach_message: Optional[str] = None
+    subject: Optional[str] = None
     escalation_snooze_until: Optional[str] = None
     escalation_channel: Optional[str] = None
 
@@ -443,6 +444,8 @@ def patch_outreach(record_id: int, data: OutreachUpdate, session: Session = Depe
         record.contact_id = data.contact_id
     if data.outreach_message is not None:
         record.outreach_message = data.outreach_message
+    if data.subject is not None:
+        record.subject = data.subject
     if data.escalation_snooze_until is not None:
         record.escalation_snooze_until = data.escalation_snooze_until
     if data.escalation_channel is not None:
