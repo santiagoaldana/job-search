@@ -1,3 +1,5 @@
+> **Session start:** Read `../SHARED_CONTEXT.md` before proceeding. It contains SupplyMind milestones, industry landscape, and ready-to-use content hooks. Use it when drafting LinkedIn posts, outreach scripts, or positioning copy.
+
 # Job Search Orchestration System — CLAUDE.md
 
 ## Project Overview
@@ -37,17 +39,24 @@ data/
 
 ## Runtime Architecture — Read This First
 
-### Source of Truth: Render (not local)
+### Source of Truth: Railway (not local)
 
-The live system runs on **Render** at `https://jobsearch.aidatasolutions.co` backed by a **PostgreSQL** database. This is the only authoritative data store.
+The live system runs on **Railway** backed by a **Neon PostgreSQL** database. This is the only authoritative data store.
 
+- **Web app (jobsearch service):** `https://jobsearch.aidatasolutions.co` — FastAPI + React frontend
+- **MCP server (job-search service):** `https://mcp.aidatasolutions.co` — Starlette SSE server Claude connects to
+- **Direct Railway URLs (fallback):** `https://jobsearch-production-4ae1.up.railway.app` and `https://job-search-production-57db.up.railway.app`
 - **Local `data/*.json` files** are legacy outputs from the old CLI modules (`orchestrate.py`). The web app does not read or write them. They are stale and not a mirror of anything.
-- **Local `jobsearch.db`** (SQLite) is only used when running the app locally without a `DATABASE_URL` env var. It is not synced with Render's Postgres.
-- When checking contacts, leads, outreach status, or any pipeline data, always query the Render API or database — not local files.
+- **Local `jobsearch.db`** (SQLite) is only used when running the app locally without a `DATABASE_URL` env var. It is not synced with Neon.
+- When checking contacts, leads, outreach status, or any pipeline data, always query the Railway API or Neon database — not local files.
 
-### Cold Starts — Render + Neon
+### Cold Starts
 
-Both the app server (Render free tier) and the database (Neon free tier) scale to zero after inactivity. A slow first response of **30-60 seconds** after idle time is **normal and expected — not a bug or error**. Both wake up automatically on the first request; just wait it out.
+Railway services are always-on — no cold starts for the web app or MCP server. Only **Neon** (free tier) may have a brief 2-3 second wake-up delay after inactivity. This is normal.
+
+### Deploy Policy
+
+Railway auto-deploys from `main`. Always commit and push after code changes — there is no dev/staging instance.
 
 ### Local CLI
 
