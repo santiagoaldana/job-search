@@ -54,6 +54,11 @@ def compute_daily_brief(session: Session) -> dict:
     # OUTREACH SECTION
     # ══════════════════════════════════════════════════════════════════════════
 
+    # Pre-compute champion contact IDs so follow_up_3/7 loops can suppress them
+    _champion_ids: set = {
+        c.id for c in session.exec(select(Contact).where(Contact.is_champion == True)).all()
+    }
+
     # New replies detected via Gmail sync in last 48h — highest priority cards
     forty_eight_hours_ago = (datetime.utcnow() - timedelta(hours=48)).isoformat()
     recent_reply_records = session.exec(
@@ -235,6 +240,9 @@ def compute_daily_brief(session: Session) -> dict:
         elif record.channel == "linkedin" and record.linkedin_accepted == True:
             continue  # handled by the persistent linkedin_accepted card above
         else:
+            # Skip if contact is a champion — the champion card absorbs this thread
+            if record.contact_id and record.contact_id in _champion_ids:
+                continue
             outreach.append({
                 "action_type": "follow_up_3",
                 "label": f"Day 3 follow-up — {who}",
@@ -248,6 +256,7 @@ def compute_daily_brief(session: Session) -> dict:
                 "linkedin_url": contact.linkedin_url if contact else None,
                 "is_champion": contact.is_champion if contact else False,
                 "sent_at": record.sent_at,
+                "last_message": record.outreach_message or record.body,
                 "payload_id": record.id,
                 "payload_type": "outreach",
                 "followup_day": 3,
@@ -273,6 +282,10 @@ def compute_daily_brief(session: Session) -> dict:
         if record.channel == "linkedin" and record.linkedin_accepted is None:
             continue
 
+        # Skip if contact is a champion — the champion card absorbs this thread
+        if record.contact_id and record.contact_id in _champion_ids:
+            continue
+
         outreach.append({
             "action_type": "follow_up_7",
             "label": f"Day 7 close — {who}",
@@ -287,6 +300,7 @@ def compute_daily_brief(session: Session) -> dict:
             "is_champion": contact.is_champion if contact else False,
             "linkedin_accepted": record.linkedin_accepted,
             "sent_at": record.sent_at,
+            "last_message": record.outreach_message or record.body,
             "payload_id": record.id,
             "payload_type": "outreach",
             "followup_day": 7,
@@ -323,7 +337,30 @@ def compute_daily_brief(session: Session) -> dict:
     for contact in champion_due:
         company = session.get(Company, contact.company_id) if contact.company_id else None
         who = f"{contact.name} at {company.name}" if company else contact.name
-        detail = "Scheduled check-in" if contact.next_checkin_date else "No follow-up date set — add one"
+
+        # Find the most recent pending outreach for this champion (overdue follow-up)
+        pending_record = session.exec(
+            select(OutreachRecord).where(
+                OutreachRecord.contact_id == contact.id,
+                OutreachRecord.response_status == "pending",
+            ).order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
+        ).first()
+
+        pending_outreach = None
+        if pending_record:
+            followup_day = 3 if not pending_record.follow_up_3_sent else 7
+            days_overdue = _days_diff(pending_record.follow_up_3_due if not pending_record.follow_up_3_sent else pending_record.follow_up_7_due, today)
+            pending_outreach = {
+                "id": pending_record.id,
+                "subject": pending_record.subject,
+                "last_message": pending_record.outreach_message or pending_record.body,
+                "followup_day": followup_day,
+                "days_overdue": max(days_overdue, 0),
+            }
+            detail = f"Pending reply · {days_overdue} day{'s' if days_overdue != 1 else ''} overdue"
+        else:
+            detail = "Scheduled check-in" if contact.next_checkin_date else "No follow-up date set — add one"
+
         outreach.append({
             "action_type": "champion_checkin",
             "label": f"Check in — {who}",
@@ -337,6 +374,7 @@ def compute_daily_brief(session: Session) -> dict:
             "champion_notes": contact.champion_notes,
             "next_checkin_date": contact.next_checkin_date,
             "contact_email": contact.email if not getattr(contact, "email_invalid", False) else None,
+            "pending_outreach": pending_outreach,
             "linkedin_url": contact.linkedin_url,
             "payload_id": contact.id,
             "payload_type": "contact",

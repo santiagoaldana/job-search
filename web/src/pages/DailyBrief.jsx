@@ -784,11 +784,11 @@ function InlineFollowUpCard({ action, onSent, onDismiss, onRefresh }) {
         </div>
       </div>
 
-      {/* Last message / conversation context */}
-      {conversation && (
+      {/* Last message — shown immediately from payload, full conversation after draft loads */}
+      {(conversation || action.last_message) && (
         <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-          <div className="text-xs font-semibold text-muted mb-1">📧 Previous Conversation</div>
-          <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-32 overflow-y-auto font-mono leading-relaxed">{conversation}</pre>
+          <div className="text-xs font-semibold text-muted mb-1">📧 {conversation ? 'Previous Conversation' : 'Last message sent'}</div>
+          <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-32 overflow-y-auto font-mono leading-relaxed">{conversation || action.last_message}</pre>
         </div>
       )}
 
@@ -2066,20 +2066,110 @@ function CallScriptCard({ action }) {
 }
 
 function ChampionCheckinCard({ action, onRefresh }) {
+  const pending = action.pending_outreach  // {id, subject, last_message, followup_day, days_overdue}
+
+  // Draft state (shared between nudge and fresh check-in paths)
+  const [language, setLanguage] = useState('en')
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [drafting, setDrafting] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false)
+  const [mailtoUrl, setMailtoUrl] = useState(null)
+  const [draftError, setDraftError] = useState(null)
+  const hasDraft = subject || body
+
+  // Check-in state
   const [notes, setNotes] = useState('')
   const [date, setDate] = useState('')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+
+  // Intro flow
   const [agreeIntro, setAgreeIntro] = useState(false)
   const [introTarget, setIntroTarget] = useState('')
   const [introCompany, setIntroCompany] = useState('')
   const [introCompanyType, setIntroCompanyType] = useState('')
-  const [drafting, setDrafting] = useState(false)
+  const [introDrafting, setIntroDrafting] = useState(false)
   const [introDraft, setIntroDraft] = useState(null)
   const [introCopied, setIntroCopied] = useState(false)
-  const [draftError, setDraftError] = useState(null)
+
+  // Close flow
   const [closingPrompt, setClosingPrompt] = useState(false)
   const [snoozeDate, setSnoozeDate] = useState('')
+
+  const handleDraftNudge = async () => {
+    if (!pending) return
+    setDrafting(true)
+    setDraftError(null)
+    try {
+      const d = await api.draftFollowup(pending.id, pending.followup_day, language)
+      setSubject(d.subject || '')
+      setBody(d.body || '')
+    } catch (e) { setDraftError(e.message) }
+    finally { setDrafting(false) }
+  }
+
+  const handleDraftFresh = async () => {
+    setDrafting(true)
+    setDraftError(null)
+    try {
+      // Generate a champion check-in message via the champion intro endpoint
+      const result = await api.draftChampionIntro(action.payload_id, {
+        target_person_name: '',
+        target_company_name: action.company_name || '',
+        target_company_type: '',
+        champion_notes: (notes.trim() ? notes.trim() + '\n\n' : '') + (action.champion_notes || ''),
+      })
+      setSubject(result.subject || '')
+      setBody(result.body || '')
+    } catch (e) { setDraftError(e.message) }
+    finally { setDrafting(false) }
+  }
+
+  const handleOpenGmail = async () => {
+    setSending(true)
+    try {
+      const to = encodeURIComponent(action.contact_email || '')
+      const su = encodeURIComponent(subject)
+      const bd = encodeURIComponent(body)
+      const url = `https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${bd}`
+      setMailtoUrl(url)
+      window.open(url, '_blank')
+      setAwaitingConfirm(true)
+    } catch (e) { setDraftError(e.message) }
+    finally { setSending(false) }
+  }
+
+  const handleConfirmSent = async () => {
+    if (pending) {
+      // Mark the pending follow-up as sent
+      setSending(true)
+      try {
+        await api.markFollowupSent(pending.id, { followup_day: pending.followup_day })
+      } catch (e) { console.error(e) }
+      finally { setSending(false) }
+    }
+    setAwaitingConfirm(false)
+    setMailtoUrl(null)
+    setSubject('')
+    setBody('')
+  }
+
+  const handleDraftIntro = async (e) => {
+    e.stopPropagation()
+    setIntroDrafting(true)
+    try {
+      const result = await api.draftChampionIntro(action.payload_id, {
+        target_person_name: introTarget.trim(),
+        target_company_name: introCompany.trim(),
+        target_company_type: introCompanyType.trim(),
+        champion_notes: notes.trim() || action.champion_notes || '',
+      })
+      setIntroDraft(result)
+    } catch (err) { setDraftError(err.message) }
+    finally { setIntroDrafting(false) }
+  }
 
   const save = async (e) => {
     e.stopPropagation()
@@ -2095,44 +2185,8 @@ function ChampionCheckinCard({ action, onRefresh }) {
       })
       setDone(true)
       setTimeout(() => onRefresh(), 1200)
-    } catch (err) {
-      console.error('checkin save error', err)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const close = async (e) => {
-    e.stopPropagation()
-    if (!action.payload_id) return
-    setSaving(true)
-    try {
-      await api.updateContact(action.payload_id, { is_champion: false })
-      onRefresh()
-    } catch (err) {
-      console.error('close relationship error', err)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDraftIntro = async (e) => {
-    e.stopPropagation()
-    setDrafting(true)
-    setDraftError(null)
-    try {
-      const result = await api.draftChampionIntro(action.payload_id, {
-        target_person_name: introTarget.trim(),
-        target_company_name: introCompany.trim(),
-        target_company_type: introCompanyType.trim(),
-        champion_notes: notes.trim() || action.champion_notes || '',
-      })
-      setIntroDraft(result)
-    } catch (err) {
-      setDraftError(err.message)
-    } finally {
-      setDrafting(false)
-    }
+    } catch (err) { console.error('checkin save error', err) }
+    finally { setSaving(false) }
   }
 
   if (done) {
@@ -2145,111 +2199,109 @@ function ChampionCheckinCard({ action, onRefresh }) {
 
   return (
     <div className="mt-3 pt-3 border-t border-theme flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+
+      {/* EN/ES toggle */}
+      <div className="flex justify-end">
+        <div className="flex rounded-lg border border-theme overflow-hidden text-xs font-medium">
+          <button onClick={() => setLanguage('en')} className={`px-1.5 py-0.5 transition-colors ${language === 'en' ? 'bg-blue-500 text-white' : 'text-muted'}`}>EN</button>
+          <button onClick={() => setLanguage('es')} className={`px-1.5 py-0.5 transition-colors ${language === 'es' ? 'bg-blue-500 text-white' : 'text-muted'}`}>ES</button>
+        </div>
+      </div>
+
+      {/* Prior notes */}
       {action.champion_notes && (
-        <div className="text-xs text-muted bg-slate-50 dark:bg-slate-800/50 rounded-lg px-3 py-2 leading-relaxed whitespace-pre-wrap line-clamp-4">
+        <div className="text-xs text-muted bg-slate-50 dark:bg-slate-800/50 rounded-lg px-3 py-2 leading-relaxed whitespace-pre-wrap max-h-24 overflow-y-auto">
           {action.champion_notes}
         </div>
       )}
+
+      {/* PENDING THREAD MODE — champion has an overdue follow-up */}
+      {pending && (
+        <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg px-3 py-2 flex flex-col gap-1">
+          <div className="text-xs font-semibold text-orange-700 dark:text-orange-300">
+            Pending reply · {pending.days_overdue} day{pending.days_overdue !== 1 ? 's' : ''} overdue
+          </div>
+          {pending.subject && <div className="text-xs text-muted">{pending.subject}</div>}
+          {pending.last_message && (
+            <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-20 overflow-y-auto font-mono leading-relaxed mt-1">{pending.last_message}</pre>
+          )}
+        </div>
+      )}
+
+      {/* Notes textarea */}
       <textarea
         rows={2}
-        placeholder="How did it go?"
+        placeholder={pending ? 'Optional context for the nudge…' : 'What happened? (optional — seeds the draft)'}
         value={notes}
         onChange={e => setNotes(e.target.value)}
         className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
       />
+
+      {/* Draft / send flow */}
+      {draftError && <div className="text-xs text-red-500">{draftError}</div>}
+      {!hasDraft ? (
+        <button
+          onClick={pending ? handleDraftNudge : handleDraftFresh}
+          disabled={drafting}
+          className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-xs font-semibold"
+        >
+          {drafting ? 'Drafting…' : pending ? 'Draft nudge →' : 'Draft message →'}
+        </button>
+      ) : !awaitingConfirm ? (
+        <div className="flex flex-col gap-2">
+          <input value={subject} onChange={e => setSubject(e.target.value)} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body" placeholder="Subject" />
+          <textarea value={body} onChange={e => setBody(e.target.value)} rows={4} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body resize-none" />
+          <div className="flex gap-2">
+            <button onClick={pending ? handleDraftNudge : handleDraftFresh} disabled={drafting} className="text-xs px-3 py-2 border border-theme rounded-lg text-muted">{drafting ? '…' : 'Refine ↺'}</button>
+            <button onClick={handleOpenGmail} disabled={sending} className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2 text-xs font-semibold">{sending ? 'Opening…' : 'Send via Gmail →'}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="text-xs text-muted text-center">Did you send the message?</div>
+          <div className="flex gap-2">
+            <button onClick={() => { setAwaitingConfirm(false); setMailtoUrl(null) }} className="flex-1 border border-theme text-body rounded-lg py-2 text-xs">No, go back</button>
+            <button onClick={handleConfirmSent} disabled={sending} className="flex-1 bg-green-500 text-white rounded-lg py-2 text-xs font-semibold disabled:opacity-50">{sending ? '…' : 'Yes, sent ✓'}</button>
+          </div>
+          {mailtoUrl && <button onClick={() => window.open(mailtoUrl, '_blank')} className="text-xs text-blue-500 text-center">Re-open Gmail</button>}
+        </div>
+      )}
+
+      {/* They agreed to introduce me */}
       <label className="flex items-center gap-2 text-xs text-body cursor-pointer">
-        <input
-          type="checkbox"
-          checked={agreeIntro}
-          onChange={e => setAgreeIntro(e.target.checked)}
-          className="rounded border-theme"
-        />
+        <input type="checkbox" checked={agreeIntro} onChange={e => setAgreeIntro(e.target.checked)} className="rounded border-theme" />
         They agreed to introduce me to someone
       </label>
       {agreeIntro && (
         <div className="flex flex-col gap-2 mt-1">
-          <input
-            type="text"
-            placeholder="Target person name"
-            value={introTarget}
-            onChange={e => setIntroTarget(e.target.value)}
-            className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-amber-500"
-          />
+          <input type="text" placeholder="Target person name" value={introTarget} onChange={e => setIntroTarget(e.target.value)} className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-amber-500" />
           <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Their company"
-              value={introCompany}
-              onChange={e => setIntroCompany(e.target.value)}
-              className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-amber-500"
-            />
-            <input
-              type="text"
-              placeholder="Company type (e.g. BaaS, FinTech)"
-              value={introCompanyType}
-              onChange={e => setIntroCompanyType(e.target.value)}
-              className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-amber-500"
-            />
+            <input type="text" placeholder="Their company" value={introCompany} onChange={e => setIntroCompany(e.target.value)} className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-amber-500" />
+            <input type="text" placeholder="Company type (e.g. BaaS)" value={introCompanyType} onChange={e => setIntroCompanyType(e.target.value)} className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-amber-500" />
           </div>
-          {draftError && <p className="text-xs text-red-500">{draftError}</p>}
           {introDraft ? (
             <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800 flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Briefing note for {action.contact_name}</span>
-                <button
-                  onClick={() => {
-                    const text = `Subject: ${introDraft.subject}\n\n${introDraft.body}`
-                    navigator.clipboard?.writeText(text).catch(() => {})
-                    setIntroCopied(true)
-                    setTimeout(() => setIntroCopied(false), 2000)
-                  }}
-                  className="text-xs text-amber-600 dark:text-amber-400 hover:underline"
-                >{introCopied ? 'Copied!' : 'Copy'}</button>
+                <button onClick={() => { const text = `Subject: ${introDraft.subject}\n\n${introDraft.body}`; navigator.clipboard?.writeText(text).catch(() => {}); setIntroCopied(true); setTimeout(() => setIntroCopied(false), 2000) }} className="text-xs text-amber-600 hover:underline">{introCopied ? 'Copied!' : 'Copy'}</button>
               </div>
               <div className="text-xs text-muted font-medium">{introDraft.subject}</div>
               <pre className="text-xs text-body whitespace-pre-wrap break-words leading-relaxed">{introDraft.body}</pre>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    const to = encodeURIComponent(action.contact_email || '')
-                    const su = encodeURIComponent(introDraft.subject || '')
-                    const body = encodeURIComponent(introDraft.body || '')
-                    window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, '_blank')
-                  }}
-                  className="flex-1 text-xs px-3 py-2 rounded-lg bg-amber-500 text-white font-semibold hover:bg-amber-600"
-                >Send via Gmail →</button>
-                <button
-                  onClick={handleDraftIntro}
-                  disabled={drafting}
-                  className="text-xs text-amber-600 hover:underline disabled:opacity-40"
-                >Regenerate</button>
+              <div className="flex gap-2">
+                <button onClick={() => { const to = encodeURIComponent(action.contact_email || ''); const su = encodeURIComponent(introDraft.subject || ''); const bd = encodeURIComponent(introDraft.body || ''); window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${bd}`, '_blank') }} className="flex-1 text-xs px-3 py-2 rounded-lg bg-amber-500 text-white font-semibold hover:bg-amber-600">Send via Gmail →</button>
+                <button onClick={handleDraftIntro} disabled={introDrafting} className="text-xs text-amber-600 hover:underline disabled:opacity-40">Regenerate</button>
               </div>
             </div>
           ) : (
-            <button
-              disabled={drafting}
-              onClick={handleDraftIntro}
-              className="text-xs px-3 py-2 rounded-lg bg-amber-500 text-white font-medium disabled:opacity-40 hover:bg-amber-600 text-left"
-            >
-              {drafting ? 'Drafting…' : 'Draft activation note'}
-            </button>
+            <button disabled={introDrafting} onClick={handleDraftIntro} className="text-xs px-3 py-2 rounded-lg bg-amber-500 text-white font-medium disabled:opacity-40 hover:bg-amber-600 text-left">{introDrafting ? 'Drafting…' : 'Draft activation note'}</button>
           )}
         </div>
       )}
+
+      {/* Next check-in date + Save */}
       <div className="flex items-center gap-2">
-        <input
-          type="date"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-          className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body focus:outline-none focus:ring-1 focus:ring-blue-500"
-        />
-        <button
-          disabled={!date || saving}
-          onClick={save}
-          className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-40 hover:bg-blue-600"
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        <button disabled={!date || saving} onClick={save} className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-40 hover:bg-blue-600">{saving ? 'Saving…' : 'Save'}</button>
       </div>
       {!closingPrompt ? (
         <button
