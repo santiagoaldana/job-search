@@ -4,7 +4,9 @@ Job Search System v2 — FastAPI entry point.
 Run: uvicorn app.main:app --reload --port 8000
 """
 
+import json
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -20,6 +22,8 @@ if env_path.exists():
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError, InterfaceError
+from starlette.middleware.base import BaseHTTPMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -102,8 +106,11 @@ async def job_linkedin_publish():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_tables()
-    run_migrations()
+    try:
+        create_tables()
+        run_migrations()
+    except Exception as e:
+        print(f"[startup] DB unavailable — skipping table creation/migrations: {e}")
     try:
         from app.migrate import seed_feeds
         from sqlmodel import Session
@@ -133,32 +140,66 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[startup] Gmail token seed error: {e}")
 
-    # Lead refresh and LinkedIn publish remain paused
+    # Lead scraper remains paused (heavy DB writes)
     # scheduler.add_job(
     #     job_refresh_leads,
     #     CronTrigger(day_of_week="wed,sat", hour=8),
     #     id="refresh_leads",
     #     replace_existing=True,
     # )
-    # scheduler.add_job(
-    #     job_linkedin_publish,
-    #     CronTrigger(hour="7,12", minute=45),
-    #     id="linkedin_publish",
-    #     replace_existing=True,
-    # )
-    # Daily sync paused until June 1 to conserve Neon free-tier DB transfer
-    # scheduler.add_job(
-    #     job_daily_morning,
-    #     CronTrigger(hour=7, minute=0),
-    #     id="daily_morning",
-    #     replace_existing=True,
-    # )
+    scheduler.add_job(
+        job_linkedin_publish,
+        IntervalTrigger(minutes=30),
+        id="linkedin_publish",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        job_daily_morning,
+        CronTrigger(hour=7, minute=0, timezone="America/New_York"),
+        id="daily_morning",
+        replace_existing=True,
+    )
 
     scheduler.start()
 
     print("✓ Job Search System v2 started")
     yield
     scheduler.shutdown()
+
+
+# ── Write buffer (active during Neon free-tier outage) ────────────────────────
+
+_BUFFER_PATH = Path("/tmp/write_buffer.jsonl")
+_WRITE_METHODS = {"POST", "PATCH", "PUT", "DELETE"}
+
+
+def _buffer_request(method: str, path: str, query: str, headers: dict, body: bytes) -> None:
+    entry = {
+        "ts": time.time(),
+        "method": method,
+        "path": path,
+        "query": query,
+        "headers": {k: v for k, v in headers.items()},
+        "body": body.decode("utf-8", errors="replace"),
+    }
+    with _BUFFER_PATH.open("a") as f:
+        f.write(json.dumps(entry) + "\n")
+    print(f"[write_buffer] Buffered {method} {path}")
+
+
+class WriteBufferMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.method not in _WRITE_METHODS:
+            return await call_next(request)
+        body = await request.body()
+        try:
+            return await call_next(request)
+        except (OperationalError, InterfaceError) as e:
+            _buffer_request(request.method, str(request.url.path), str(request.url.query), dict(request.headers), body)
+            return JSONResponse(
+                {"buffered": True, "message": "DB unavailable — request saved for replay after June 1"},
+                status_code=202,
+            )
 
 
 # ── App instance ──────────────────────────────────────────────────────────────
@@ -177,6 +218,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(WriteBufferMiddleware)
+
+
+@app.exception_handler(OperationalError)
+async def db_operational_error_handler(request: Request, exc: OperationalError):
+    if request.method in _WRITE_METHODS:
+        body = await request.body()
+        _buffer_request(request.method, str(request.url.path), str(request.url.query), dict(request.headers), body)
+        return JSONResponse(
+            {"buffered": True, "message": "DB unavailable — request saved for replay after June 1"},
+            status_code=202,
+        )
+    return JSONResponse({"detail": "Database unavailable"}, status_code=503)
+
+
+@app.exception_handler(InterfaceError)
+async def db_interface_error_handler(request: Request, exc: InterfaceError):
+    if request.method in _WRITE_METHODS:
+        body = await request.body()
+        _buffer_request(request.method, str(request.url.path), str(request.url.query), dict(request.headers), body)
+        return JSONResponse(
+            {"buffered": True, "message": "DB unavailable — request saved for replay after June 1"},
+            status_code=202,
+        )
+    return JSONResponse({"detail": "Database unavailable"}, status_code=503)
+
 
 # ── Auth middleware ───────────────────────────────────────────────────────────
 
