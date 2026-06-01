@@ -226,9 +226,6 @@ def compute_daily_brief(session: Session) -> dict:
         elif record.channel == "linkedin" and record.linkedin_accepted == True:
             continue  # handled by the persistent linkedin_accepted card above
         else:
-            # Skip if contact is an active champion with a check-in due today — champion_checkin card takes priority
-            if contact and contact.is_champion and contact.next_checkin_date and contact.next_checkin_date <= today:
-                continue
             outreach.append({
                 "action_type": "follow_up_3",
                 "label": f"Day 3 follow-up — {who}",
@@ -262,10 +259,6 @@ def compute_daily_brief(session: Session) -> dict:
 
         # LinkedIn-only outreach with no acceptance: not an email close, skip
         if record.channel == "linkedin" and record.linkedin_accepted is None:
-            continue
-
-        # Skip if contact is an active champion with a check-in due today
-        if contact and contact.is_champion and contact.next_checkin_date and contact.next_checkin_date <= today:
             continue
 
         outreach.append({
