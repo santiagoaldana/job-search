@@ -852,13 +852,21 @@ async def refine_draft_endpoint(
     req: RefineDraftRequest,
     session: Session = Depends(get_session),
 ):
-    """Polish the current draft: fix spelling/grammar, strip em dashes and filler."""
-    record = session.get(OutreachRecord, record_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
+    """Polish the current draft: fix spelling/grammar, strip em dashes and filler.
+    record_id may be an OutreachRecord ID or a Contact ID (champion_checkin cards use contact ID).
+    """
+    contact = None
+    company = None
 
-    contact = session.get(Contact, record.contact_id) if record.contact_id else None
-    company = session.get(Company, contact.company_id) if contact and contact.company_id else None
+    record = session.get(OutreachRecord, record_id)
+    if record:
+        contact = session.get(Contact, record.contact_id) if record.contact_id else None
+        company = session.get(Company, contact.company_id) if contact and contact.company_id else None
+    else:
+        # Fallback: treat record_id as a Contact ID (champion_checkin cards)
+        contact = session.get(Contact, record_id)
+        if contact and contact.company_id:
+            company = session.get(Company, contact.company_id)
 
     from app.services.outreach_generator import refine_draft
     result = refine_draft(
