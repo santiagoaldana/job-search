@@ -53,22 +53,6 @@ TYPE_INSTRUCTIONS = {
         "End with: 'Would value the connection.' "
         "No em dashes, en dashes, or hyphens."
     ),
-    "connection_request_a": (
-        "LinkedIn CONNECTION REQUEST NOTE. HARD LIMIT: 300 characters total including spaces. "
-        "One sentence only. Reference one specific thing about their work or company right now "
-        "that someone in their role would recognize as true about their own situation. "
-        "Do not introduce Santiago by name or title. Do not ask for a call. Do not end with a question. "
-        "End with: 'Would value the connection.' "
-        "No em dashes, en dashes, or hyphens."
-    ),
-    "connection_request_b": (
-        "LinkedIn CONNECTION REQUEST NOTE. HARD LIMIT: 300 characters total including spaces. "
-        "One sentence only. Reference one specific thing about their work or company right now "
-        "that someone in their role would recognize as true about their own situation. "
-        "Do not introduce Santiago by name or title. Do not ask for a call. Do not end with a question. "
-        "End with: 'Would value the connection.' "
-        "No em dashes, en dashes, or hyphens."
-    ),
     "champion_intro": (
         "This is a briefing note to a champion contact, coaching them on how to frame Santiago "
         "to a target person they agreed to introduce him to. "
@@ -552,7 +536,7 @@ def build_outreach_context(
     else:
         contact_info = {"name": None, "note": f"No specific contact at {company.name}"}
 
-    is_connection_request = email_type in ("connection_request_a", "connection_request_b")
+    is_connection_request = email_type == "connection_request"
     is_linkedin_dm = email_type == "linkedin_dm"
 
     if is_connection_request:

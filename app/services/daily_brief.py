@@ -84,7 +84,9 @@ def compute_daily_brief(session: Session) -> dict:
             "company_id": record.company_id,
             "contact_id": record.contact_id,
             "contact_name": contact.name if contact else None,
+            "contact_title": contact.title if contact else None,
             "company_name": company.name if company else None,
+            "linkedin_url": contact.linkedin_url if contact else None,
             "payload_id": record.id,
             "payload_type": "outreach",
         })
@@ -112,7 +114,9 @@ def compute_daily_brief(session: Session) -> dict:
             "company_id": record.company_id,
             "contact_id": record.contact_id,
             "contact_name": contact.name if contact else None,
+            "contact_title": contact.title if contact else None,
             "company_name": company.name if company else None,
+            "linkedin_url": contact.linkedin_url if contact else None,
             "payload_id": record.id,
             "payload_type": "outreach",
             "followup_day": 0,
@@ -139,7 +143,9 @@ def compute_daily_brief(session: Session) -> dict:
             "company_id": record.company_id,
             "contact_id": record.contact_id,
             "contact_name": contact.name if contact else None,
+            "contact_title": contact.title if contact else None,
             "company_name": company.name if company else None,
+            "linkedin_url": contact.linkedin_url if contact else None,
             "payload_id": record.id,
             "payload_type": "outreach",
             "followup_day": -1,
@@ -167,7 +173,9 @@ def compute_daily_brief(session: Session) -> dict:
             "company_id": record.company_id,
             "contact_id": record.contact_id,
             "contact_name": contact.name if contact else None,
+            "contact_title": contact.title if contact else None,
             "company_name": company.name if company else None,
+            "linkedin_url": contact.linkedin_url if contact else None,
             "payload_id": record.id,
             "payload_type": "outreach",
             "escalation_channel": record.escalation_channel,
@@ -216,6 +224,7 @@ def compute_daily_brief(session: Session) -> dict:
                 "contact_title": contact.title if contact else None,
                 "company_name": company.name if company else None,
                 "intel_summary": company.intel_summary if company else None,
+                "linkedin_url": contact.linkedin_url if contact else None,
                 "payload_id": record.id,
                 "payload_type": "outreach",
                 "next_step": next_step,
@@ -235,7 +244,10 @@ def compute_daily_brief(session: Session) -> dict:
                 "contact_id": contact.id if contact else None,
                 "contact_name": contact.name if contact else None,
                 "contact_title": contact.title if contact else None,
+                "company_name": company.name if company else None,
+                "linkedin_url": contact.linkedin_url if contact else None,
                 "is_champion": contact.is_champion if contact else False,
+                "sent_at": record.sent_at,
                 "payload_id": record.id,
                 "payload_type": "outreach",
                 "followup_day": 3,
@@ -270,8 +282,11 @@ def compute_daily_brief(session: Session) -> dict:
             "contact_id": contact.id if contact else None,
             "contact_name": contact.name if contact else None,
             "contact_title": contact.title if contact else None,
+            "company_name": company.name if company else None,
+            "linkedin_url": contact.linkedin_url if contact else None,
             "is_champion": contact.is_champion if contact else False,
             "linkedin_accepted": record.linkedin_accepted,
+            "sent_at": record.sent_at,
             "payload_id": record.id,
             "payload_type": "outreach",
             "followup_day": 7,
@@ -294,30 +309,35 @@ def compute_daily_brief(session: Session) -> dict:
     if stale_records:
         session.commit()
 
-    # Champion check-ins due today
+    # Champion check-ins due today OR with no date set (surface daily until date is set)
     champion_due = session.exec(
         select(Contact).where(
             Contact.is_champion == True,
-            Contact.next_checkin_date != None,
-            Contact.next_checkin_date <= today,
+            or_(
+                Contact.next_checkin_date == None,
+                Contact.next_checkin_date <= today,
+            ),
         )
     ).all()
 
     for contact in champion_due:
         company = session.get(Company, contact.company_id) if contact.company_id else None
         who = f"{contact.name} at {company.name}" if company else contact.name
+        detail = "Scheduled check-in" if contact.next_checkin_date else "No follow-up date set — add one"
         outreach.append({
             "action_type": "champion_checkin",
             "label": f"Check in — {who}",
-            "detail": "Scheduled check-in",
+            "detail": detail,
             "cta": "Log outcome",
             "company_id": contact.company_id,
             "contact_id": contact.id,
             "contact_name": contact.name,
+            "contact_title": contact.title,
             "company_name": company.name if company else None,
             "champion_notes": contact.champion_notes,
             "next_checkin_date": contact.next_checkin_date,
             "contact_email": contact.email if not getattr(contact, "email_invalid", False) else None,
+            "linkedin_url": contact.linkedin_url,
             "payload_id": contact.id,
             "payload_type": "contact",
         })
@@ -361,6 +381,11 @@ def compute_daily_brief(session: Session) -> dict:
             "detail": detail,
             "cta": "Draft outreach",
             "company_id": contact.company_id,
+            "contact_id": contact.id,
+            "contact_name": contact.name,
+            "contact_title": contact.title,
+            "company_name": company.name if company else None,
+            "linkedin_url": contact.linkedin_url,
             "payload_id": contact.id,
             "payload_type": "contact",
             "relationship_notes": contact.relationship_notes or "",
@@ -759,10 +784,12 @@ def compute_daily_brief(session: Session) -> dict:
         "check_linkedin_acceptance": 5, "contact_gap": 2,
     }
 
-    def _strategic_score(card: dict) -> int:
+    def _strategic_score(card: dict) -> tuple:
         score = 100 if card.get("company_id") in priority_ids else 0
         score += _urgency.get(card.get("action_type", ""), 0)
-        return score
+        # Secondary sort: within same action type, newest sent_at first (more recent = fresher in mind)
+        sent_at = card.get("sent_at") or ""
+        return (score, sent_at)
 
     outreach.sort(key=_strategic_score, reverse=True)
 

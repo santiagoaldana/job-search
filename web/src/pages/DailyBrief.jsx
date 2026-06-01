@@ -644,16 +644,355 @@ function FollowUpModal({ action, onClose, onSent }) {
   )
 }
 
-function NewReplyCard({ action, onDismiss, onRefresh }) {
-  const handleReply = () => {
-    if (action.contact_name) {
-      const subject = encodeURIComponent(`Re: ${action.label.replace('Reply received — ', '')}`)
-      window.open(`https://mail.google.com/mail/?view=cm&su=${subject}`, '_blank')
-    }
-    if (action.company_id) {
-      // Navigate handled by parent handleAction
-    }
+function InlineFollowUpCard({ action, onSent, onDismiss, onRefresh }) {
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [conversation, setConversation] = useState('')
+  const [drafting, setDrafting] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false)
+  const [mailtoUrl, setMailtoUrl] = useState(null)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState(null)
+  const [language, setLanguage] = useState('en')
+  const [rescheduling, setRescheduling] = useState(false)
+  const [rescheduleDate, setRescheduleDate] = useState('')
+  const [keepwarm, setKeepwarm] = useState(false)
+  const [keepwarmDate, setKeepwarmDate] = useState('')
+  const [keepwarmDone, setKeepwarmDone] = useState(false)
+  const [postMeetingChoice, setPostMeetingChoice] = useState(null)
+  const [championNotes, setChampionNotes] = useState('')
+  const [championDate, setChampionDate] = useState('')
+  const [newElement, setNewElement] = useState('')
+  const [suggestingElement, setSuggestingElement] = useState(false)
+  const [meetingNote, setMeetingNote] = useState('')
+  const [meetingNoteSubmitted, setMeetingNoteSubmitted] = useState(false)
+  const [personalEmail, setPersonalEmail] = useState('')
+  const [personalEmailSaving, setPersonalEmailSaving] = useState(false)
+  const [personalEmailDone, setPersonalEmailDone] = useState(false)
+  const [closing, setClosing] = useState(false)
+
+  const cardColor = ACTION_COLORS[action.action_type] || 'border-theme bg-card'
+  const ActionIcon = ACTION_ICONS[action.action_type] || AlertCircle
+  const iconColor = ACTION_ICON_COLORS[action.action_type] || 'text-muted'
+  const isPriority = false
+  const title = action.followup_day === 0 ? 'Post-Meeting Follow-up' : action.followup_day === -1 ? 'Reach Back Out' : action.followup_day === 3 ? 'Day 3 follow-up' : 'Day 7 close-out'
+
+  const handleDraft = async () => {
+    setDrafting(true)
+    setError(null)
+    try {
+      const d = await api.draftFollowup(action.payload_id, action.followup_day, language, newElement || undefined)
+      setSubject(d.subject || '')
+      setBody(d.body || '')
+      setConversation(d.conversation_text || '')
+      if (action.followup_day === -1 && d.meeting_note) setMeetingNote(d.meeting_note)
+      if (action.followup_day === 3) {
+        setSuggestingElement(true)
+        api.suggestBumpElement(action.payload_id)
+          .then(r => { if (r.suggestion) setNewElement(r.suggestion) })
+          .catch(() => {})
+          .finally(() => setSuggestingElement(false))
+      }
+    } catch (e) { setError(e.message) }
+    finally { setDrafting(false) }
   }
+
+  const handleOpenGmail = async () => {
+    setSending(true)
+    try {
+      const result = await api.buildMailto(action.payload_id, { subject, body, followup_day: action.followup_day })
+      const url = result.mailto_url
+      setMailtoUrl(url)
+      if (!result.to_email) { setError('No email address on file. Add one in the company card first.'); setSending(false); return }
+      if (result.email_is_guessed) setError(`Sending to guessed email: ${result.to_email} — verify before sending.`)
+      if (url) window.open(url, '_blank')
+      setAwaitingConfirm(true)
+    } catch (e) { setError(e.message) }
+    finally { setSending(false) }
+  }
+
+  const handleConfirmSent = async () => {
+    setSending(true)
+    setError(null)
+    try {
+      const payload = { followup_day: action.followup_day }
+      if (action.followup_day === 0 && meetingNote.trim()) payload.meeting_note = meetingNote.trim()
+      await api.markFollowupSent(action.payload_id, payload)
+      setDone(true)
+      onSent && onSent(action.payload_id, action.followup_day)
+    } catch (e) { setError(e.message) }
+    finally { setSending(false) }
+  }
+
+  const handleReschedule = async () => {
+    if (!rescheduleDate) return
+    setSending(true)
+    try {
+      const patch = action.followup_day === 3 ? { follow_up_3_due: rescheduleDate } : { follow_up_7_due: rescheduleDate }
+      await api.patchOutreach(action.payload_id, patch)
+      onRefresh && onRefresh()
+    } catch (e) { setError(e.message) }
+    finally { setSending(false) }
+  }
+
+  const handleCloseOut = async () => {
+    setClosing(true)
+    try {
+      await api.updateOutreachResponse(action.payload_id, 'negative')
+      onRefresh && onRefresh()
+    } catch (e) { setError(e.message) }
+    finally { setClosing(false) }
+  }
+
+  const handleKeepwarm = async () => {
+    if (!keepwarmDate) return
+    setSending(true)
+    try {
+      await api.patchOutreach(action.payload_id, { follow_up_7_sent: false, follow_up_7_due: keepwarmDate })
+      setKeepwarmDone(true)
+    } catch (e) { setError(e.message) }
+    finally { setSending(false) }
+  }
+
+  const hasDraft = subject || body
+
+  return (
+    <div className={`rounded-xl border ${cardColor} p-4 flex flex-col gap-3`} onClick={e => e.stopPropagation()}>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          <ActionIcon size={15} className={`mt-0.5 flex-shrink-0 ${iconColor}`} />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-body leading-snug">{title} — {action.contact_name || action.label}</div>
+            {(action.contact_title || action.company_name) && (
+              <div className="text-xs text-muted mt-0.5">
+                {[action.contact_title, action.company_name].filter(Boolean).join(' · ')}
+              </div>
+            )}
+            {action.detail && <div className="text-xs text-muted mt-0.5">{action.detail}</div>}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex rounded-lg border border-theme overflow-hidden text-xs font-medium">
+            <button onClick={() => setLanguage('en')} className={`px-1.5 py-0.5 transition-colors ${language === 'en' ? 'bg-blue-500 text-white' : 'text-muted'}`}>EN</button>
+            <button onClick={() => setLanguage('es')} className={`px-1.5 py-0.5 transition-colors ${language === 'es' ? 'bg-blue-500 text-white' : 'text-muted'}`}>ES</button>
+          </div>
+          {onDismiss && (
+            <button onClick={() => onDismiss(action)} className="p-1 text-muted hover:text-body"><X size={14} /></button>
+          )}
+        </div>
+      </div>
+
+      {/* Last message / conversation context */}
+      {conversation && (
+        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+          <div className="text-xs font-semibold text-muted mb-1">📧 Previous Conversation</div>
+          <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-32 overflow-y-auto font-mono leading-relaxed">{conversation}</pre>
+        </div>
+      )}
+
+      {done ? (
+        /* Done state */
+        <div className="flex flex-col items-center py-3 gap-2 text-green-600 dark:text-green-400">
+          <div className="text-2xl">✓</div>
+          <div className="text-sm font-medium">Sent!</div>
+          {action.followup_day === 0 ? (
+            keepwarmDone ? (
+              <div className="text-xs text-muted text-center">All set. See you then.</div>
+            ) : postMeetingChoice === 'd3' ? (
+              <div className="text-xs text-muted text-center">D+3 follow-up scheduled.</div>
+            ) : postMeetingChoice === 'champion' ? (
+              championDate ? (
+                <div className="w-full flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+                  <textarea rows={2} placeholder="How do you know them / what happened?" value={championNotes} onChange={e => setChampionNotes(e.target.value)} className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted resize-none" />
+                  <div className="flex gap-2">
+                    <input type="date" value={championDate} onChange={e => setChampionDate(e.target.value)} className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body" />
+                    <button disabled={!championDate || sending} onClick={async e => { e.stopPropagation(); setSending(true); try { await api.updateContact(action.contact_id, { is_champion: true, champion_notes: championNotes.trim() || null, next_checkin_date: championDate }); setKeepwarmDone(true); } catch(err) { setError(err.message); } finally { setSending(false); } }} className="text-xs px-3 py-2 rounded-lg bg-amber-500 text-white font-medium disabled:opacity-40">{sending ? 'Saving…' : 'Confirm'}</button>
+                    <button onClick={e => { e.stopPropagation(); setPostMeetingChoice(null) }} className="text-xs px-3 py-2 rounded-lg border border-theme text-muted">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full flex gap-2" onClick={e => e.stopPropagation()}>
+                  <input type="date" value={championDate} onChange={e => setChampionDate(e.target.value)} className="flex-1 text-xs rounded-lg border border-amber-400 bg-transparent px-3 py-2 text-body" />
+                  <button onClick={e => { e.stopPropagation(); setPostMeetingChoice(null) }} className="text-xs px-3 py-2 rounded-lg border border-theme text-muted">Cancel</button>
+                </div>
+              )
+            ) : postMeetingChoice === 'remind' ? (
+              <div className="w-full flex flex-col gap-2">
+                <input type="date" value={keepwarmDate} onChange={e => setKeepwarmDate(e.target.value)} className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body" />
+                <div className="flex gap-2">
+                  <button onClick={() => setPostMeetingChoice(null)} className="flex-1 border border-theme text-body rounded-xl py-2 text-xs font-medium">Back</button>
+                  <button onClick={handleKeepwarm} disabled={sending || !keepwarmDate} className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2 text-xs font-semibold">{sending ? 'Saving…' : 'Set reminder'}</button>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full flex flex-col gap-2">
+                <button onClick={async e => { e.stopPropagation(); setSending(true); try { const d = new Date(); d.setDate(d.getDate() + 3); await api.patchOutreach(action.payload_id, { post_meeting_2_due: d.toISOString().slice(0,10) }); setPostMeetingChoice('d3'); } catch(err) { setError(err.message); } finally { setSending(false); } }} disabled={sending} className="w-full border border-theme text-body rounded-xl py-2 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40">Schedule D+3 follow-up</button>
+                <button onClick={e => { e.stopPropagation(); setPostMeetingChoice('champion'); }} className="w-full border border-amber-300 text-amber-600 dark:text-amber-400 rounded-xl py-2 text-xs font-medium hover:bg-amber-50">They were a great lead — mark as champion</button>
+                <button onClick={e => { e.stopPropagation(); setPostMeetingChoice('remind'); }} className="w-full text-xs text-muted hover:underline py-1">Remind me later</button>
+              </div>
+            )
+          ) : (
+            keepwarmDone ? (
+              <div className="text-xs text-muted text-center">Reminder set.</div>
+            ) : keepwarm ? (
+              <div className="w-full flex flex-col gap-2">
+                <input type="date" value={keepwarmDate} onChange={e => setKeepwarmDate(e.target.value)} className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body" />
+                <div className="flex gap-2">
+                  <button onClick={() => setKeepwarm(false)} className="flex-1 border border-theme text-body rounded-xl py-2 text-xs font-medium">Skip</button>
+                  <button onClick={handleKeepwarm} disabled={sending || !keepwarmDate} className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2 text-xs font-semibold">{sending ? 'Saving…' : 'Set reminder'}</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setKeepwarm(true)} className="text-xs text-blue-500 hover:underline">Schedule a keepwarm reminder?</button>
+            )
+          )}
+          {action.followup_day === 7 && action.linkedin_accepted && !personalEmailDone && (
+            <div className="w-full mt-1" onClick={e => e.stopPropagation()}>
+              <div className="text-xs text-muted mb-1 text-center">Connected on LinkedIn — check their profile for a personal email before closing out.</div>
+              <div className="flex gap-2">
+                <input type="email" placeholder="personal@email.com" value={personalEmail} onChange={e => setPersonalEmail(e.target.value)} className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body" />
+                <button disabled={!personalEmail.trim() || personalEmailSaving} onClick={async e => { e.stopPropagation(); setPersonalEmailSaving(true); try { if (action.contact_id) await api.updateContact(action.contact_id, { email: personalEmail.trim(), email_guessed: false }); setPersonalEmailDone(true); } catch (err) { console.error(err) } finally { setPersonalEmailSaving(false) } }} className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-40">{personalEmailSaving ? 'Saving…' : 'Save'}</button>
+              </div>
+            </div>
+          )}
+          {action.followup_day === 7 && action.linkedin_accepted && personalEmailDone && (
+            <div className="text-xs text-muted text-center">Personal email saved. Fresh outreach cadence will start automatically.</div>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* MSG-5: meeting note gate */}
+          {action.followup_day === 0 && !meetingNoteSubmitted ? (
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium text-body">Meeting notes <span className="text-orange-500">*</span></label>
+              <p className="text-xs text-muted">What did you discuss? The AI will anchor the thank-you on a specific thing they raised.</p>
+              <textarea value={meetingNote} onChange={e => setMeetingNote(e.target.value)} rows={3} placeholder="e.g. They raised the challenge of onboarding fintech partners quickly..." className={`w-full rounded-lg px-3 py-2 text-sm bg-card text-body resize-none placeholder-faint focus:outline-none focus:ring-1 border ${meetingNote.trim() ? 'border-theme focus:ring-blue-500' : 'border-orange-400 focus:ring-orange-500'}`} />
+              <button disabled={!meetingNote.trim() || drafting} onClick={async () => { setDrafting(true); setError(null); try { const d = await api.draftFollowup(action.payload_id, 0, language, meetingNote.trim()); setSubject(d.subject || ''); setBody(d.body || ''); setConversation(d.conversation_text || ''); setMeetingNoteSubmitted(true); } catch (e) { setError(e.message) } finally { setDrafting(false) } }} className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold">{drafting ? 'Drafting…' : 'Draft thank-you'}</button>
+            </div>
+          ) : !hasDraft ? (
+            /* No draft yet — show Draft button */
+            <button
+              onClick={handleDraft}
+              disabled={drafting}
+              className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold"
+            >
+              {drafting ? 'Drafting…' : 'Draft →'}
+            </button>
+          ) : (
+            /* Draft loaded — show editable fields */
+            <>
+              {/* MSG-6: editable meeting note */}
+              {action.followup_day === -1 && (
+                <div>
+                  <label className="text-xs text-muted mb-1 block">Meeting notes {meetingNote ? <span className="text-green-500">(pre-filled)</span> : <span className="text-orange-400">(not found — add to improve draft)</span>}</label>
+                  <textarea value={meetingNote} onChange={e => setMeetingNote(e.target.value)} rows={2} placeholder="What did you discuss?" className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none" />
+                </div>
+              )}
+              {action.followup_day === 3 && (
+                <div>
+                  <label className="text-xs text-muted mb-1 block">New element {suggestingElement && <span className="ml-1 text-blue-400">suggesting…</span>}</label>
+                  <textarea value={newElement} onChange={e => setNewElement(e.target.value)} rows={2} placeholder="A question that occurred to you, a data point, or a reframe…" className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none" />
+                </div>
+              )}
+              <div>
+                <label className="text-xs text-muted mb-1 block">Subject</label>
+                <input value={subject} onChange={e => setSubject(e.target.value)} className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body" placeholder="Subject" />
+              </div>
+              <div>
+                <label className="text-xs text-muted mb-1 block">Body</label>
+                <textarea value={body} onChange={e => setBody(e.target.value)} rows={4} className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none" />
+              </div>
+              {error && <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/40 rounded-lg p-2">{error}</div>}
+              {!awaitingConfirm ? (
+                <div className="flex gap-2">
+                  <button onClick={handleDraft} disabled={drafting} className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body disabled:opacity-40">{drafting ? 'Regenerating…' : 'Refine with AI ↺'}</button>
+                  <button onClick={handleOpenGmail} disabled={sending || !subject || !body} className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold">{sending ? 'Opening Gmail…' : 'Send via Gmail →'}</button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs font-medium text-body text-center">Did you send the email?</div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setAwaitingConfirm(false); setMailtoUrl(null) }} className="flex-1 border border-theme text-body rounded-xl py-2.5 text-sm font-medium">No, go back</button>
+                    <button onClick={handleConfirmSent} disabled={sending} className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold">{sending ? 'Saving…' : 'Yes, sent ✓'}</button>
+                  </div>
+                  {mailtoUrl && <button onClick={() => window.open(mailtoUrl, '_blank')} className="text-xs text-blue-500 text-center">Re-open Gmail draft</button>}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Footer actions */}
+          <div className="pt-2 border-t border-theme flex flex-col gap-1.5">
+            {!rescheduling ? (
+              <div className="flex items-center gap-3 flex-wrap">
+                <button onClick={handleConfirmSent} disabled={sending} className="text-xs text-muted hover:text-body">Already sent? Mark done</button>
+                <span className="text-xs text-muted/40">·</span>
+                <button onClick={() => setRescheduling(true)} className="text-xs text-muted hover:text-body">Reschedule</button>
+                <span className="text-xs text-muted/40">·</span>
+                <button onClick={handleCloseOut} disabled={closing} className="text-xs text-red-400 hover:text-red-500 disabled:opacity-40">{closing ? 'Closing…' : 'Close out'}</button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <div className="text-xs text-body font-medium">Set new follow-up date</div>
+                <div className="flex gap-2">
+                  <input type="date" value={rescheduleDate} onChange={e => setRescheduleDate(e.target.value)} className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body" />
+                  <button onClick={handleReschedule} disabled={sending || !rescheduleDate} className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-40">{sending ? 'Saving…' : 'Save'}</button>
+                  <button onClick={() => setRescheduling(false)} className="text-xs px-3 py-2 rounded-lg border border-theme text-muted">Cancel</button>
+                </div>
+              </div>
+            )}
+            {/* We met */}
+            {action.contact_id && !rescheduling && (
+              <button onClick={() => onSent && onSent({ ...action, followup_day: 0 })} className="text-xs text-green-600 dark:text-green-400 hover:underline text-left">We met — draft post-meeting email instead →</button>
+            )}
+            {/* Champion toggle */}
+            {action.contact_id && !action.is_champion && !rescheduling && onRefresh && (
+              <WarmPathChampionToggle action={action} contactId={action.contact_id} onRefresh={onRefresh} />
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function NewReplyCard({ action, onDismiss, onRefresh, onMetDraft }) {
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [drafting, setDrafting] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false)
+  const [mailtoUrl, setMailtoUrl] = useState(null)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleDraft = async () => {
+    setDrafting(true)
+    setError(null)
+    try {
+      const subjectLine = `Re: ${action.label.replace('Reply received — ', '')}`
+      setSubject(subjectLine)
+      setBody('')
+    } catch (e) { setError(e.message) }
+    finally { setDrafting(false) }
+  }
+
+  const handleOpenGmail = async () => {
+    setSending(true)
+    try {
+      const subjectEnc = encodeURIComponent(subject)
+      const bodyEnc = encodeURIComponent(body)
+      const url = `https://mail.google.com/mail/?view=cm&su=${subjectEnc}&body=${bodyEnc}`
+      setMailtoUrl(url)
+      window.open(url, '_blank')
+      setAwaitingConfirm(true)
+    } catch (e) { setError(e.message) }
+    finally { setSending(false) }
+  }
+
+  const hasDraft = subject || body
 
   return (
     <div className="p-4 rounded-xl border border-green-400 bg-green-50 dark:border-green-600 dark:bg-green-950/50 space-y-2">
@@ -661,6 +1000,9 @@ function NewReplyCard({ action, onDismiss, onRefresh }) {
         <MessageSquare size={16} className="mt-0.5 flex-shrink-0 text-green-600" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-body text-sm">{action.label}</div>
+          {(action.contact_title || action.company_name) && (
+            <div className="text-xs text-muted mt-0.5">{[action.contact_title, action.company_name].filter(Boolean).join(' · ')}</div>
+          )}
           {action.detail && (
             <div className="text-xs text-muted mt-0.5 leading-relaxed italic">{action.detail}</div>
           )}
@@ -671,12 +1013,35 @@ function NewReplyCard({ action, onDismiss, onRefresh }) {
           </button>
         )}
       </div>
-      <button
-        onClick={handleReply}
-        className="w-full bg-green-600 hover:bg-green-700 text-white rounded-lg py-2 text-xs font-semibold transition-colors"
-      >
-        Draft response →
-      </button>
+      {error && <div className="text-xs text-red-500">{error}</div>}
+      {done ? (
+        <div className="text-xs text-green-600 font-medium text-center">Response drafted ✓</div>
+      ) : !hasDraft ? (
+        <button onClick={handleDraft} disabled={drafting} className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-semibold">
+          {drafting ? 'Drafting…' : 'Draft response →'}
+        </button>
+      ) : !awaitingConfirm ? (
+        <div className="space-y-2">
+          <input value={subject} onChange={e => setSubject(e.target.value)} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body" placeholder="Subject" />
+          <textarea value={body} onChange={e => setBody(e.target.value)} rows={3} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body resize-none" placeholder="Your reply…" />
+          <div className="flex gap-2">
+            <button onClick={handleDraft} disabled={drafting} className="text-xs px-3 py-2 border border-theme rounded-lg text-muted">Refine ↺</button>
+            <button onClick={handleOpenGmail} disabled={sending} className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg py-2 text-xs font-semibold">{sending ? 'Opening…' : 'Send via Gmail →'}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="text-xs text-muted text-center">Did you send the reply?</div>
+          <div className="flex gap-2">
+            <button onClick={() => { setAwaitingConfirm(false); setMailtoUrl(null) }} className="flex-1 border border-theme text-body rounded-lg py-2 text-xs">No, go back</button>
+            <button onClick={() => setDone(true)} className="flex-1 bg-green-500 text-white rounded-lg py-2 text-xs font-semibold">Yes, sent ✓</button>
+          </div>
+          {mailtoUrl && <button onClick={() => window.open(mailtoUrl, '_blank')} className="w-full text-xs text-blue-500 text-center">Re-open Gmail draft</button>}
+        </div>
+      )}
+      {onMetDraft && !done && (
+        <button onClick={onMetDraft} className="text-xs text-green-700 dark:text-green-400 hover:underline text-left w-full">We met — draft post-meeting email instead →</button>
+      )}
     </div>
   )
 }
@@ -706,6 +1071,11 @@ function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
   const handleCopy = () => {
     const fallback = () => { const ta = document.createElement('textarea'); ta.value = dm; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
     navigator.clipboard.writeText(dm).catch(fallback)
+    // Open LinkedIn profile if URL available
+    if (action.linkedin_url) {
+      const slug = action.linkedin_url.replace(/\/$/, '').split('/').pop()
+      window.open(`https://www.linkedin.com/in/${slug}`, '_blank')
+    }
     setState('copied')
   }
 
@@ -753,6 +1123,9 @@ function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
         <UserPlus size={16} className="mt-0.5 flex-shrink-0 text-sky-500" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-body text-sm">{action.label}</div>
+          {(action.contact_title || action.company_name) && (
+            <div className="text-xs text-muted mt-0.5">{[action.contact_title, action.company_name].filter(Boolean).join(' · ')}</div>
+          )}
           <div className="text-xs text-muted mt-0.5">{action.detail}</div>
         </div>
         {onDismiss && (
@@ -782,7 +1155,7 @@ function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
                 onClick={handleCopy}
                 className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-lg py-2 text-xs font-semibold"
               >
-                Copy to clipboard →
+                {action.linkedin_url ? 'Open LinkedIn + Copy →' : 'Copy to clipboard →'}
               </button>
               <button
                 onClick={handleRefine}
@@ -795,13 +1168,21 @@ function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
           )}
           {state === 'copied' && (
             <div className="space-y-2">
-              <div className="text-xs text-muted">Copied to clipboard. Did you send it?</div>
+              <div className="text-xs text-muted">
+                {action.linkedin_url ? 'LinkedIn opened + text copied. Paste the message and send it.' : 'Copied to clipboard. Paste into LinkedIn and send.'}
+                {' '}Did you send it?
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleCopy} className="text-xs text-sky-500 hover:underline">Re-copy text</button>
+                <span className="text-xs text-muted/40">·</span>
+                <button onClick={() => setState('draft')} className="text-xs text-muted hover:text-body">Edit draft</button>
+              </div>
               <div className="flex gap-2">
                 <button onClick={() => setState('draft')} className="flex-1 border border-theme text-body rounded-lg py-2 text-xs font-medium">
-                  Back
+                  No, go back
                 </button>
                 <button onClick={handleConfirmSent} disabled={busy} className="flex-1 bg-green-500 text-white rounded-lg py-2 text-xs font-semibold disabled:opacity-50">
-                  {busy ? '...' : 'Yes, sent'}
+                  {busy ? '...' : 'Yes, sent ✓'}
                 </button>
               </div>
             </div>
@@ -815,6 +1196,14 @@ function LinkedInAcceptedSyncCard({ action, onDismiss, onRefresh }) {
 
       {state !== 'done' && (
         <EscalationControls action={action} onRefresh={onRefresh} />
+      )}
+      {action.contact_id && state !== 'done' && (
+        <button
+          onClick={() => onRefresh && onRefresh({ ...action, followup_day: 0 })}
+          className="text-xs text-green-600 dark:text-green-400 hover:underline text-left w-full mt-1"
+        >
+          We met — draft post-meeting email instead →
+        </button>
       )}
     </div>
   )
@@ -1283,6 +1672,14 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
       {state !== 'done' && (
         <EscalationControls action={action} onRefresh={onRefresh} />
       )}
+      {action.contact_id && state !== 'done' && (
+        <button
+          onClick={() => onRefresh && onRefresh({ ...action, followup_day: 0 })}
+          className="text-xs text-green-600 dark:text-green-400 hover:underline text-left w-full mt-1"
+        >
+          We met — draft post-meeting email instead →
+        </button>
+      )}
     </div>
   )
 }
@@ -1681,6 +2078,8 @@ function ChampionCheckinCard({ action, onRefresh }) {
   const [introDraft, setIntroDraft] = useState(null)
   const [introCopied, setIntroCopied] = useState(false)
   const [draftError, setDraftError] = useState(null)
+  const [closingPrompt, setClosingPrompt] = useState(false)
+  const [snoozeDate, setSnoozeDate] = useState('')
 
   const save = async (e) => {
     e.stopPropagation()
@@ -1852,13 +2251,63 @@ function ChampionCheckinCard({ action, onRefresh }) {
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
-      <button
-        disabled={saving}
-        onClick={close}
-        className="text-xs text-muted hover:text-red-500 disabled:opacity-40 text-left"
-      >
-        Close relationship
-      </button>
+      {!closingPrompt ? (
+        <button
+          disabled={saving}
+          onClick={e => { e.stopPropagation(); setClosingPrompt(true) }}
+          className="text-xs text-muted hover:text-red-500 disabled:opacity-40 text-left"
+        >
+          Close relationship
+        </button>
+      ) : (
+        <div className="flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+          <div className="text-xs font-medium text-body">Snooze or close this relationship?</div>
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={snoozeDate}
+              onChange={e => setSnoozeDate(e.target.value)}
+              className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body"
+            />
+            <button
+              disabled={!snoozeDate || saving}
+              onClick={async e => {
+                e.stopPropagation()
+                setSaving(true)
+                try {
+                  await api.updateContact(action.payload_id, { next_checkin_date: snoozeDate })
+                  onRefresh()
+                } catch (err) { console.error(err) } finally { setSaving(false) }
+              }}
+              className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-40"
+            >
+              {saving ? 'Saving…' : 'Snooze'}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={e => { e.stopPropagation(); setClosingPrompt(false) }}
+              className="flex-1 text-xs px-3 py-2 rounded-lg border border-theme text-muted"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={saving}
+              onClick={async e => {
+                e.stopPropagation()
+                setSaving(true)
+                try {
+                  await api.updateContact(action.payload_id, { is_champion: false })
+                  onRefresh()
+                } catch (err) { console.error(err) } finally { setSaving(false) }
+              }}
+              className="flex-1 text-xs px-3 py-2 rounded-lg border border-red-300 text-red-500 hover:bg-red-50 disabled:opacity-40"
+            >
+              {saving ? 'Closing…' : 'Permanently close'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2133,6 +2582,12 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
           ) : (
             items.map((action, i) => {
               const stableKey = `${action.action_type}-${action.payload_id ?? i}`
+
+              // Inline follow-up cards (no modal)
+              if (action.action_type === 'follow_up_3' || action.action_type === 'follow_up_7' ||
+                  action.action_type === 'post_meeting_followup' || action.action_type === 'post_meeting_followup_2') {
+                return <InlineFollowUpCard key={stableKey} action={action} onSent={onMarkSent} onDismiss={onDismiss} onRefresh={onRefresh} />
+              }
               if (action.action_type === 'check_linkedin_acceptance' || action.action_type === 'email_escalation') {
                 return <LinkedInAcceptanceCard key={stableKey} action={action} onRefresh={onRefresh} />
               }
@@ -2143,16 +2598,16 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                 return <EmailBounceRetryCard key={stableKey} action={action} onRefresh={onRefresh} />
               }
               if (action.action_type === 'new_reply') {
-                return <NewReplyCard key={stableKey} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
+                const onMetDraft = action.contact_id ? () => onMarkSent && onMarkSent({ ...action, followup_day: 0 }) : undefined
+                return <NewReplyCard key={stableKey} action={action} onDismiss={onDismiss} onRefresh={onRefresh} onMetDraft={onMetDraft} />
               }
               if (action.action_type === 'linkedin_accepted') {
                 return <LinkedInAcceptedSyncCard key={stableKey} action={action} onDismiss={onDismiss} onRefresh={onRefresh} />
               }
 
-              const Icon = ACTION_ICONS[action.action_type] || AlertCircle
+              const CardIcon = ACTION_ICONS[action.action_type] || AlertCircle
               const cardColor = ACTION_COLORS[action.action_type] || 'border-theme bg-card'
               const iconColor = ACTION_ICON_COLORS[action.action_type] || 'text-muted'
-              const isFollowUp = action.action_type === 'follow_up_3' || action.action_type === 'follow_up_7'
               const isWarmPath = action.action_type === 'warm_path'
               const isChampionCheckin = action.action_type === 'champion_checkin'
               const isPriority = priorityIds.includes(action.company_id)
@@ -2163,28 +2618,30 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                   className={`w-full text-left p-4 rounded-xl border ${cardColor}`}
                 >
                   <div className="flex items-start gap-2">
-                    <button
-                      onClick={() => onAction(action)}
-                      className="flex-1 text-left transition-all active:scale-[0.99] min-w-0"
-                    >
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-3">
-                        <Icon size={16} className={`mt-0.5 flex-shrink-0 ${iconColor}`} />
+                        <CardIcon size={16} className={`mt-0.5 flex-shrink-0 ${iconColor}`} />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-body text-sm leading-snug flex items-center gap-1.5">
                             {isPriority && <Star size={11} className="text-amber-400 fill-amber-400 flex-shrink-0" />}
                             {action.label}
                           </div>
+                          {(action.contact_title || action.company_name) && (
+                            <div className="text-xs text-muted mt-0.5">
+                              {[action.contact_title, action.company_name].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
                           {action.detail && (
                             <div className="text-xs text-muted mt-0.5 leading-relaxed">{action.detail}</div>
                           )}
-                          <div className="mt-2 flex items-center gap-2">
-                            <span className={`text-xs font-semibold ${isFollowUp ? 'text-red-500' : 'text-blue-500'}`}>
-                              {action.cta} →
-                            </span>
-                          </div>
+                          {!isChampionCheckin && !isWarmPath && (
+                            <div className="mt-2">
+                              <span className="text-xs font-semibold text-blue-500">{action.cta} →</span>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </button>
+                    </div>
                     {onDismiss && (
                       <button
                         onClick={e => { e.stopPropagation(); onDismiss(action) }}
@@ -2195,29 +2652,25 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                       </button>
                     )}
                   </div>
-                  {isFollowUp && onMarkSent && (
-                    <FollowUpCardActions
-                      action={action}
-                      onMarkSent={onMarkSent}
-                      onRescheduled={onRefresh}
-                      onMetDraft={action.contact_id ? () => onMarkSent({ ...action, followup_day: 0 }) : undefined}
-                    />
-                  )}
-                  {isFollowUp && action.contact_id && !action.is_champion && onRefresh && (
-                    <WarmPathChampionToggle action={action} contactId={action.contact_id} onRefresh={onRefresh} />
-                  )}
                   {isWarmPath && onRefresh && (
                     <>
                       <WarmPathIntel action={action} />
                       <WarmPathSnooze action={action} onSnoozed={onRefresh} />
                       <WarmPathChampionToggle action={action} onRefresh={onRefresh} />
+                      {action.contact_id && onMarkSent && (
+                        <div className="mt-2 pt-2 border-t border-theme/50">
+                          <button
+                            onClick={e => { e.stopPropagation(); onMarkSent({ ...action, followup_day: 0 }) }}
+                            className="text-xs text-green-600 dark:text-green-400 hover:underline text-left"
+                          >
+                            We met — draft post-meeting email →
+                          </button>
+                        </div>
+                      )}
                     </>
                   )}
                   {isChampionCheckin && onRefresh && (
                     <ChampionCheckinCard action={action} onRefresh={onRefresh} />
-                  )}
-                  {action.action_type === 'post_meeting_followup_2' && (
-                    <ReferralPivotCard action={action} />
                   )}
                   {action.action_type === 'publish_content' && (
                     <PublishContentCard action={action} onRefresh={onRefresh} />
@@ -2227,10 +2680,7 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                   )}
                   {action.action_type === 'prompt_review' && (
                     <div className="mt-3 pt-3 border-t border-theme flex gap-2">
-                      <a
-                        href="/review"
-                        className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600"
-                      >Open review →</a>
+                      <a href="/review" className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600">Open review →</a>
                     </div>
                   )}
                   {action.action_type === 'call' && (
