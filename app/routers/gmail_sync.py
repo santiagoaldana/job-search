@@ -25,10 +25,10 @@ def trigger_sync(session: Session = Depends(get_session)):
 
 
 @router.post("/sync-backfill")
-def trigger_sync_backfill(session: Session = Depends(get_session)):
-    """One-time backfill: looks back 240 hours (10 days) to catch up after the May pause."""
+def trigger_sync_backfill(hours: int = 288, session: Session = Depends(get_session)):
+    """Backfill Gmail sync. Default 288h covers May 20 → June 1. Pass ?hours=N for custom range."""
     from app.services.gmail_sync_service import run_gmail_sync
-    result = run_gmail_sync(session, hours=240)
+    result = run_gmail_sync(session, hours=hours)
     return result
 
 
