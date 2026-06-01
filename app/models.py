@@ -89,6 +89,7 @@ class Contact(SQLModel, table=True):
     is_champion: bool = Field(default=False)
     champion_notes: Optional[str] = Field(default=None)
     next_checkin_date: Optional[str] = Field(default=None)  # ISO date — next manual check-in
+    last_meeting_note: Optional[str] = Field(default=None)
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
     company: Optional[Company] = Relationship(back_populates="contacts")
@@ -138,7 +139,7 @@ class OutreachRecord(SQLModel, table=True):
     contact_id: Optional[int] = Field(default=None, foreign_key="contact.id")
     lead_id: Optional[int] = Field(default=None, foreign_key="lead.id")
 
-    channel: str = Field(default="email")  # email|linkedin|referral
+    channel: str = Field(default="email")  # email|linkedin|referral|sms|whatsapp|imessage
     sent_at: Optional[str] = Field(default=None)    # ISO datetime string
     subject: Optional[str] = Field(default=None)
     body: Optional[str] = Field(default=None)
@@ -160,6 +161,14 @@ class OutreachRecord(SQLModel, table=True):
     post_meeting_followup_sent: bool = Field(default=False)        # thank-you sent after meeting
     post_meeting_2_due: Optional[str] = Field(default=None)        # ISO date: D+3 resources/recommendations ask
     post_meeting_2_sent: bool = Field(default=False)               # second post-meeting follow-up sent
+
+    # Phase D learning loop
+    ai_draft_subject: Optional[str] = Field(default=None)
+    ai_draft_body: Optional[str] = Field(default=None)
+    prompt_version: Optional[str] = Field(default=None)
+    message_code: Optional[str] = Field(default=None)
+    edit_distance: Optional[int] = Field(default=None)
+    user_rating: Optional[int] = Field(default=None)
 
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())

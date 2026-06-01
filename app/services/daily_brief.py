@@ -271,6 +271,7 @@ def compute_daily_brief(session: Session) -> dict:
             "contact_name": contact.name if contact else None,
             "contact_title": contact.title if contact else None,
             "is_champion": contact.is_champion if contact else False,
+            "linkedin_accepted": record.linkedin_accepted,
             "payload_id": record.id,
             "payload_type": "outreach",
             "followup_day": 7,
@@ -611,6 +612,29 @@ def compute_daily_brief(session: Session) -> dict:
             "payload_id": None,
             "payload_type": "suggestions",
         })
+
+    # Prompt review nudge card
+    from app.services.outreach_generator import PROMPT_VERSION
+    versioned_records = session.exec(
+        select(OutreachRecord).where(OutreachRecord.prompt_version == PROMPT_VERSION)
+        .order_by(OutreachRecord.created_at)
+    ).all()
+    if versioned_records:
+        first_created = versioned_records[0].created_at[:10]
+        days_since_first = _days_diff(first_created, today)
+        nudge_key = ("prompt_review", None)
+        if nudge_key not in dismissed and (
+            (len(versioned_records) >= 5 and days_since_first >= 14)
+            or days_since_first >= 30
+        ):
+            positions.append({
+                "action_type": "prompt_review",
+                "label": f"Prompt review due — {len(versioned_records)} drafts sent since {PROMPT_VERSION}",
+                "detail": "Check what you rewrote vs what Claude drafted.",
+                "cta": "Review prompts",
+                "payload_id": None,
+                "payload_type": "prompt_review",
+            })
 
     # Upcoming interviews
     in_2_days = _add_days(today, 2)

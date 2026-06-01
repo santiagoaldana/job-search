@@ -21,6 +21,7 @@ const ACTION_ICONS = {
   publish_content: Send,
   review_suggestions: Lightbulb,
   linkedin_import_reminder: Lightbulb,
+  prompt_review: BookOpen,
   contact_gap: UserPlus,
   email_bounce_retry: AlertCircle,
   try_linkedin_dm: Mail,
@@ -48,6 +49,7 @@ const ACTION_COLORS = {
   new_reply: 'border-green-400 bg-green-50 dark:border-green-600 dark:bg-green-950/50',
   linkedin_accepted: 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40',
   champion_checkin: 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40',
+  prompt_review: 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/40',
 }
 
 const ACTION_ICON_COLORS = {
@@ -66,6 +68,7 @@ const ACTION_ICON_COLORS = {
   new_reply: 'text-green-600',
   linkedin_accepted: 'text-sky-500',
   champion_checkin: 'text-amber-500',
+  prompt_review: 'text-blue-500',
 }
 
 function FollowUpModal({ action, onClose, onSent }) {
@@ -92,6 +95,9 @@ function FollowUpModal({ action, onClose, onSent }) {
   const [suggestingElement, setSuggestingElement] = useState(false)
   const [meetingNote, setMeetingNote] = useState('')
   const [meetingNoteSubmitted, setMeetingNoteSubmitted] = useState(false)
+  const [personalEmail, setPersonalEmail] = useState('')
+  const [personalEmailSaving, setPersonalEmailSaving] = useState(false)
+  const [personalEmailDone, setPersonalEmailDone] = useState(false)
 
   useEffect(() => {
     setDrafting(true)
@@ -369,6 +375,41 @@ function FollowUpModal({ action, onClose, onSent }) {
                     Schedule a keepwarm reminder?
                   </button>
                 )
+              )}
+              {action.followup_day === 7 && action.linkedin_accepted && !personalEmailDone && (
+                <div className="w-full mt-3 px-1" onClick={e => e.stopPropagation()}>
+                  <div className="text-xs text-muted mb-2 text-center">This contact is connected on LinkedIn. Check their profile for a personal email before closing out.</div>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      placeholder="personal@email.com"
+                      value={personalEmail}
+                      onChange={e => setPersonalEmail(e.target.value)}
+                      className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <button
+                      disabled={!personalEmail.trim() || personalEmailSaving}
+                      onClick={async e => {
+                        e.stopPropagation()
+                        setPersonalEmailSaving(true)
+                        try {
+                          if (action.contact_id) {
+                            await api.updateContact(action.contact_id, { email: personalEmail.trim(), email_guessed: false })
+                          }
+                          setPersonalEmailDone(true)
+                        } catch (err) {
+                          console.error(err)
+                        } finally {
+                          setPersonalEmailSaving(false)
+                        }
+                      }}
+                      className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-40 hover:bg-blue-600"
+                    >{personalEmailSaving ? 'Saving…' : 'Save'}</button>
+                  </div>
+                </div>
+              )}
+              {action.followup_day === 7 && action.linkedin_accepted && personalEmailDone && (
+                <div className="text-xs text-muted text-center mt-2">Personal email saved. Fresh outreach cadence will start automatically.</div>
               )}
             </div>
           ) : !error || body ? (
@@ -2155,6 +2196,14 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                   )}
                   {action.action_type === 'try_linkedin_dm' && onRefresh && (
                     <EscalationControls action={action} onRefresh={onRefresh} />
+                  )}
+                  {action.action_type === 'prompt_review' && (
+                    <div className="mt-3 pt-3 border-t border-theme flex gap-2">
+                      <a
+                        href="/review"
+                        className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600"
+                      >Open review →</a>
+                    </div>
                   )}
                 </div>
               )

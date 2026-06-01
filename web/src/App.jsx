@@ -11,6 +11,7 @@ import CVPage from './pages/CVPage'
 import OutreachPage from './pages/Outreach'
 import SettingsPage from './pages/Settings'
 import Login from './pages/Login'
+import ReviewPage from './pages/Review'
 
 const NAV = [
   { to: '/', icon: Home, label: 'Brief' },
@@ -78,6 +79,7 @@ export default function App() {
           <Route path="/content" element={<Content />} />
           <Route path="/cv" element={<CVPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/review" element={<ReviewPage />} />
         </Routes>
       </div>
       <BottomNav />

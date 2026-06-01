@@ -9,6 +9,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from pydantic import BaseModel
 
+
+def _levenshtein(a: str, b: str) -> int:
+    """Compute Levenshtein edit distance between two strings."""
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    dp = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        prev, dp[0] = dp[0], i
+        for j, cb in enumerate(b, 1):
+            prev, dp[j] = dp[j], prev if ca == cb else 1 + min(prev, dp[j], dp[j - 1])
+    return dp[-1]
+
 _EASTERN = ZoneInfo("America/New_York")
 
 def _today_eastern() -> str:
@@ -79,6 +93,9 @@ def _get_conversation_history(outreach_id: int) -> list:
         return []
 
 
+VALID_CHANNELS = {"email", "linkedin", "referral", "sms", "whatsapp", "imessage"}
+
+
 class OutreachCreate(BaseModel):
     company_id: int
     contact_id: Optional[int] = None
@@ -89,6 +106,9 @@ class OutreachCreate(BaseModel):
     outreach_message: Optional[str] = None
     sent_at: Optional[str] = None  # ISO datetime; defaults to now
     contact_name_raw: Optional[str] = None  # fallback when contact not yet in DB
+    ai_draft_subject: Optional[str] = None
+    ai_draft_body: Optional[str] = None
+    message_code: Optional[str] = None
 
 
 class OutreachGenerateRequest(BaseModel):
@@ -219,6 +239,8 @@ def due_today(session: Session = Depends(get_session)):
 @router.post("")
 def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
     """Log an outreach that was sent (manual entry)."""
+    if data.channel not in VALID_CHANNELS:
+        raise HTTPException(status_code=422, detail=f"Invalid channel '{data.channel}'. Valid: {sorted(VALID_CHANNELS)}")
     sent_at = data.sent_at or datetime.now(_EASTERN).isoformat()
     sent_date = datetime.fromisoformat(sent_at[:19]).date()
     follow_up_3 = add_business_days(sent_date, 3).isoformat()
@@ -257,6 +279,14 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
         if prior:
             prior_message = prior.outreach_message
 
+    from app.services.outreach_generator import PROMPT_VERSION
+    sent_body = data.body or data.outreach_message or prior_message or ""
+    edit_dist = (
+        _levenshtein(data.ai_draft_body, sent_body)
+        if data.ai_draft_body and sent_body
+        else None
+    )
+
     record = OutreachRecord(
         company_id=company_id,
         contact_id=resolved_contact_id,
@@ -270,6 +300,11 @@ def log_outreach(data: OutreachCreate, session: Session = Depends(get_session)):
         follow_up_3_due=follow_up_3,
         follow_up_7_due=follow_up_7,
         notes=notes,
+        ai_draft_subject=data.ai_draft_subject,
+        ai_draft_body=data.ai_draft_body,
+        prompt_version=PROMPT_VERSION,
+        message_code=data.message_code,
+        edit_distance=edit_dist,
     )
     session.add(record)
 
@@ -1289,6 +1324,64 @@ def send_followup(
     session.commit()
 
     return {"ok": True, "mailto_url": mailto_url, "to_email": to_email or None}
+
+
+@router.get("/review-summary")
+def get_review_summary(session: Session = Depends(get_session)):
+    """Per-message_code stats for the /review page (last 30 days)."""
+    from datetime import timezone
+    cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
+    records = session.exec(
+        select(OutreachRecord).where(OutreachRecord.created_at >= cutoff)
+    ).all()
+
+    by_code: dict = {}
+    for r in records:
+        code = r.message_code or "unknown"
+        if code not in by_code:
+            by_code[code] = {
+                "message_code": code,
+                "drafts": 0,
+                "total_edit_distance": 0,
+                "edit_distance_count": 0,
+                "positive": 0,
+                "examples": [],
+            }
+        entry = by_code[code]
+        entry["drafts"] += 1
+        if r.edit_distance is not None:
+            entry["total_edit_distance"] += r.edit_distance
+            entry["edit_distance_count"] += 1
+        if r.response_status == "positive":
+            entry["positive"] += 1
+        if r.ai_draft_body and r.body and r.edit_distance is not None:
+            entry["examples"].append({
+                "id": r.id,
+                "ai_draft_subject": r.ai_draft_subject,
+                "ai_draft_body": r.ai_draft_body,
+                "sent_subject": r.subject,
+                "sent_body": r.body,
+                "edit_distance": r.edit_distance,
+                "response_status": r.response_status,
+                "prompt_version": r.prompt_version,
+            })
+
+    result = []
+    for code, entry in by_code.items():
+        n = entry["drafts"]
+        ed_count = entry["edit_distance_count"]
+        # Keep only 10 highest-edit-distance examples
+        examples = sorted(entry["examples"], key=lambda x: x["edit_distance"], reverse=True)[:10]
+        result.append({
+            "message_code": code,
+            "drafts": n,
+            "avg_edit_distance": round(entry["total_edit_distance"] / ed_count, 1) if ed_count else None,
+            "reply_rate": round(entry["positive"] / n, 3) if n else 0.0,
+            "examples": examples,
+        })
+
+    result.sort(key=lambda x: x["message_code"])
+    return result
 
 
 @router.post("/{record_id}/skip")

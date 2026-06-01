@@ -4,6 +4,8 @@ Outreach Generator — drafts, context assembly, and AI-powered escalation draft
 
 from typing import Optional, List
 
+PROMPT_VERSION = "v2.0"
+
 
 # ── Outreach Context Assembly ─────────────────────────────────────────────────
 

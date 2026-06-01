@@ -9,7 +9,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL:
     # Render provides postgres:// but SQLAlchemy needs postgresql://
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DATABASE_URL, echo=False)
+    engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 else:
     BASE_DIR = Path(__file__).parent.parent
     DB_PATH = BASE_DIR / "jobsearch.db"
@@ -71,6 +71,15 @@ def run_migrations():
         ("contact", "is_champion", "BOOLEAN DEFAULT FALSE"),
         ("contact", "champion_notes", "TEXT"),
         ("contact", "next_checkin_date", "TEXT"),
+        ("contact", "last_meeting_note", "TEXT"),
+        ("outreachrecord", "ai_draft_subject", "TEXT"),
+        ("outreachrecord", "ai_draft_body", "TEXT"),
+        ("outreachrecord", "prompt_version", "TEXT"),
+        ("outreachrecord", "message_code", "TEXT"),
+        ("outreachrecord", "edit_distance", "INTEGER"),
+        ("outreachrecord", "user_rating", "INTEGER"),
+        ("outreachrecord", "post_meeting_2_due", "TEXT"),
+        ("outreachrecord", "post_meeting_2_sent", "BOOLEAN DEFAULT FALSE"),
     ]
 
     with engine.connect() as conn:

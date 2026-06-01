@@ -66,6 +66,7 @@ export const api = {
   // Outreach
   getDueToday: () => get('/outreach/due-today'),
   getOutreachStats: () => get('/outreach/stats'),
+  getReviewSummary: () => get('/outreach/review-summary'),
   listOutreach: (params = {}) => { const q = new URLSearchParams(params).toString(); return get('/outreach' + (q ? '?' + q : '')) },
   createOutreach: (data) => post('/outreach', data),
   generateOutreach: (data) => post('/outreach/generate', data),
