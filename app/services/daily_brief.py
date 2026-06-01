@@ -399,6 +399,40 @@ def compute_daily_brief(session: Session) -> dict:
                 "payload_type": "contact",
             })
 
+    # Call as last resort — contact has phone, email exhausted (invalid or all patterns tried),
+    # LinkedIn not connected, and 14+ days since last outreach attempt
+    call_cutoff = (_now_eastern() - timedelta(days=14)).strftime("%Y-%m-%d")
+    phone_contacts = session.exec(
+        select(Contact).where(
+            Contact.phone != None,
+            Contact.email_invalid == True,
+        )
+    ).all()
+    for contact in phone_contacts[:2]:
+        company = session.get(Company, contact.company_id) if contact.company_id else None
+        latest = session.exec(
+            select(OutreachRecord)
+            .where(OutreachRecord.contact_id == contact.id)
+            .order_by(OutreachRecord.sent_at.desc())  # type: ignore[arg-type]
+        ).first()
+        if not latest or (latest.sent_at or "") > call_cutoff:
+            continue
+        if ("call", contact.id) in dismissed:
+            continue
+        outreach.append({
+            "action_type": "call",
+            "label": f"Call — {contact.name}" + (f" at {company.name}" if company else ""),
+            "detail": f"Email exhausted · phone: {contact.phone}",
+            "cta": "Get call script",
+            "company_id": contact.company_id,
+            "contact_id": contact.id,
+            "contact_name": contact.name,
+            "contact_title": contact.title,
+            "phone": contact.phone,
+            "payload_id": contact.id,
+            "payload_type": "contact",
+        })
+
     # LinkedIn DM follow-up — Day 7 passed, still pending, no DM record yet
     # Use only the most recent qualifying record per contact to avoid surfacing
     # stale records from duplicate contacts.

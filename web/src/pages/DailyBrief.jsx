@@ -22,6 +22,7 @@ const ACTION_ICONS = {
   review_suggestions: Lightbulb,
   linkedin_import_reminder: Lightbulb,
   prompt_review: BookOpen,
+  call: MessageSquare,
   contact_gap: UserPlus,
   email_bounce_retry: AlertCircle,
   try_linkedin_dm: Mail,
@@ -50,6 +51,7 @@ const ACTION_COLORS = {
   linkedin_accepted: 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40',
   champion_checkin: 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40',
   prompt_review: 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/40',
+  call: 'border-violet-300 bg-violet-50 dark:border-violet-700 dark:bg-violet-950/40',
 }
 
 const ACTION_ICON_COLORS = {
@@ -69,6 +71,7 @@ const ACTION_ICON_COLORS = {
   linkedin_accepted: 'text-sky-500',
   champion_checkin: 'text-amber-500',
   prompt_review: 'text-blue-500',
+  call: 'text-violet-500',
 }
 
 function FollowUpModal({ action, onClose, onSent }) {
@@ -1640,6 +1643,31 @@ function ReferralPivotCard({ action }) {
 }
 
 
+function CallScriptCard({ action }) {
+  const [open, setOpen] = useState(false)
+  const first = (action.contact_name || 'them').split(' ')[0]
+  const title = action.contact_title ? `, ${action.contact_title}` : ''
+  const script = `Hi, may I speak with ${first}?\n\nHi ${first}, this is Santiago Aldana. I've been reaching out about a conversation on [agentic finance / payments / digital identity — pick one] — I think there's a genuine overlap with what you're building at ${action.contact_name?.split(' ').pop() || 'your company'}${title}.\n\nI'll keep it under two minutes: would you have 30 seconds to hear what I had in mind?`
+
+  return (
+    <div className="mt-3 pt-3 border-t border-theme" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-2">
+        <a
+          href={`tel:${action.phone}`}
+          className="text-xs px-3 py-2 rounded-lg bg-violet-500 text-white font-medium hover:bg-violet-600"
+        >Call {action.phone} →</a>
+        <button
+          onClick={() => setOpen(v => !v)}
+          className="text-xs text-muted hover:underline"
+        >{open ? 'Hide script' : 'Show script'}</button>
+      </div>
+      {open && (
+        <pre className="text-xs text-body whitespace-pre-wrap bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800 rounded-lg p-3 leading-relaxed">{script}</pre>
+      )}
+    </div>
+  )
+}
+
 function ChampionCheckinCard({ action, onRefresh }) {
   const [notes, setNotes] = useState('')
   const [date, setDate] = useState('')
@@ -2204,6 +2232,9 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                         className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600"
                       >Open review →</a>
                     </div>
+                  )}
+                  {action.action_type === 'call' && (
+                    <CallScriptCard action={action} />
                   )}
                 </div>
               )

@@ -643,6 +643,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
     title: contact?.title || '',
     linkedin_url: contact?.linkedin_url || '',
     email: contact?.email || '',
+    phone: contact?.phone || '',
     met_via: contact?.met_via || '',
     relationship_notes: contact?.relationship_notes || '',
     introduced_by_contact_id: contact?.introduced_by_contact_id || '',
@@ -708,6 +709,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           introduced_by_contact_id: introducedById,
           referral_target_company_id: isReferral ? company.id : null,
           snooze_until: snoozeUntil || null,
+          phone: form.phone || undefined,
         })
         if (linkedOutreach) {
           const datesChanged = due3 !== (linkedOutreach.follow_up_3_due || '') || due7 !== (linkedOutreach.follow_up_7_due || '')
@@ -726,6 +728,7 @@ function ContactModal({ company, contact, onClose, onSaved }) {
           title: form.title || undefined,
           linkedin_url: form.linkedin_url || undefined,
           email: form.email || undefined,
+          phone: form.phone || undefined,
           company_name: company.name,
           met_via: form.met_via || undefined,
           relationship_notes: form.relationship_notes || undefined,
@@ -819,6 +822,12 @@ function ContactModal({ company, contact, onClose, onSaved }) {
                 <input value={form.email} onChange={set('email')} type="email"
                   className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body"
                   placeholder="name@company.com" />
+              </div>
+              <div>
+                <label className="text-xs text-muted block mb-1">Phone</label>
+                <input value={form.phone || ''} onChange={set('phone')} type="tel"
+                  className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body"
+                  placeholder="+1 (555) 000-0000" />
               </div>
             </>
           )}

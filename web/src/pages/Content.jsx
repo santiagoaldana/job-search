@@ -144,6 +144,26 @@ function ScheduleModal({ draft, onClose, onScheduled, onApprovedOnly }) {
 
         <div>
           <label className="text-xs text-muted mb-1.5 block">Publish date & time (suggested: Wed/Thu 3–5 PM ET)</label>
+          <div className="flex gap-2 mb-2">
+            {[
+              { label: 'Mon 9am', day: 1, hour: 9 },
+              { label: 'Wed 3pm', day: 3, hour: 15 },
+              { label: 'Thu 4pm', day: 4, hour: 16 },
+            ].map(({ label, day, hour }) => (
+              <button
+                key={label}
+                onClick={() => {
+                  const d = new Date()
+                  const diff = (day - d.getDay() + 7) % 7 || 7
+                  d.setDate(d.getDate() + diff)
+                  d.setHours(hour, 0, 0, 0)
+                  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+                  setScheduledAt(local.toISOString().slice(0, 16))
+                }}
+                className="flex-1 text-xs py-1.5 rounded-lg border border-theme text-body hover:bg-slate-50 dark:hover:bg-slate-800"
+              >{label}</button>
+            ))}
+          </div>
           {loading ? (
             <div className="flex items-center gap-2 text-xs text-muted"><Spinner size={4} /> Finding optimal slot…</div>
           ) : (

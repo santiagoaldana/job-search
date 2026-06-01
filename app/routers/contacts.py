@@ -63,6 +63,7 @@ class QuickAddRequest(BaseModel):
     company_name: Optional[str] = None
     linkedin_url: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
     met_via: Optional[str] = None
     relationship_notes: Optional[str] = None
     introduced_by_contact_id: Optional[int] = None
@@ -87,6 +88,8 @@ class ContactUpdateRequest(BaseModel):
     connection_degree: Optional[int] = None
     referral_target_company_id: Optional[int] = None
     connected_on: Optional[str] = None
+    phone: Optional[str] = None
+    last_meeting_note: Optional[str] = None
     snooze_until: Optional[str] = None
     company_id: Optional[int] = None
     is_champion: Optional[bool] = None
@@ -298,6 +301,8 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
             existing.outreach_status = req.outreach_status; changed = True
         if req.is_mit_alum is not None and existing.is_mit_alum is None:
             existing.is_mit_alum = req.is_mit_alum; changed = True
+        if req.phone and not existing.phone:
+            existing.phone = req.phone; changed = True
         if changed:
             session.add(existing)
             session.commit()
@@ -320,6 +325,8 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
             contact.outreach_status = req.outreach_status
         if req.is_mit_alum is not None:
             contact.is_mit_alum = req.is_mit_alum
+        if req.phone:
+            contact.phone = req.phone
 
         session.add(contact)
         if company_id:

@@ -90,6 +90,7 @@ class Contact(SQLModel, table=True):
     champion_notes: Optional[str] = Field(default=None)
     next_checkin_date: Optional[str] = Field(default=None)  # ISO date — next manual check-in
     last_meeting_note: Optional[str] = Field(default=None)
+    phone: Optional[str] = Field(default=None)
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
     company: Optional[Company] = Relationship(back_populates="contacts")

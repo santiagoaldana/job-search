@@ -72,6 +72,7 @@ def run_migrations():
         ("contact", "champion_notes", "TEXT"),
         ("contact", "next_checkin_date", "TEXT"),
         ("contact", "last_meeting_note", "TEXT"),
+        ("contact", "phone", "TEXT"),
         ("outreachrecord", "ai_draft_subject", "TEXT"),
         ("outreachrecord", "ai_draft_body", "TEXT"),
         ("outreachrecord", "prompt_version", "TEXT"),
