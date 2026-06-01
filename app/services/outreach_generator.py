@@ -253,6 +253,7 @@ def generate_bump_draft(
     company_name: str,
     original_body: str,
     new_element: str,
+    conversation_history: str = "",
 ) -> Optional[dict]:
     """
     MSG-3 Day 3 bump — AI-powered, uses new_element as the hook.
@@ -264,14 +265,22 @@ def generate_bump_draft(
 
     first_name = (contact_name or "there").split()[0]
 
+    conversation_block = (
+        f"CONVERSATION SO FAR (read carefully — do not repeat what was already said):\n{conversation_history.strip()}\n\n"
+        if conversation_history.strip() else ""
+    )
+
     prompt = (
         f"Write a Day 3 follow-up bump email from Santiago Aldana to {first_name} ({contact_title or 'executive'} at {company_name}).\n\n"
         f"ORIGINAL MESSAGE SANTIAGO SENT:\n{original_body}\n\n"
+        f"{conversation_block}"
         f"NEW CONTEXT (use this as the hook — synthesize it, do not copy it verbatim):\n{new_element.strip()}\n\n"
         "CONSTRUCTION RULES:\n"
         "1. HOOK (sentence 1-2): Turn the new context into a specific, insightful observation "
         "that is relevant to this contact's role and company. Connect the market news to what it "
         "means for them specifically. Do not just repeat the raw fact — add a point of view.\n"
+        "If there are prior replies in the conversation, acknowledge the thread naturally — "
+        "do not repeat what was already covered.\n"
         "2. RE-ASK (final sentence): Light ask for 15 minutes. Do not use 'circling back', "
         "'touching base', 'following up', or 'bumping'.\n\n"
         "HARD CONSTRAINTS:\n"
@@ -317,6 +326,8 @@ async def generate_close_draft(
     contact_title: str,
     company_name: str,
     original_body: str,
+    conversation_history: str = "",
+    intel_summary: str = "",
 ) -> Optional[dict]:
     """
     Generate AI-powered Day 7 polite close (MSG-4).
@@ -325,18 +336,32 @@ async def generate_close_draft(
     import json
     import anthropic
 
+    first_name = (contact_name or "there").split()[0]
+
+    conversation_block = (
+        f"FULL CONVERSATION THREAD:\n{conversation_history.strip()}\n\n"
+        if conversation_history.strip() else ""
+    )
+    intel_block = (
+        f"COMPANY CONTEXT ({company_name}):\n{intel_summary.strip()[:400]}\n\n"
+        if intel_summary.strip() else ""
+    )
+
     prompt = (
-        f"Write a Day 7 final follow-up reply from Santiago to {contact_name}, "
-        f"{contact_title} at {company_name}. "
-        f"This is the last message in the thread. No subject line.\n\n"
-        f"ORIGINAL MESSAGE:\n{original_body}\n\n"
+        f"Write a Day 7 final follow-up reply from Santiago to {first_name} "
+        f"({contact_title} at {company_name}). "
+        f"This is the last message in the thread.\n\n"
+        f"ORIGINAL MESSAGE SANTIAGO SENT:\n{original_body}\n\n"
+        f"{conversation_block}"
+        f"{intel_block}"
         "CONSTRUCTION RULES:\n"
         "Two sentences only.\n"
         "1. RELEASE (sentence 1): Signal clearly this is the last follow-up, without apology "
         "and without framing silence as rejection. The contact should feel released from "
-        "obligation. Do not use 'I'll take that as a no.' Do not say 'I don't mean to be a bother.'\n"
+        "obligation. If the conversation had any prior exchange, reference it briefly. "
+        "Do not use 'I'll take that as a no.' Do not say 'I don't mean to be a bother.'\n"
         "2. DOOR OPEN (sentence 2): One warm sentence keeping the relationship alive without "
-        "asking for anything. Reference the topic from the original message in one clause. "
+        "asking for anything. Reference the specific topic from the original message or conversation. "
         "End with a period, not a question mark.\n\n"
         "HARD CONSTRAINTS:\n"
         "- 35 words maximum.\n"

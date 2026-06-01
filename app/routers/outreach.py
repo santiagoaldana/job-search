@@ -620,11 +620,25 @@ async def draft_followup(
 
     ai_reasoning = None
 
+    # Fetch conversation history up front — zero API cost, just DB read.
+    # Passed to MSG-3 and MSG-4 generators so Claude can reference prior replies.
+    history = _get_conversation_history(record_id) if record_id else []
+    conversation_text = ""
+    if history:
+        for msg in reversed(history[-5:]):
+            conversation_text += f"\n{'='*60}\n"
+            conversation_text += f"From: {msg.get('from_name', msg.get('from_email', 'Unknown'))}\n"
+            conversation_text += f"Date: {msg.get('date', 'Unknown')}\n"
+            conversation_text += f"Subject: {msg.get('subject', '(no subject)')}\n"
+            conversation_text += f"---\n{msg.get('body_preview', '')}\n"
+
+    intel_summary = (company.intel_summary or "") if company else ""
+    contact_name = contact.name if contact else "there"
+    contact_title = contact.title or ""
+    company_name_str = company.name if company else "Unknown"
+
     # MSG-5: AI thank you when meeting_note (new_element) is provided
     if stage == "post_meeting" and req.new_element and req.new_element.strip():
-        contact_name = contact.name if contact else "there"
-        contact_title = contact.title or ""
-        company_name_str = company.name if company else "Unknown"
         ai_result = generate_thankyou_draft(
             contact_name, contact_title, company_name_str, req.new_element.strip(),
         )
@@ -638,9 +652,6 @@ async def draft_followup(
     elif stage == "post_meeting_2":
         meeting_note = (req.new_element or record.notes or "").strip()
         if meeting_note:
-            contact_name = contact.name if contact else "there"
-            contact_title = contact.title or ""
-            company_name_str = company.name if company else "Unknown"
             ai_result = generate_reflection_draft(
                 contact_name, contact_title, company_name_str, meeting_note,
             )
@@ -650,48 +661,32 @@ async def draft_followup(
                 draft["template_used"] = False
                 ai_reasoning = ai_result.get("reasoning")
 
-    # MSG-3: AI bump when new_element is provided
+    # MSG-3: AI bump — passes conversation history so Claude avoids repeating what was said
     elif stage == "day_3" and req.new_element and req.new_element.strip():
         original_body = record.outreach_message or record.body or ""
-        contact_name = contact.name if contact else "there"
-        contact_title = contact.title or ""
-        company_name_str = company.name if company else "Unknown"
         ai_result = generate_bump_draft(
             contact_name, contact_title, company_name_str,
             original_body, req.new_element.strip(),
+            conversation_history=conversation_text,
         )
         if ai_result:
             draft["body"] = ai_result["body"]
             draft["template_used"] = False
             ai_reasoning = ai_result.get("reasoning")
 
-    # MSG-4: AI close draft
+    # MSG-4: AI close — passes conversation history + intel for a personalized close
     elif stage == "day_7":
         original_body = record.outreach_message or record.body or ""
-        contact_name = contact.name if contact else "there"
-        contact_title = contact.title or ""
-        company_name_str = company.name if company else "Unknown"
         from app.services.outreach_generator import generate_close_draft
         ai_result = await generate_close_draft(
             contact_name, contact_title, company_name_str, original_body,
+            conversation_history=conversation_text,
+            intel_summary=intel_summary,
         )
         if ai_result:
             draft["body"] = ai_result["body"]
             draft["template_used"] = False
             ai_reasoning = ai_result.get("reasoning")
-
-    # Fetch conversation history (zero API cost — just database read)
-    history = _get_conversation_history(record_id) if record_id else []
-
-    # Format conversation for display
-    conversation_text = ""
-    if history:
-        for msg in reversed(history[-5:]):
-            conversation_text += f"\n{'='*60}\n"
-            conversation_text += f"From: {msg.get('from_name', msg.get('from_email', 'Unknown'))}\n"
-            conversation_text += f"Date: {msg.get('date', 'Unknown')}\n"
-            conversation_text += f"Subject: {msg.get('subject', '(no subject)')}\n"
-            conversation_text += f"---\n{msg.get('body_preview', '')}\n"
 
     return {
         "subject": draft.get("subject"),
