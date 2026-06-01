@@ -247,7 +247,7 @@ async def suggest_bump_element(
         return ""
 
 
-def generate_bump_draft(
+async def generate_bump_draft(
     contact_name: str,
     contact_title: str,
     company_name: str,
@@ -294,8 +294,8 @@ def generate_bump_draft(
     )
 
     try:
-        client = anthropic.Anthropic()
-        response = client.messages.create(
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}],
@@ -528,7 +528,7 @@ def build_context_enhancer_no_reply(intel_summary: str = "") -> str:
     )
 
 
-def generate_champion_checkin_draft(
+async def generate_champion_checkin_draft(
     contact_name: str,
     contact_title: str,
     company_name: str,
@@ -577,8 +577,8 @@ def generate_champion_checkin_draft(
     )
 
     try:
-        client = anthropic.Anthropic()
-        response = client.messages.create(
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=250,
             messages=[{"role": "user", "content": prompt}],
@@ -603,7 +603,7 @@ def generate_champion_checkin_draft(
     }
 
 
-def refine_draft(
+async def refine_draft(
     contact_name: str,
     contact_title: str,
     company_name: str,
@@ -634,8 +634,8 @@ def refine_draft(
     )
 
     try:
-        client = anthropic.Anthropic()
-        response = client.messages.create(
+        client = anthropic.AsyncAnthropic()
+        response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=400,
             messages=[{"role": "user", "content": prompt}],

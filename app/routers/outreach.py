@@ -664,7 +664,7 @@ async def draft_followup(
     # MSG-3: AI bump — passes conversation history so Claude avoids repeating what was said
     elif stage == "day_3" and req.new_element and req.new_element.strip():
         original_body = record.outreach_message or record.body or ""
-        ai_result = generate_bump_draft(
+        ai_result = await generate_bump_draft(
             contact_name, contact_title, company_name_str,
             original_body, req.new_element.strip(),
             conversation_history=conversation_text,
@@ -826,7 +826,7 @@ async def draft_champion_checkin(
     )
 
     from app.services.outreach_generator import generate_champion_checkin_draft
-    result = generate_champion_checkin_draft(
+    result = await generate_champion_checkin_draft(
         contact_name=contact.name or "there",
         contact_title=contact.title or "",
         company_name=company_name,
@@ -869,7 +869,7 @@ async def refine_draft_endpoint(
             company = session.get(Company, contact.company_id)
 
     from app.services.outreach_generator import refine_draft
-    result = refine_draft(
+    result = await refine_draft(
         contact_name=contact.name if contact else "",
         contact_title=contact.title if contact else "",
         company_name=company.name if company else "Unknown",
