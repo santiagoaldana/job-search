@@ -359,6 +359,26 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="update_contact",
+            description="Update fields on an existing contact record — email, email_guessed, email_patterns_tried, relationship_notes, outreach_status, etc. Use this to set a confirmed email address or clear stale email-guess data.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contact_name": {"type": "string", "description": "Full or partial name of the contact"},
+                    "company_name": {"type": "string", "description": "Company name to narrow the search (optional)"},
+                    "email": {"type": "string"},
+                    "email_guessed": {"type": "boolean"},
+                    "email_patterns_tried": {"type": "string", "description": "JSON list string, or null/empty string to clear"},
+                    "outreach_status": {"type": "string"},
+                    "relationship_notes": {"type": "string"},
+                    "title": {"type": "string"},
+                    "phone": {"type": "string"},
+                    "is_mit_alum": {"type": "boolean"},
+                },
+                "required": ["contact_name"],
+            },
+        ),
+        types.Tool(
             name="get_progress_report",
             description="Get a visual job search health report showing pipeline velocity, outreach funnel, follow-up health, and contact gaps. Returns an HTML artifact.",
             inputSchema={"type": "object", "properties": {}},
@@ -1201,6 +1221,25 @@ async def _dispatch(name: str, args: dict) -> dict:
                 "Then call save_interview_prep with company_name and the sections array to persist it."
             ),
         }
+
+    elif name == "update_contact":
+        contacts = await _get("/api/contacts")
+        name_lower = args["contact_name"].lower()
+        company_filter = (args.get("company_name") or "").lower()
+        matches = [
+            c for c in contacts
+            if name_lower in (c.get("name") or "").lower()
+            and (not company_filter or company_filter in (c.get("company_name") or "").lower())
+        ]
+        if not matches:
+            return {"error": f"No contact found matching '{args['contact_name']}'"}
+        contact_row = matches[0]
+        update_fields = {k: v for k, v in args.items() if k not in ("contact_name", "company_name")}
+        # Treat empty string for email_patterns_tried as null (clear)
+        if "email_patterns_tried" in update_fields and update_fields["email_patterns_tried"] == "":
+            update_fields["email_patterns_tried"] = None
+        result = await _patch(f"/api/contacts/{contact_row['id']}", update_fields)
+        return {"contact_id": contact_row["id"], "contact_name": contact_row["name"], "updated": update_fields, "result": result}
 
     return {"error": f"Unknown tool: {name}"}
 
