@@ -222,8 +222,8 @@ def _collect_parts(payload: dict) -> tuple:
             html = base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
     for part in payload.get("parts", []):
         p, h = _collect_parts(part)
-        plain = plain or p
-        html = html or h
+        plain += p
+        html += h
     return plain, html
 
 
