@@ -459,6 +459,129 @@ def generate_referral_pivot_draft(
     }
 
 
+def generate_champion_checkin_draft(
+    contact_name: str,
+    contact_title: str,
+    company_name: str,
+    champion_notes: str,
+    intel_summary: str,
+    conversation_text: str,
+    additional_notes: str = "",
+) -> Optional[dict]:
+    """
+    MSG champion check-in — Haiku-powered, uses champion_notes + conversation as context.
+    Falls back to a short template on failure.
+    """
+    import json
+    import anthropic
+
+    first_name = (contact_name or "there").split()[0]
+
+    context_parts = []
+    if champion_notes.strip():
+        context_parts.append(f"RELATIONSHIP NOTES:\n{champion_notes.strip()}")
+    if conversation_text.strip():
+        context_parts.append(f"RECENT EXCHANGE:\n{conversation_text.strip()[:800]}")
+    if intel_summary.strip():
+        context_parts.append(f"COMPANY CONTEXT ({company_name}):\n{intel_summary.strip()[:400]}")
+    if additional_notes.strip():
+        context_parts.append(f"ADDITIONAL CONTEXT FROM SANTIAGO:\n{additional_notes.strip()}")
+
+    context_block = "\n\n".join(context_parts) if context_parts else f"Champion at {company_name}."
+
+    prompt = (
+        f"Write a short personal check-in note from Santiago Aldana to {first_name} "
+        f"({contact_title or 'executive'} at {company_name}).\n\n"
+        f"{context_block}\n\n"
+        "CONSTRUCTION RULES:\n"
+        "1. Reference something specific from the relationship notes or recent exchange. "
+        "Do not open with 'How are you' or any generic check-in phrase.\n"
+        "2. One concrete sentence anchored on what was discussed or committed to.\n"
+        "3. Optional: one light sentence keeping the door open — no ask, no pressure.\n"
+        "3 sentences maximum total.\n\n"
+        "HARD CONSTRAINTS:\n"
+        "- No em dashes, en dashes, or hyphens.\n"
+        "- No apology. No 'just checking in', 'hope you are well', 'touching base'.\n"
+        "- No signature block.\n"
+        "- Start with 'Hi {first_name},' on the first line, then a blank line.\n\n"
+        f'Return ONLY valid JSON: {{"subject": "<short subject line>", "body": "<full note starting with Hi {first_name},>"}}'
+    )
+
+    try:
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=250,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(raw)
+        if "body" in result and "subject" in result:
+            return result
+    except Exception:
+        pass
+
+    # Template fallback
+    anchor = champion_notes.strip().split(".")[0][:80] if champion_notes.strip() else f"our work together at {company_name}"
+    return {
+        "subject": "Checking in",
+        "body": (
+            f"Hi {first_name},\n\n"
+            f"Wanted to check in on {anchor}.\n\n"
+            f"Any updates on your end?"
+        ),
+    }
+
+
+def refine_draft(
+    contact_name: str,
+    contact_title: str,
+    company_name: str,
+    current_subject: str,
+    current_body: str,
+) -> Optional[dict]:
+    """
+    Polish the current draft: fix spelling/grammar, strip em dashes and filler, preserve intent.
+    Returns {"subject": ..., "body": ...} or None on failure (caller echoes back original).
+    """
+    import json
+    import anthropic
+
+    prompt = (
+        f"Polish this email draft from Santiago Aldana to a contact ({contact_title or 'executive'} at {company_name}).\n\n"
+        f"CURRENT SUBJECT: {current_subject}\n\n"
+        f"CURRENT BODY:\n{current_body}\n\n"
+        "POLISH RULES (apply all):\n"
+        "1. Fix any spelling or grammar errors.\n"
+        "2. Tighten prose — remove redundant words, do not add new sentences.\n"
+        "3. Replace any em dashes, en dashes, or hyphens used as punctuation with rewritten phrases.\n"
+        "4. Remove filler phrases: 'I hope this finds you', 'touching base', 'circling back', "
+        "'I wanted to reach out', 'just wanted to'.\n"
+        "5. Preserve the opening 'Hi [name],' line exactly.\n"
+        "6. Do not change the core message, the ask, or the tone.\n"
+        "7. Do not add a signature block.\n\n"
+        'Return ONLY valid JSON: {"subject": "<polished subject>", "body": "<polished body>"}'
+    )
+
+    try:
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(raw)
+        if "body" in result and "subject" in result:
+            return result
+    except Exception:
+        pass
+
+    return None
+
+
 def generate_champion_briefing_draft(
     champion_name: str,
     champion_title: str,

@@ -665,7 +665,20 @@ async def draft_followup(
             draft["template_used"] = False
             ai_reasoning = ai_result.get("reasoning")
 
-    # MSG-4: template handles day_7 — no API call needed
+    # MSG-4: AI close draft
+    elif stage == "day_7":
+        original_body = record.outreach_message or record.body or ""
+        contact_name = contact.name if contact else "there"
+        contact_title = contact.title or ""
+        company_name_str = company.name if company else "Unknown"
+        from app.services.outreach_generator import generate_close_draft
+        ai_result = await generate_close_draft(
+            contact_name, contact_title, company_name_str, original_body,
+        )
+        if ai_result:
+            draft["body"] = ai_result["body"]
+            draft["template_used"] = False
+            ai_reasoning = ai_result.get("reasoning")
 
     # Fetch conversation history (zero API cost — just database read)
     history = _get_conversation_history(record_id) if record_id else []
@@ -785,6 +798,84 @@ async def draft_champion_intro(
     )
     if not result:
         raise HTTPException(status_code=500, detail="Draft generation failed")
+    return result
+
+
+class ChampionCheckinRequest(BaseModel):
+    additional_notes: str = ""
+
+
+@router.post("/{record_id}/draft-champion-checkin")
+async def draft_champion_checkin(
+    record_id: int,
+    req: ChampionCheckinRequest,
+    session: Session = Depends(get_session),
+):
+    """Draft a personal champion check-in note using champion_notes + conversation history."""
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    if not contact:
+        raise HTTPException(status_code=400, detail="No contact on this record")
+
+    company = session.get(Company, contact.company_id) if contact.company_id else None
+    intel_summary = (company.intel_summary or "") if company else ""
+    company_name = company.name if company else "Unknown"
+
+    history = _get_conversation_history(record_id)
+    conversation_text = "\n\n".join(
+        f"{m.get('from_name','?')} ({m.get('message_type','?')}): {m.get('body_preview','')[:300]}"
+        for m in history[-3:]
+    )
+
+    from app.services.outreach_generator import generate_champion_checkin_draft
+    result = generate_champion_checkin_draft(
+        contact_name=contact.name or "there",
+        contact_title=contact.title or "",
+        company_name=company_name,
+        champion_notes=contact.champion_notes or "",
+        intel_summary=intel_summary,
+        conversation_text=conversation_text,
+        additional_notes=req.additional_notes,
+    )
+    if not result:
+        raise HTTPException(status_code=500, detail="Draft generation failed")
+    return result
+
+
+class RefineDraftRequest(BaseModel):
+    subject: str
+    body: str
+    language: str = "en"
+
+
+@router.post("/{record_id}/refine-draft")
+async def refine_draft_endpoint(
+    record_id: int,
+    req: RefineDraftRequest,
+    session: Session = Depends(get_session),
+):
+    """Polish the current draft: fix spelling/grammar, strip em dashes and filler."""
+    record = session.get(OutreachRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    company = session.get(Company, contact.company_id) if contact and contact.company_id else None
+
+    from app.services.outreach_generator import refine_draft
+    result = refine_draft(
+        contact_name=contact.name if contact else "",
+        contact_title=contact.title if contact else "",
+        company_name=company.name if company else "Unknown",
+        current_subject=req.subject,
+        current_body=req.body,
+    )
+    # On failure, echo back original unchanged
+    if not result:
+        return {"subject": req.subject, "body": req.body}
     return result
 
 

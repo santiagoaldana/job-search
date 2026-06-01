@@ -75,6 +75,8 @@ export const api = {
   updateOutreachResponse: (id, status) => patch(`/outreach/${id}/response`, { response_status: status }),
   updateResponse: (id, status, notes) => patch(`/outreach/${id}/response`, { response_status: status, notes }),
   draftFollowup: (id, followup_day, language = 'en', new_element = null) => post(`/outreach/${id}/draft-followup`, { followup_day, language, ...(new_element ? { new_element } : {}) }),
+  draftChampionCheckin: (id, additional_notes = '') => post(`/outreach/${id}/draft-champion-checkin`, { additional_notes }),
+  refineDraft: (id, subject, body, language = 'en') => post(`/outreach/${id}/refine-draft`, { subject, body, language }),
   suggestBumpElement: (id) => get(`/outreach/${id}/suggest-bump-element`),
   buildMailto: (id, data) => post(`/outreach/${id}/build-mailto`, data),
   draftTemplate: (id, followupType, contactId) => post(`/outreach/${id}/draft-template?followup_type=${followupType}${contactId ? `&contact_id=${contactId}` : ''}`),
