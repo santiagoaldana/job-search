@@ -42,10 +42,19 @@ def trigger_sync_async(background_tasks: BackgroundTasks):
 @router.post("/reset-token")
 def reset_token(session: Session = Depends(get_session)):
     """Force re-seed the Gmail token from GMAIL_TOKEN_B64 env var into the DB."""
-    from app.services.gmail_sync_service import _bootstrap_token, _persist_token
+    import os, base64
+    from app.services.gmail_sync_service import _bootstrap_token, _persist_token, TOKEN_DIR
     _bootstrap_token(None)   # write env var token to disk (bypasses DB)
     _persist_token(session)  # read disk → write to DB
-    return {"ok": True, "message": "Token reseeded from GMAIL_TOKEN_B64 env var"}
+    creds_b64 = os.environ.get("GMAIL_CREDENTIALS_B64", "").strip()
+    creds_file = TOKEN_DIR / "credentials.json"
+    return {
+        "ok": True,
+        "message": "Token reseeded from GMAIL_TOKEN_B64 env var",
+        "creds_b64_set": bool(creds_b64),
+        "creds_b64_length": len(creds_b64),
+        "creds_file_exists": creds_file.exists(),
+    }
 
 
 @router.get("/status")
