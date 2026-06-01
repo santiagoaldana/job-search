@@ -698,16 +698,10 @@ function InlineFollowUpCard({ action, onSent, onDismiss, onRefresh }) {
     finally { setDrafting(false) }
   }
 
-  const handleRefine = async () => {
+  const handleRefine = () => {
     if (!subject && !body) return
-    setDrafting(true)
-    setError(null)
-    try {
-      const d = await api.refineDraft(action.payload_id, subject, body, language)
-      setSubject(d.subject || subject)
-      setBody(d.body || body)
-    } catch (e) { setError(e.message) }
-    finally { setDrafting(false) }
+    const prompt = `Polish this email draft. Fix spelling and grammar, remove em dashes and filler phrases ("just wanted to", "touching base", "circling back"), preserve the intent and length. Return the improved subject and body only.\n\nSubject: ${subject}\n\nBody:\n${body}`
+    window.open(`https://claude.ai/new?q=${encodeURIComponent(prompt)}`, '_blank')
   }
 
   const handleOpenGmail = async () => {
@@ -919,7 +913,7 @@ function InlineFollowUpCard({ action, onSent, onDismiss, onRefresh }) {
               {error && <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/40 rounded-lg p-2">{error}</div>}
               {!awaitingConfirm ? (
                 <div className="flex gap-2">
-                  <button onClick={handleRefine} disabled={drafting || (!subject && !body)} className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body disabled:opacity-40">{drafting ? 'Refining…' : 'Refine ↺'}</button>
+                  <button onClick={handleRefine} disabled={!subject && !body} className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body disabled:opacity-40">Refine in Claude ↗</button>
                   <button onClick={handleOpenGmail} disabled={sending || !subject || !body} className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold">{sending ? 'Opening Gmail…' : 'Send via Gmail →'}</button>
                 </div>
               ) : (
@@ -2133,17 +2127,10 @@ function ChampionCheckinCard({ action, onRefresh }) {
     finally { setDrafting(false) }
   }
 
-  const handleRefineChampion = async () => {
+  const handleRefineChampion = () => {
     if (!subject && !body) return
-    setDrafting(true)
-    setDraftError(null)
-    try {
-      const recordId = pending ? pending.id : action.payload_id
-      const d = await api.refineDraft(recordId, subject, body, language)
-      setSubject(d.subject || subject)
-      setBody(d.body || body)
-    } catch (e) { setDraftError(e.message) }
-    finally { setDrafting(false) }
+    const prompt = `Polish this email draft. Fix spelling and grammar, remove em dashes and filler phrases ("just wanted to", "touching base", "circling back"), preserve the intent and length. Return the improved subject and body only.\n\nSubject: ${subject}\n\nBody:\n${body}`
+    window.open(`https://claude.ai/new?q=${encodeURIComponent(prompt)}`, '_blank')
   }
 
   const handleOpenGmail = async () => {
@@ -2271,7 +2258,7 @@ function ChampionCheckinCard({ action, onRefresh }) {
           <input value={subject} onChange={e => setSubject(e.target.value)} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body" placeholder="Subject" />
           <textarea value={body} onChange={e => setBody(e.target.value)} rows={4} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body resize-none" />
           <div className="flex gap-2">
-            <button onClick={handleRefineChampion} disabled={drafting || (!subject && !body)} className="text-xs px-3 py-2 border border-theme rounded-lg text-muted disabled:opacity-40">{drafting ? 'Refining…' : 'Refine ↺'}</button>
+            <button onClick={handleRefineChampion} disabled={!subject && !body} className="text-xs px-3 py-2 border border-theme rounded-lg text-muted disabled:opacity-40">Refine in Claude ↗</button>
             <button onClick={handleOpenGmail} disabled={sending} className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2 text-xs font-semibold">{sending ? 'Opening…' : 'Send via Gmail →'}</button>
           </div>
         </div>
