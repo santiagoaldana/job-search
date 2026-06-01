@@ -459,6 +459,50 @@ def generate_referral_pivot_draft(
     }
 
 
+# ── MSG-20: Conversation-context enhancer prompts ────────────────────────────
+
+SANTIAGO_BACKGROUND = (
+    "Santiago Aldana. MIT Sloan MBA. 20+ years FinTech/AI/payments leadership. "
+    "CEO SoyYo (digital identity, 3M users, sold to Redeban). "
+    "CDTO Avianca ($110M IT budget, 47% of sales to digital). "
+    "CEO Uff! Movil (LatAm's first MVNO, sold to Bancolombia). "
+    "Currently Chief Product Solutions Officer at SMCU (leading SBA credit union lender in Massachusetts). "
+    "Target roles: CEO, COO, CPO, SVP Payments, SVP Embedded Banking at growth-stage FinTech."
+)
+
+CONTEXT_ENHANCER_WITH_REPLY = (
+    f"Santiago Aldana background: {SANTIAGO_BACKGROUND}\n\n"
+    "Read the conversation history above carefully. The contact has replied. "
+    "Rewrite the draft to:\n"
+    "1. Reference something specific from the contact's reply — their phrasing, a question they asked, "
+    "or a point they made. Make it clear you read what they wrote.\n"
+    "2. If the reply mentions a referral, a closed process, or a specific situation, acknowledge it warmly "
+    "before pivoting.\n"
+    "3. End with one light, specific ask that continues the thread they opened. "
+    "Do not introduce a new topic.\n"
+    "4. Never name Santiago's job search, job title aspirations, or ask for introductions in general terms.\n"
+    "5. Never use em dashes, en dashes, or hyphens as punctuation.\n"
+    "Keep body under 100 words. Do NOT add a signature block. "
+    'Return JSON: {"subject": "...", "body": "...", "reasoning": "which specific part of their reply you anchored on"}'
+)
+
+def build_context_enhancer_no_reply(intel_summary: str = "") -> str:
+    """Build the Variant B (no reply) enhancer prompt with optional intel injection."""
+    intel_block = f"\nCompany intel: {intel_summary[:1000]}" if intel_summary else ""
+    return (
+        f"Santiago Aldana background: {SANTIAGO_BACKGROUND}{intel_block}\n\n"
+        "Refine the draft using the Dalton method:\n"
+        "1. Lead with one specific, current fact about the recipient's company or role — use the intel above if present.\n"
+        "2. Make at least half the words about them, not Santiago.\n"
+        "3. Weave in the one Santiago credential most relevant to their specific situation.\n"
+        "4. End with a single, specific open question. No statement closes.\n"
+        "Do NOT use corporate jargon, 'synergy', 'circle back', or 'pick your brain'. "
+        "Never use em dashes, en dashes, or hyphens as punctuation. "
+        "Do NOT add a signature block. Keep body under 80 words. "
+        'Return JSON: {"subject": "...", "body": "...", "reasoning": "which intel detail you used as hook"}'
+    )
+
+
 def generate_champion_checkin_draft(
     contact_name: str,
     contact_title: str,
