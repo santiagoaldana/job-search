@@ -2116,15 +2116,14 @@ function ChampionCheckinCard({ action, onRefresh }) {
     finally { setDrafting(false) }
   }
 
-  const handleDraftFresh = async () => {
-    setDrafting(true)
-    setDraftError(null)
-    try {
-      const result = await api.draftChampionCheckin(action.payload_id, notes.trim())
-      setSubject(result.subject || '')
-      setBody(result.body || '')
-    } catch (e) { setDraftError(e.message) }
-    finally { setDrafting(false) }
+  const handleDraftFresh = () => {
+    const contextParts = []
+    if (action.champion_notes) contextParts.push(`Relationship notes: ${action.champion_notes}`)
+    if (notes.trim()) contextParts.push(`Additional context: ${notes.trim()}`)
+    if (action.company_name) contextParts.push(`Company: ${action.company_name}`)
+    const context = contextParts.length ? `\n\nContext:\n${contextParts.join('\n')}` : ''
+    const prompt = `Write a short personal check-in note from Santiago Aldana to ${action.contact_name || 'this champion'} (${action.contact_title || 'executive'}).${context}\n\nRules:\n- 2-3 sentences max\n- Reference something specific from the relationship notes or recent exchange\n- Do NOT open with "How are you" or "Just checking in"\n- No em dashes, en dashes, or hyphens\n- No signature block\n- Return a subject line and body`
+    window.open(`https://claude.ai/new?q=${encodeURIComponent(prompt)}`, '_blank')
   }
 
   const handleRefineChampion = () => {
@@ -2248,10 +2247,10 @@ function ChampionCheckinCard({ action, onRefresh }) {
       {!hasDraft ? (
         <button
           onClick={pending ? handleDraftNudge : handleDraftFresh}
-          disabled={drafting}
+          disabled={pending ? drafting : false}
           className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-xs font-semibold"
         >
-          {drafting ? 'Drafting…' : pending ? 'Draft nudge →' : 'Draft message →'}
+          {pending ? (drafting ? 'Drafting…' : 'Draft nudge →') : 'Draft in Claude ↗'}
         </button>
       ) : !awaitingConfirm ? (
         <div className="flex flex-col gap-2">
