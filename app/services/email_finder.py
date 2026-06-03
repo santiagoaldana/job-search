@@ -33,8 +33,10 @@ def guess_email_patterns(first: str, last: str, domain: str) -> list[str]:
         return []
     patterns = [f"{first}@{domain}"]
     if last:
-        patterns.append(f"{first}.{last}@{domain}")
-        patterns.append(f"{first[0]}{last}@{domain}")
+        patterns.append(f"{first}.{last}@{domain}")    # dominant at large companies
+        patterns.append(f"{first[0]}{last}@{domain}")  # common at mid-size
+        patterns.append(f"{first[0]}.{last}@{domain}") # common variant
+        patterns.append(f"{first}{last}@{domain}")     # last resort
     return patterns
 
 
@@ -69,7 +71,9 @@ def best_email_guess(
     if not company_domain:
         return None
 
-    tried = json.loads(patterns_tried) if patterns_tried else []
+    tried_raw = json.loads(patterns_tried) if patterns_tried else []
+    # Ignore patterns tried against a different domain (stale data guard)
+    tried = [p for p in tried_raw if p.endswith(f"@{company_domain}")]
     patterns = guess_email_patterns(first, last, company_domain)
     if not patterns:
         return None
@@ -198,6 +202,7 @@ _WELL_KNOWN_DOMAINS = {
     "unit": "unit.co",
     "column": "column.com",
     "mercury": "mercury.com",
+    "clerk": "clerk.com",
     "ramp": "ramp.com",
     "modern treasury": "moderntreasury.com",
     "modern-treasury": "moderntreasury.com",

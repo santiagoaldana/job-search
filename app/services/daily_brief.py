@@ -202,6 +202,9 @@ def compute_daily_brief(session: Session) -> dict:
         days_sent = _days_diff(record.sent_at, today)
         who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else 'Unknown'))
 
+        if contact and contact.email_invalid:
+            continue
+
         if record.channel == "linkedin" and record.linkedin_accepted is None:
             # Skip if snoozed
             if record.escalation_snooze_until and record.escalation_snooze_until > today:
@@ -277,6 +280,9 @@ def compute_daily_brief(session: Session) -> dict:
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
         days_sent = _days_diff(record.sent_at, today)
         who = f"{contact.name} at {company.name}" if contact and company else (contact.name if contact else (company.name if company else 'Unknown'))
+
+        if contact and contact.email_invalid:
+            continue
 
         # LinkedIn-only outreach with no acceptance: not an email close, skip
         if record.channel == "linkedin" and record.linkedin_accepted is None:

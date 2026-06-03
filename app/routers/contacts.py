@@ -707,13 +707,28 @@ async def draft_bounce_retry(contact_id: int, session: Session = Depends(get_ses
     ns = determine_next_step(contact, company)
     guessed_email = ns.get("guessed_email") or (contact.email if not contact.email_invalid else None)
 
+    # Look up the most recent outreach to this contact and reuse its message
+    from app.models import OutreachRecord
+    from sqlmodel import desc
+    prior = session.exec(
+        select(OutreachRecord)
+        .where(OutreachRecord.contact_id == contact_id)
+        .order_by(desc(OutreachRecord.created_at))
+    ).first()
+    prior_subject = None
+    prior_body = None
+    if prior:
+        prior_subject = prior.subject or prior.ai_draft_subject or None
+        prior_body = prior.outreach_message or prior.body or prior.ai_draft_body or None
+
     return {
-        "subject": subject,
-        "body": body,
+        "subject": prior_subject or subject,
+        "body": prior_body or body,
         "guessed_email": guessed_email,
         "contact_title": role,
         "intel": intel,
         "company_id": company.id if company else None,
+        "reused_from_prior": bool(prior_subject or prior_body),
     }
 
 

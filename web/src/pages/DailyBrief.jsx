@@ -1359,6 +1359,7 @@ function EmailBounceRetryCard({ action, onRefresh }) {
   const [busy, setBusy] = useState(false)
   const [refineCopied, setRefineCopied] = useState(false)
   const [draftKey, setDraftKey] = useState(0)
+  const [reusedFromPrior, setReusedFromPrior] = useState(false)
 
   useEffect(() => {
     api.draftBounceRetry(action.payload_id)
@@ -1368,6 +1369,7 @@ function EmailBounceRetryCard({ action, onRefresh }) {
         if (res.intel) setIntel(res.intel)
         setSubject(res.subject || '')
         setBody(res.body || '')
+        setReusedFromPrior(res.reused_from_prior || false)
         setState(res.guessed_email || guessedEmail ? 'draft' : 'exhausted')
       })
       .catch(() => {
@@ -1457,6 +1459,11 @@ function EmailBounceRetryCard({ action, onRefresh }) {
             <div className="text-xs text-muted">
               To: <span className="font-mono text-body">{guessedEmail}</span>{' '}
               <span className="text-orange-500">(unverified)</span>
+            </div>
+          )}
+          {reusedFromPrior && (
+            <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 rounded-lg px-3 py-2">
+              Same message as before — just updating the email address. Review quickly before sending.
             </div>
           )}
           <input
