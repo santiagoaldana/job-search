@@ -267,6 +267,13 @@ function FollowUpModal({ action, onClose, onSent }) {
               >
                 Retry
               </button>
+              <button
+                disabled={sending}
+                onClick={async () => { setSending(true); try { await api.markFollowupSent(action.payload_id, { followup_day: action.followup_day }); setDone(true); onSent && onSent(action.payload_id, action.followup_day); } catch(e) { setError(e.message); } finally { setSending(false); } }}
+                className="text-xs text-muted hover:text-body disabled:opacity-40"
+              >
+                {sending ? 'Saving…' : 'I already sent it — mark as sent'}
+              </button>
             </div>
           )}
           {error && body && (
