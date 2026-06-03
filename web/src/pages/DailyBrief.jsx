@@ -259,6 +259,7 @@ function FollowUpModal({ action, onClose, onSent }) {
             <div className="flex flex-col items-center py-8 gap-3">
               <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/40 rounded-lg p-3 text-center w-full">
                 Could not load draft — the server may be waking up. Try again in a few seconds.
+                {error && <div className="mt-1 font-mono opacity-70">{error}</div>}
               </div>
               <button
                 onClick={() => { setError(null); setDrafting(true); api.draftFollowup(action.payload_id, action.followup_day, language).then(d => { setSubject(d.subject || ''); setBody(d.body || ''); setConversation(d.conversation_text || ''); setDrafting(false); }).catch(e => { setError(e.message); setDrafting(false); }) }}
