@@ -2147,18 +2147,25 @@ function ChampionCheckinCard({ action, onRefresh }) {
   }
 
   const handleConfirmSent = async () => {
-    if (pending) {
-      // Mark the pending follow-up as sent
-      setSending(true)
-      try {
+    setSending(true)
+    try {
+      if (pending) {
         await api.markFollowupSent(pending.id, { followup_day: pending.followup_day })
-      } catch (e) { console.error(e) }
-      finally { setSending(false) }
-    }
+      }
+      // Bump next_checkin_date to today+3 so the card disappears from brief
+      if (action.payload_id) {
+        const d = new Date()
+        d.setDate(d.getDate() + 3)
+        const next = d.toISOString().split('T')[0]
+        await api.updateContact(action.payload_id, { next_checkin_date: next })
+      }
+    } catch (e) { console.error(e) }
+    finally { setSending(false) }
     setAwaitingConfirm(false)
     setMailtoUrl(null)
     setSubject('')
     setBody('')
+    onRefresh()
   }
 
   const handleDraftIntro = async (e) => {
