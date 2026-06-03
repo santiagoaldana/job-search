@@ -348,12 +348,13 @@ async def list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="mark_email_bounced",
-            description="Mark a contact's email as bounced. Advances to the next pattern guess and returns the new recommended action.",
+            description="Mark a contact's email as bounced. Advances to the next pattern guess and returns the new recommended action. Pass contact_id directly if name lookup fails.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "contact_name": {"type": "string"},
                     "company_name": {"type": "string"},
+                    "contact_id": {"type": "integer", "description": "Direct contact ID — bypasses name search"},
                 },
                 "required": ["contact_name"],
             },
@@ -1095,18 +1096,20 @@ async def _dispatch(name: str, args: dict) -> dict:
         return {"ok": True, "contact": contact_row["name"], "status_recorded": status, "contact_id": contact_id}
 
     elif name == "mark_email_bounced":
-        contacts = await _get("/api/contacts")
-        name_lower = args["contact_name"].lower()
-        company_filter = args.get("company_name", "").lower()
-        matches = [
-            c for c in contacts
-            if name_lower in (c.get("name") or "").lower()
-            and (not company_filter or company_filter in (c.get("company_name") or "").lower())
-        ]
-        if not matches:
-            return {"error": f"No contact found matching '{args['contact_name']}'"}
-        contact_row = matches[0]
-        return await _post(f"/api/contacts/{contact_row['id']}/bounce", {})
+        contact_id = args.get("contact_id")
+        if not contact_id:
+            contacts = await _get("/api/contacts")
+            name_lower = args["contact_name"].lower()
+            company_filter = args.get("company_name", "").lower()
+            matches = [
+                c for c in contacts
+                if name_lower in (c.get("name") or "").lower()
+                and (not company_filter or company_filter in (c.get("company_name") or "").lower())
+            ]
+            if not matches:
+                return {"error": f"No contact found matching '{args['contact_name']}' — try passing contact_id directly"}
+            contact_id = matches[0]["id"]
+        return await _post(f"/api/contacts/{contact_id}/bounce", {})
 
     elif name == "get_progress_report":
         data = await _get("/api/reports/progress")
