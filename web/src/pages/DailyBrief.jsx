@@ -221,7 +221,7 @@ function FollowUpModal({ action, onClose, onSent }) {
   }
 
   const title = action.followup_day === 0 ? 'Post-Meeting Follow-up' : action.followup_day === -1 ? 'Reach Back Out' : action.followup_day === 3 ? 'Day 3 follow-up' : 'Day 7 close-out'
-  const companyName = action.label?.replace(/Day \d+ (?:follow-up|close) — /, '') || ''
+  const companyName = action.label?.replace(/Day \d+ (?:follow-up|close(?:-out)?) — /, '') || ''
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/50" onClick={onClose}>
@@ -734,7 +734,7 @@ function InlineFollowUpCard({ action, onSent, onDismiss, onRefresh }) {
       if (action.followup_day === 0 && meetingNote.trim()) payload.meeting_note = meetingNote.trim()
       await api.markFollowupSent(action.payload_id, payload)
       setDone(true)
-      onSent && onSent(action.payload_id, action.followup_day)
+      onRefresh && onRefresh()
     } catch (e) { setError(e.message) }
     finally { setSending(false) }
   }
@@ -941,8 +941,8 @@ function InlineFollowUpCard({ action, onSent, onDismiss, onRefresh }) {
           <div className="pt-2 border-t border-theme flex flex-col gap-1.5">
             {!rescheduling ? (
               <div className="flex items-center gap-3 flex-wrap">
-                <button onClick={handleConfirmSent} disabled={sending} className="text-xs text-muted hover:text-body">Already sent? Mark done</button>
-                <span className="text-xs text-muted/40">·</span>
+                {!awaitingConfirm && <button onClick={handleConfirmSent} disabled={sending} className="text-xs text-muted hover:text-body">Already sent? Mark done</button>}
+                {!awaitingConfirm && <span className="text-xs text-muted/40">·</span>}
                 <button onClick={() => setRescheduling(true)} className="text-xs text-muted hover:text-body">Reschedule</button>
                 <span className="text-xs text-muted/40">·</span>
                 <button onClick={handleCloseOut} disabled={closing} className="text-xs text-red-400 hover:text-red-500 disabled:opacity-40">{closing ? 'Closing…' : 'Close out'}</button>
