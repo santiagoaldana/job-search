@@ -354,7 +354,7 @@ async def list_tools() -> list[types.Tool]:
                 "properties": {
                     "contact_name": {"type": "string"},
                     "company_name": {"type": "string"},
-                    "contact_id": {"type": "integer", "description": "Direct contact ID — bypasses name search"},
+                    "contact_id": {"type": "number", "description": "Direct contact ID — bypasses name search"},
                 },
                 "required": ["contact_name"],
             },
@@ -369,6 +369,7 @@ async def list_tools() -> list[types.Tool]:
                     "company_name": {"type": "string", "description": "Company name to narrow the search (optional)"},
                     "email": {"type": "string"},
                     "email_guessed": {"type": "boolean"},
+                    "email_invalid": {"type": "boolean"},
                     "email_patterns_tried": {"type": "string", "description": "JSON list string, or null/empty string to clear"},
                     "outreach_status": {"type": "string"},
                     "relationship_notes": {"type": "string"},
