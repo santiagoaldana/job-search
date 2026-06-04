@@ -679,6 +679,7 @@ function InlineFollowUpCard({ action, onSent, onDismiss, onRefresh }) {
   const [personalEmailSaving, setPersonalEmailSaving] = useState(false)
   const [personalEmailDone, setPersonalEmailDone] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [toEmail, setToEmail] = useState(null)
 
   const cardColor = ACTION_COLORS[action.action_type] || 'border-theme bg-card'
   const ActionIcon = ACTION_ICONS[action.action_type] || AlertCircle
@@ -719,6 +720,7 @@ function InlineFollowUpCard({ action, onSent, onDismiss, onRefresh }) {
       const url = result.mailto_url
       setMailtoUrl(url)
       if (!result.to_email) { setError('No email address on file. Add one in the company card first.'); setSending(false); return }
+      setToEmail(result.to_email)
       if (result.email_is_guessed) setError(`Sending to guessed email: ${result.to_email} — verify before sending.`)
       if (url) window.open(url, '_blank')
       setAwaitingConfirm(true)
@@ -753,7 +755,7 @@ function InlineFollowUpCard({ action, onSent, onDismiss, onRefresh }) {
   const handleCloseOut = async () => {
     setClosing(true)
     try {
-      await api.updateOutreachResponse(action.payload_id, 'negative')
+      await api.skipOutreach(action.payload_id)
       onRefresh && onRefresh()
     } catch (e) { setError(e.message) }
     finally { setClosing(false) }
@@ -919,6 +921,7 @@ function InlineFollowUpCard({ action, onSent, onDismiss, onRefresh }) {
                 <textarea value={body} onChange={e => setBody(e.target.value)} rows={4} className="w-full border border-theme rounded-lg px-3 py-2 text-sm bg-card text-body resize-none" />
               </div>
               {error && <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/40 rounded-lg p-2">{error}</div>}
+              {toEmail && <div className="text-xs text-muted">To: <span className="font-mono text-body">{toEmail}</span></div>}
               {!awaitingConfirm ? (
                 <div className="flex gap-2">
                   <button onClick={handleRefine} disabled={!subject && !body} className="text-xs px-3 py-2 rounded-lg border border-theme text-muted hover:text-body disabled:opacity-40">Refine in Claude ↗</button>
