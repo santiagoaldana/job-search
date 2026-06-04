@@ -2153,15 +2153,15 @@ function ChampionCheckinCard({ action, onRefresh }) {
     if (extra) {
       opener = extra
     } else if (hasCollab && hasHiring) {
-      opener = `Still thinking about the DNSid and Innovation Labs angle we discussed. Any update on the CTO or CPO search?`
+      opener = `Still thinking about our conversation on agent identity and the Innovation Labs build. Any update on the leadership search?`
     } else if (hasCollab) {
-      opener = `Still thinking about the SupplyMind and DNSid collaboration angle we discussed. Would love to continue that conversation.`
+      opener = `Still thinking about the agent identity angle we discussed. Would love to continue that conversation.`
+    } else if (hasHiring) {
+      opener = `Wanted to follow up on the Innovation Labs hiring conversation. Any progress on the CTO or CPO search?`
     } else if (hasCoffee) {
       opener = `Still hoping we can find a time for that coffee in Cambridge.`
-    } else if (sentences.length > 0) {
-      opener = `Wanted to follow up on what we discussed.`
     } else {
-      opener = `Wanted to check in and see how things are going at ${action.company_name || 'your end'}.`
+      opener = `Wanted to follow up on what we discussed at ${action.company_name ? 'the event' : 'our last conversation'}.`
     }
 
     setSubject(`Following up`)
