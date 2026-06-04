@@ -2138,15 +2138,34 @@ function ChampionCheckinCard({ action, onRefresh }) {
 
   const [linkedinCopied, setLinkedinCopied] = useState(false)
 
-  const handleDraftFresh = async () => {
-    setDrafting(true)
-    setDraftError(null)
-    try {
-      const result = await api.draftChampionCheckin(action.payload_id, notes.trim())
-      setSubject(result.subject || '')
-      setBody(result.body || '')
-    } catch (e) { setDraftError(e.message) }
-    finally { setDrafting(false) }
+  const handleDraftFresh = () => {
+    const first = (action.contact_name || 'there').split(' ')[0]
+    const cn = action.champion_notes || ''
+    const extra = notes.trim()
+
+    // Pick a specific anchor from champion notes — first meaningful sentence
+    const sentences = cn.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 10)
+    const hasCoffee = cn.toLowerCase().includes('coffee') || cn.toLowerCase().includes('cambridge')
+    const hasCollab = cn.toLowerCase().includes('collaboration') || cn.toLowerCase().includes('supplymind') || cn.toLowerCase().includes('dnsid')
+    const hasHiring = cn.toLowerCase().includes('cto') || cn.toLowerCase().includes('cpo') || cn.toLowerCase().includes('hiring')
+
+    let opener
+    if (extra) {
+      opener = extra
+    } else if (hasCollab && hasHiring) {
+      opener = `Still thinking about the DNSid and Innovation Labs angle we discussed. Any update on the CTO or CPO search?`
+    } else if (hasCollab) {
+      opener = `Still thinking about the SupplyMind and DNSid collaboration angle we discussed. Would love to continue that conversation.`
+    } else if (hasCoffee) {
+      opener = `Still hoping we can find a time for that coffee in Cambridge.`
+    } else if (sentences.length > 0) {
+      opener = `Wanted to follow up on what we discussed.`
+    } else {
+      opener = `Wanted to check in and see how things are going at ${action.company_name || 'your end'}.`
+    }
+
+    setSubject(`Following up`)
+    setBody(`Hi ${first},\n\n${opener}\n\nWhen is a good time to connect?`)
   }
 
   const handleOpenLinkedIn = () => {

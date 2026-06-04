@@ -105,3 +105,53 @@ Set in `.env` file (loaded via `python-dotenv` at startup in `orchestrate.py`).
 Python packages in `requirements.txt`: `anthropic`, `httpx`, `beautifulsoup4`, `feedparser`, `reportlab`, `python-dotenv`, `rich`, `pdfminer.six`.
 
 Install: `pip install -r requirements.txt`
+
+## AI Generation Rule — No Anthropic API
+
+**Never use the Anthropic API (`anthropic.AsyncAnthropic()`) for any draft generation in the jobsearch or MCP server.** The Railway backend has no API credits. All AI generation goes through Claude Pro via MCP tools in the Claude Code / Claude Chat session.
+
+For draft generation in the app UI, use one of:
+1. **Frontend template** — build the draft directly in the React component from contact/champion data (no backend call needed)
+2. **Template-based backend endpoint** — `draft-template`, `draft_followup_from_template` in `outreach_generator.py` (these use no AI)
+3. **"Refine in Claude ↗"** — opens Claude.ai with the draft pre-filled for the user to polish manually
+
+Never add new `anthropic.AsyncAnthropic()` calls to backend services. If you find yourself reaching for the Anthropic API to improve draft quality, use option 3 instead.
+
+## Debugging Protocol
+
+The app is in active development and has known instability. When Santiago reports a bug, follow this protocol exactly — no speculation before reading code.
+
+### Bug report format Santiago uses
+> "Bug: [what happened]. I used [which button/action] in the app. The contact is [name] at [company]."
+
+### Debug steps (always in this order)
+1. Read the relevant router file (`app/routers/`) for the action Santiago used
+2. Read the relevant service file (`app/services/`) if the router delegates to one
+3. Trace the exact code path — identify the specific lines where logic breaks
+4. Check the MCP tool output for the contact/record if the bug involves wrong data
+5. Propose a fix with the exact file and line numbers
+
+### Key files for common bug areas
+| Bug area | Router | Service |
+|---|---|---|
+| Daily brief surfacing wrong cards | `app/routers/daily_brief.py` | `app/services/daily_brief.py` |
+| Follow-up not marking as sent | `app/routers/outreach.py` (`mark-followup-sent`, `skip`) | — |
+| Status not updating after action | `app/routers/outreach.py` (`/response`, `/patch`) | — |
+| Draft generation | `app/routers/outreach.py` (`draft-followup`) | `app/services/outreach_generator.py` |
+| Gmail sync / reply detection | `app/routers/gmail_sync.py` | `app/services/gmail_sync_service.py` |
+
+### Known structural issues (as of June 2026)
+- **Closing message not updating `prior_message`:** When a close is sent through the brief, the `outreach_message` field on the record is not updated to reflect the closing text. The MCP tool `get_outreach_context` then returns stale content.
+- **Cards not disappearing immediately after Close out:** UI has a visible delay before re-rendering after `skip` is called. Not a data bug — API response latency before re-render. Expected behavior.
+
+### Known data integrity issue — phantom outreach records
+Claude Chat sessions (May 25/27 2026) called `log_outreach` automatically after `quick_add_contact` when Santiago only wanted to save a contact — no outreach had been sent. This started phantom Day 3/7 follow-up clocks on contacts never actually contacted.
+
+**Rule:** NEVER call `log_outreach` or `log_outreach_sent` after `quick_add_contact` unless Santiago explicitly confirms an outreach was already sent. Adding a contact and logging an outreach are two separate actions requiring separate confirmation.
+
+**Fix if it happens again:** Delete the phantom `outreachrecord` row directly via Neon DB (DATABASE_URL is in `.env`). Then the contact will surface naturally via `warm_path` logic in the brief.
+
+### Never do when debugging
+- Do not explain a bug before reading the actual record or code
+- Do not speculate about what "probably happened" — always verify first
+- Do not suggest manual workarounds as the final answer when a code fix is possible
