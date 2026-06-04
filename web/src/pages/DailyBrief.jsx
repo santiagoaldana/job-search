@@ -2134,14 +2134,24 @@ function ChampionCheckinCard({ action, onRefresh }) {
     finally { setDrafting(false) }
   }
 
-  const handleDraftFresh = () => {
-    const contextParts = []
-    if (action.champion_notes) contextParts.push(`Relationship notes: ${action.champion_notes}`)
-    if (notes.trim()) contextParts.push(`Additional context: ${notes.trim()}`)
-    if (action.company_name) contextParts.push(`Company: ${action.company_name}`)
-    const context = contextParts.length ? `\n\nContext:\n${contextParts.join('\n')}` : ''
-    const prompt = `Write a short personal check-in note from Santiago Aldana to ${action.contact_name || 'this champion'} (${action.contact_title || 'executive'}).${context}\n\nRules:\n- 2-3 sentences max\n- Reference something specific from the relationship notes or recent exchange\n- Do NOT open with "How are you" or "Just checking in"\n- No em dashes, en dashes, or hyphens\n- No signature block\n- Return a subject line and body`
-    window.open(`https://claude.ai/new?q=${encodeURIComponent(prompt)}`, '_blank')
+  const [linkedinCopied, setLinkedinCopied] = useState(false)
+
+  const handleDraftFresh = async () => {
+    setDrafting(true)
+    setDraftError(null)
+    try {
+      const result = await api.draftChampionCheckin(action.payload_id, notes.trim())
+      setSubject(result.subject || '')
+      setBody(result.body || '')
+    } catch (e) { setDraftError(e.message) }
+    finally { setDrafting(false) }
+  }
+
+  const handleOpenLinkedIn = () => {
+    navigator.clipboard?.writeText(body).catch(() => {})
+    setLinkedinCopied(true)
+    setTimeout(() => setLinkedinCopied(false), 2000)
+    if (action.linkedin_url) window.open(action.linkedin_url, '_blank')
   }
 
   const handleRefineChampion = () => {
@@ -2272,18 +2282,22 @@ function ChampionCheckinCard({ action, onRefresh }) {
       {!hasDraft ? (
         <button
           onClick={pending ? handleDraftNudge : handleDraftFresh}
-          disabled={pending ? drafting : false}
+          disabled={drafting}
           className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-xs font-semibold"
         >
-          {pending ? (drafting ? 'Drafting…' : 'Draft nudge →') : 'Draft in Claude ↗'}
+          {drafting ? 'Drafting…' : pending ? 'Draft nudge →' : 'Open LinkedIn + Copy →'}
         </button>
       ) : !awaitingConfirm ? (
         <div className="flex flex-col gap-2">
-          <input value={subject} onChange={e => setSubject(e.target.value)} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body" placeholder="Subject" />
+          {pending && <input value={subject} onChange={e => setSubject(e.target.value)} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body" placeholder="Subject" />}
           <textarea value={body} onChange={e => setBody(e.target.value)} rows={4} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body resize-none" />
           <div className="flex gap-2">
-            <button onClick={handleRefineChampion} disabled={!subject && !body} className="text-xs px-3 py-2 border border-theme rounded-lg text-muted disabled:opacity-40">Refine in Claude ↗</button>
-            <button onClick={handleOpenGmail} disabled={sending} className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2 text-xs font-semibold">{sending ? 'Opening…' : 'Send via Gmail →'}</button>
+            <button onClick={handleRefineChampion} disabled={!body} className="text-xs px-3 py-2 border border-theme rounded-lg text-muted disabled:opacity-40">Refine in Claude ↗</button>
+            {pending ? (
+              <button onClick={handleOpenGmail} disabled={sending} className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2 text-xs font-semibold">{sending ? 'Opening…' : 'Send via Gmail →'}</button>
+            ) : (
+              <button onClick={handleOpenLinkedIn} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-xl py-2 text-xs font-semibold">{linkedinCopied ? 'Copied!' : 'Open LinkedIn + Copy →'}</button>
+            )}
           </div>
         </div>
       ) : (
