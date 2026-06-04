@@ -1310,10 +1310,11 @@ def build_mailto(
             session.add(contact)
             session.commit()
 
-    prior_body = record.outreach_message or record.body or ""
+    prior_body = (record.outreach_message or record.body or "").replace("\\n", "\n")
     if prior_body.strip():
-        quoted = "\n".join(f"> {line}" for line in prior_body.splitlines())
-        full_body = f"{req.body}\n\n---\n{quoted}"
+        sent_date = record.sent_at[:10] if record.sent_at else "earlier"
+        header = f"On {sent_date} Santiago Aldana <aldana.santiago@gmail.com> wrote:"
+        full_body = f"{req.body}\n\n{header}\n\n{prior_body.strip()}"
     else:
         full_body = req.body
 
