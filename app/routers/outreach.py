@@ -808,18 +808,19 @@ async def draft_champion_checkin(
 ):
     """Draft a personal champion check-in note using champion_notes + conversation history."""
     record = session.get(OutreachRecord, record_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
-
-    contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    if record:
+        contact = session.get(Contact, record.contact_id) if record.contact_id else None
+    else:
+        # Fallback: champion_checkin cards pass contact_id as record_id
+        contact = session.get(Contact, record_id)
     if not contact:
-        raise HTTPException(status_code=400, detail="No contact on this record")
+        raise HTTPException(status_code=404, detail="Contact not found")
 
     company = session.get(Company, contact.company_id) if contact.company_id else None
     intel_summary = (company.intel_summary or "") if company else ""
     company_name = company.name if company else "Unknown"
 
-    history = _get_conversation_history(record_id)
+    history = _get_conversation_history(record.id) if record else []
     conversation_text = "\n\n".join(
         f"{m.get('from_name','?')} ({m.get('message_type','?')}): {m.get('body_preview','')[:300]}"
         for m in history[-3:]
