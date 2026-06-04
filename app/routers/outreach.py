@@ -1310,8 +1310,15 @@ def build_mailto(
             session.add(contact)
             session.commit()
 
+    prior_body = record.outreach_message or record.body or ""
+    if prior_body.strip():
+        quoted = "\n".join(f"> {line}" for line in prior_body.splitlines())
+        full_body = f"{req.body}\n\n---\n{quoted}"
+    else:
+        full_body = req.body
+
     subject_enc = urllib.parse.quote(req.subject or "", safe="")
-    body_enc = urllib.parse.quote(req.body or "", safe="")
+    body_enc = urllib.parse.quote(full_body or "", safe="")
     to_enc = urllib.parse.quote(to_email, safe="@.")
     gmail_url = f"https://mail.google.com/mail/?view=cm&to={to_enc}&su={subject_enc}&body={body_enc}"
 
