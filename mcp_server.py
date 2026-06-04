@@ -105,7 +105,7 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name="quick_add_contact",
-            description="Add a contact met at a conference or event. Automatically matches the company against Santiago's funnel.",
+            description="Save a contact for future outreach — use this when Santiago shares a LinkedIn screenshot, business card, or says 'log this contact'. Saves name, title, company, and connection info. Does NOT log any outreach — the brief will surface a first-outreach card automatically. Only call log_outreach separately if Santiago explicitly confirms he already sent a message.",
             inputSchema={
                 "type": "object",
                 "properties": {
