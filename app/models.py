@@ -16,7 +16,7 @@ class Company(SQLModel, table=True):
 
     # LAMP scores
     lamp_score: float = Field(default=5.0)
-    motivation: int = Field(default=5)
+    motivation: int = Field(default=8)
     advocacy_score: float = Field(default=1.0)
     postings_score: float = Field(default=1.0)
 

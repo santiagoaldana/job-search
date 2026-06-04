@@ -275,6 +275,7 @@ def quick_add_contact(req: QuickAddRequest, session: Session = Depends(get_sessi
         new_company = Company(
             name=req.company_name.strip(),
             stage="pool",
+            motivation=8,
             created_at=datetime.utcnow().isoformat(),
             updated_at=datetime.utcnow().isoformat(),
         )

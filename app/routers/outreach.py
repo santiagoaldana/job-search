@@ -1349,6 +1349,23 @@ def mark_followup_sent(
     elif req.followup_day == 3:
         record.follow_up_3_sent = True
         record.follow_up_7_due = add_business_days(today, 4).isoformat()
+        # When a LinkedIn DM is sent after acceptance, create a new record with a fresh clock
+        # so the DM thread is tracked independently from the connection request
+        if record.linkedin_accepted:
+            dm_record = OutreachRecord(
+                company_id=record.company_id,
+                contact_id=record.contact_id,
+                channel="linkedin",
+                sent_at=datetime.utcnow().isoformat(),
+                response_status="pending",
+                follow_up_3_due=add_business_days(today, 3).isoformat(),
+                follow_up_7_due=add_business_days(today, 7).isoformat(),
+                follow_up_3_sent=False,
+                follow_up_7_sent=False,
+                linkedin_accepted=True,
+                subject="LinkedIn DM — after acceptance",
+            )
+            session.add(dm_record)
     else:
         record.follow_up_7_sent = True
         record.response_status = "ghosted"
