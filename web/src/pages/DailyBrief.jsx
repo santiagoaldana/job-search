@@ -2121,6 +2121,8 @@ function ChampionCheckinCard({ action, onRefresh }) {
   // Close flow
   const [closingPrompt, setClosingPrompt] = useState(false)
   const [snoozeDate, setSnoozeDate] = useState('')
+  const [noteSaved, setNoteSaved] = useState(false)
+  const [noteSaving, setNoteSaving] = useState(false)
 
   const handleDraftNudge = async () => {
     if (!pending) return
@@ -2273,9 +2275,30 @@ function ChampionCheckinCard({ action, onRefresh }) {
         rows={2}
         placeholder={pending ? 'Optional context for the nudge…' : 'What happened? (optional — seeds the draft)'}
         value={notes}
-        onChange={e => setNotes(e.target.value)}
+        onChange={e => { setNotes(e.target.value); setNoteSaved(false) }}
         className="w-full text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body placeholder:text-muted resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
       />
+      {notes.trim() && !noteSaved && (
+        <button
+          disabled={noteSaving}
+          onClick={async e => {
+            e.stopPropagation()
+            if (!action.payload_id || !notes.trim()) return
+            setNoteSaving(true)
+            try {
+              const newNotes = action.champion_notes
+                ? `${action.champion_notes}\n\n${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: ${notes.trim()}`
+                : notes.trim()
+              await api.updateContact(action.payload_id, { champion_notes: newNotes })
+              setNoteSaved(true)
+            } catch (err) { console.error(err) }
+            finally { setNoteSaving(false) }
+          }}
+          className="text-xs text-blue-500 hover:underline disabled:opacity-40 text-left"
+        >
+          {noteSaving ? 'Saving…' : noteSaved ? 'Saved ✓' : 'Save note'}
+        </button>
+      )}
 
       {/* Draft / send flow */}
       {draftError && <div className="text-xs text-red-500">{draftError}</div>}
