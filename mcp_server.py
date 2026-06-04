@@ -682,10 +682,10 @@ async def _dispatch(name: str, args: dict) -> dict:
         contact_id = result.get("contact_id")
         name_str = args["name"]
         result["_prompt"] = (
-            f"Contact added (ID: {contact_id}). "
-            f"Did you already reach out to {name_str}? "
-            f"If yes, say the channel (linkedin or email) and the date — e.g. 'yes, linkedin, May 1' — "
-            f"and I'll call log_outreach to start the follow-up clock. Or say 'not yet'."
+            f"Contact saved (ID: {contact_id}). "
+            f"Have you already sent {name_str} an outreach message (email or LinkedIn DM)? "
+            f"Only confirm if you actually sent something — do NOT assume based on meeting them or having their card. "
+            f"If yes, tell me the channel and date and I will log it. If not yet, say 'not yet' and they will surface in the brief when it is time to reach out."
         )
         return result
 
