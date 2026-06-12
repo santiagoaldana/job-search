@@ -193,9 +193,10 @@ def compute_daily_brief(session: Session) -> dict:
             OutreachRecord.response_status == "pending",
             OutreachRecord.follow_up_3_due <= today,
             OutreachRecord.follow_up_3_sent == False,
-        )
+        ).order_by(OutreachRecord.sent_at.desc())
     ).all()
 
+    seen_followup_contact_ids: set = set()
     for record in day3_records:
         company = session.get(Company, record.company_id) if record.company_id else None
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
@@ -246,6 +247,11 @@ def compute_daily_brief(session: Session) -> dict:
             # Skip if contact is a champion — the champion card absorbs this thread
             if record.contact_id and record.contact_id in _champion_ids:
                 continue
+            # Dedup: one card per contact (keep most recent record, query is ordered by sent_at desc)
+            if record.contact_id and record.contact_id in seen_followup_contact_ids:
+                continue
+            if record.contact_id:
+                seen_followup_contact_ids.add(record.contact_id)
             outreach.append({
                 "action_type": "follow_up_3",
                 "label": f"Day 3 follow-up — {who}",
@@ -272,9 +278,10 @@ def compute_daily_brief(session: Session) -> dict:
             OutreachRecord.follow_up_7_due <= today,
             OutreachRecord.follow_up_3_sent == True,
             OutreachRecord.follow_up_7_sent == False,
-        )
+        ).order_by(OutreachRecord.sent_at.desc())
     ).all()
 
+    seen_day7_contact_ids: set = set()
     for record in day7_records:
         company = session.get(Company, record.company_id) if record.company_id else None
         contact = session.get(Contact, record.contact_id) if record.contact_id else None
@@ -291,6 +298,12 @@ def compute_daily_brief(session: Session) -> dict:
         # Skip if contact is a champion — the champion card absorbs this thread
         if record.contact_id and record.contact_id in _champion_ids:
             continue
+
+        # Dedup: one card per contact (keep most recent record, query is ordered by sent_at desc)
+        if record.contact_id and record.contact_id in seen_day7_contact_ids:
+            continue
+        if record.contact_id:
+            seen_day7_contact_ids.add(record.contact_id)
 
         outreach.append({
             "action_type": "follow_up_7",
