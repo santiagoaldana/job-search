@@ -207,6 +207,9 @@ def compute_daily_brief(session: Session) -> dict:
             continue
 
         if record.channel == "linkedin" and record.linkedin_accepted is None:
+            # Can't escalate without a named contact
+            if not record.contact_id:
+                continue
             # Skip if snoozed
             if record.escalation_snooze_until and record.escalation_snooze_until > today:
                 continue
@@ -221,6 +224,11 @@ def compute_daily_brief(session: Session) -> dict:
                 ).first()
                 if email_escalation:
                     continue
+            # Dedup: one card per contact
+            if record.contact_id and record.contact_id in seen_followup_contact_ids:
+                continue
+            if record.contact_id:
+                seen_followup_contact_ids.add(record.contact_id)
             next_step = _contact_next_step(contact, company) if contact else {"action": "prompt_manual_email", "guessed_email": None}
             outreach.append({
                 "action_type": "linkedin_not_accepted",

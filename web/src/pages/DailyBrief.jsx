@@ -2172,7 +2172,10 @@ function ChampionCheckinCard({ action, onRefresh }) {
     navigator.clipboard?.writeText(body).catch(() => {})
     setLinkedinCopied(true)
     setTimeout(() => setLinkedinCopied(false), 2000)
-    if (action.linkedin_url) window.open(action.linkedin_url, '_blank')
+    if (action.linkedin_url) {
+      const slug = action.linkedin_url.replace(/\/$/, '').split('/').pop()
+      window.open(`https://www.linkedin.com/in/${slug}`, '_blank')
+    }
   }
 
   const handleRefineChampion = () => {
@@ -2463,6 +2466,7 @@ function EscalationControls({ action, onRefresh }) {
   const [dirty, setDirty] = useState(false)
   const [stopped, setStopped] = useState(false)
   const [stopError, setStopError] = useState(null)
+  const [closing, setClosing] = useState(false)
 
   const confirmReschedule = async (e) => {
     e.stopPropagation()
@@ -2500,6 +2504,19 @@ function EscalationControls({ action, onRefresh }) {
       console.error('stop error', e)
       setStopped(false)
       setStopError('Failed to stop — tap again to retry')
+    }
+  }
+
+  const closeOut = async (e) => {
+    e.stopPropagation()
+    if (closing) return
+    setClosing(true)
+    try {
+      await api.updateOutreachResponse(action.payload_id, 'negative')
+      onRefresh && onRefresh()
+    } catch (err) {
+      console.error('close error', err)
+      setClosing(false)
     }
   }
 
@@ -2561,21 +2578,33 @@ function EscalationControls({ action, onRefresh }) {
           </button>
         )}
         {!dirty && (
-          <button disabled={saving}
-            onClick={e => { e.stopPropagation(); stop() }}
-            className="text-xs px-2 py-1 rounded-md border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40 ml-auto">
-            Stop escalating
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button disabled={closing}
+              onClick={closeOut}
+              className="text-xs px-2 py-1 rounded-md border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40">
+              {closing ? 'Closing…' : 'Close out'}
+            </button>
+            <button disabled={saving}
+              onClick={e => { e.stopPropagation(); stop() }}
+              className="text-xs px-2 py-1 rounded-md border border-theme text-muted hover:text-body disabled:opacity-40">
+              Stop escalating
+            </button>
+          </div>
         )}
       </div>
       {stopError && (
         <div className="text-xs text-red-500">{stopError}</div>
       )}
       {dirty && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <button disabled={closing}
+            onClick={closeOut}
+            className="text-xs px-2 py-1 rounded-md border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40">
+            {closing ? 'Closing…' : 'Close out'}
+          </button>
           <button disabled={saving}
             onClick={e => { e.stopPropagation(); stop() }}
-            className="text-xs px-2 py-1 rounded-md border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40">
+            className="text-xs px-2 py-1 rounded-md border border-theme text-muted hover:text-body disabled:opacity-40">
             Stop escalating
           </button>
         </div>
