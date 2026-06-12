@@ -1176,19 +1176,22 @@ async def draft_template(
         raise HTTPException(status_code=400, detail="Invalid followup_type")
 
     guessed_email = None
-    if contact and contact.email:
-        guessed_email = contact.email
-    elif contact and contact.relationship_notes:
-        import re as _re
-        _match = _re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", contact.relationship_notes)
-        if _match:
-            guessed_email = _match.group(0)
-            contact.email = guessed_email
-            session.add(contact)
-            session.commit()
-    elif contact and company:
-        ns = _contact_next_step(contact, company)
-        guessed_email = ns.get("guessed_email")
+    try:
+        if contact and contact.email:
+            guessed_email = contact.email
+        elif contact and contact.relationship_notes:
+            import re as _re
+            _match = _re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", contact.relationship_notes)
+            if _match:
+                guessed_email = _match.group(0)
+                contact.email = guessed_email
+                session.add(contact)
+                session.commit()
+        elif contact and company:
+            ns = _contact_next_step(contact, company)
+            guessed_email = ns.get("guessed_email")
+    except Exception:
+        pass
 
     return {"subject": subject, "body": body, "guessed_email": guessed_email, "prior_message": prior_message, "intel": intel if followup_type == "escalation" else ""}
 

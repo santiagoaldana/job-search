@@ -1588,8 +1588,9 @@ function LinkedInNotAcceptedCard({ action, onRefresh }) {
         setSubject(res.subject || '')
         setBody(res.body || '')
         if (res.intel) setIntel(res.intel)
+        const resolvedEmail = res.guessed_email || guessedEmail
         if (res.guessed_email) setGuessedEmail(res.guessed_email)
-        setState(res.guessed_email ? 'draft' : 'exhausted')
+        setState(resolvedEmail ? 'draft' : 'exhausted')
       })
       .catch(e => {
         console.error('[LinkedInNotAcceptedCard] draftTemplate failed:', e)
