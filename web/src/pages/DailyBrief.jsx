@@ -995,7 +995,7 @@ function NewReplyCard({ action, onDismiss, onRefresh, onMetDraft }) {
       await api.patchOutreach(action.payload_id, { follow_up_3_due: rescheduleDate })
       setRescheduling(false)
       setRescheduled(true)
-      onRefresh && onRefresh()
+      onDismiss ? onDismiss(action) : onRefresh && onRefresh()
     } catch (e) { setError(e.message) }
     finally { setSending(false) }
   }
