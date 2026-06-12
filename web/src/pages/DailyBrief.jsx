@@ -984,6 +984,21 @@ function NewReplyCard({ action, onDismiss, onRefresh, onMetDraft }) {
   const [mailtoUrl, setMailtoUrl] = useState(null)
   const [done, setDone] = useState(false)
   const [error, setError] = useState(null)
+  const [rescheduling, setRescheduling] = useState(false)
+  const [rescheduleDate, setRescheduleDate] = useState('')
+  const [rescheduled, setRescheduled] = useState(false)
+
+  const handleReschedule = async () => {
+    if (!rescheduleDate) return
+    setSending(true)
+    try {
+      await api.patchOutreach(action.payload_id, { follow_up_3_due: rescheduleDate })
+      setRescheduling(false)
+      setRescheduled(true)
+      onRefresh && onRefresh()
+    } catch (e) { setError(e.message) }
+    finally { setSending(false) }
+  }
 
   const handleDraft = async () => {
     setDrafting(true)
@@ -1056,8 +1071,33 @@ function NewReplyCard({ action, onDismiss, onRefresh, onMetDraft }) {
           {mailtoUrl && <button onClick={() => window.open(mailtoUrl, '_blank')} className="w-full text-xs text-blue-500 text-center">Re-open Gmail draft</button>}
         </div>
       )}
-      {onMetDraft && !done && (
-        <button onClick={onMetDraft} className="text-xs text-green-700 dark:text-green-400 hover:underline text-left w-full">We met — draft post-meeting email instead →</button>
+      {!done && (
+        <div className="pt-1 border-t border-theme flex flex-col gap-1.5">
+          {rescheduled ? (
+            <div className="text-xs text-green-600 font-medium">Follow-up scheduled ✓</div>
+          ) : !rescheduling ? (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-3 flex-wrap">
+                <button onClick={() => setRescheduling(true)} className="text-xs text-muted hover:text-body">Schedule follow-up</button>
+              </div>
+              {onMetDraft && (
+                <button onClick={onMetDraft} className="text-xs text-green-700 dark:text-green-400 hover:underline text-left w-full">We met — draft post-meeting email instead →</button>
+              )}
+              {action.contact_id && !action.is_champion && onRefresh && (
+                <WarmPathChampionToggle action={action} contactId={action.contact_id} onRefresh={onRefresh} />
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="text-xs text-body font-medium">Set follow-up date</div>
+              <div className="flex gap-2">
+                <input type="date" value={rescheduleDate} onChange={e => setRescheduleDate(e.target.value)} className="flex-1 text-xs rounded-lg border border-theme bg-transparent px-3 py-2 text-body" />
+                <button onClick={handleReschedule} disabled={sending || !rescheduleDate} className="text-xs px-3 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-40">{sending ? 'Saving…' : 'Save'}</button>
+                <button onClick={() => setRescheduling(false)} className="text-xs px-3 py-2 rounded-lg border border-theme text-muted">Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
