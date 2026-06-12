@@ -65,6 +65,7 @@ def compute_daily_brief(session: Session) -> dict:
         select(OutreachRecord)
         .where(OutreachRecord.response_status == "positive")
         .where(OutreachRecord.updated_at >= forty_eight_hours_ago)
+        .where(OutreachRecord.follow_up_3_due == None)
         .order_by(OutreachRecord.updated_at.desc())  # type: ignore[arg-type]
     ).all()
 
