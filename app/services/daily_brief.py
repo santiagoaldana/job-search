@@ -383,6 +383,7 @@ def compute_daily_brief(session: Session) -> dict:
                 "last_message": pending_record.outreach_message or pending_record.body,
                 "followup_day": followup_day,
                 "days_overdue": max(days_overdue, 0),
+                "channel": pending_record.channel,
             }
             detail = f"Pending reply · {days_overdue} day{'s' if days_overdue != 1 else ''} overdue"
         else:

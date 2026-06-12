@@ -2130,7 +2130,8 @@ function CallScriptCard({ action }) {
 }
 
 function ChampionCheckinCard({ action, onRefresh }) {
-  const pending = action.pending_outreach  // {id, subject, last_message, followup_day, days_overdue}
+  const pending = action.pending_outreach  // {id, subject, last_message, followup_day, days_overdue, channel}
+  const useEmail = pending && pending.channel !== 'linkedin'
 
   // Draft state (shared between nudge and fresh check-in paths)
   const [language, setLanguage] = useState('en')
@@ -2366,19 +2367,19 @@ function ChampionCheckinCard({ action, onRefresh }) {
       {draftError && <div className="text-xs text-red-500">{draftError}</div>}
       {!hasDraft ? (
         <button
-          onClick={pending ? handleDraftNudge : handleDraftFresh}
+          onClick={useEmail ? handleDraftNudge : handleDraftFresh}
           disabled={drafting}
           className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-xs font-semibold"
         >
-          {drafting ? 'Drafting…' : pending ? 'Draft nudge →' : 'Open LinkedIn + Copy →'}
+          {drafting ? 'Drafting…' : useEmail ? 'Draft nudge →' : 'Open LinkedIn + Copy →'}
         </button>
       ) : !awaitingConfirm ? (
         <div className="flex flex-col gap-2">
-          {pending && <input value={subject} onChange={e => setSubject(e.target.value)} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body" placeholder="Subject" />}
+          {useEmail && <input value={subject} onChange={e => setSubject(e.target.value)} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body" placeholder="Subject" />}
           <textarea value={body} onChange={e => setBody(e.target.value)} rows={4} className="w-full border border-theme rounded-lg px-3 py-2 text-xs bg-card text-body resize-none" />
           <div className="flex gap-2">
             <button onClick={handleRefineChampion} disabled={!body} className="text-xs px-3 py-2 border border-theme rounded-lg text-muted disabled:opacity-40">Refine in Claude ↗</button>
-            {pending ? (
+            {useEmail ? (
               <button onClick={handleOpenGmail} disabled={sending} className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl py-2 text-xs font-semibold">{sending ? 'Opening…' : 'Send via Gmail →'}</button>
             ) : (
               <button onClick={handleOpenLinkedIn} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-xl py-2 text-xs font-semibold">{linkedinCopied ? 'Copied!' : 'Open LinkedIn + Copy →'}</button>
