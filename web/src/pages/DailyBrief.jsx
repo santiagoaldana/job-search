@@ -1392,7 +1392,7 @@ function LinkedInAcceptanceCard({ action, onRefresh }) {
   )
 }
 
-function EmailBounceRetryCard({ action, onRefresh }) {
+function EmailBounceRetryCard({ action, onRefresh, onDismiss }) {
   const [state, setState] = useState('loading') // loading | draft | sent | exhausted
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -1563,6 +1563,11 @@ function EmailBounceRetryCard({ action, onRefresh }) {
 
       {state === 'exhausted' && (
         <div className="text-xs text-muted">All email patterns tried. Reach out via LinkedIn instead.</div>
+      )}
+      {onDismiss && state !== 'sent' && (
+        <div className="pt-1 border-t border-theme/50 flex justify-end">
+          <button onClick={() => onDismiss(action)} className="text-xs text-red-400 hover:text-red-500">Close out</button>
+        </div>
       )}
     </div>
   )
@@ -2803,7 +2808,7 @@ function Section({ title, icon: Icon, items, onAction, onMarkSent, onDismiss, on
                 return <LinkedInNotAcceptedCard key={stableKey} action={action} onRefresh={onRefresh} />
               }
               if (action.action_type === 'email_bounce_retry') {
-                return <EmailBounceRetryCard key={stableKey} action={action} onRefresh={onRefresh} />
+                return <EmailBounceRetryCard key={stableKey} action={action} onRefresh={onRefresh} onDismiss={onDismiss} />
               }
               if (action.action_type === 'new_reply') {
                 const onMetDraft = action.contact_id ? () => onMarkSent && onMarkSent({ ...action, followup_day: 0 }) : undefined
