@@ -130,12 +130,15 @@ class OutreachGenerateRequest(BaseModel):
 @router.get("")
 def list_outreach(
     company_id: Optional[int] = None,
+    contact_id: Optional[int] = None,
     response_status: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
     q = select(OutreachRecord)
     if company_id:
         q = q.where(OutreachRecord.company_id == company_id)
+    if contact_id:
+        q = q.where(OutreachRecord.contact_id == contact_id)
     if response_status:
         q = q.where(OutreachRecord.response_status == response_status)
     records = session.exec(q.order_by(OutreachRecord.sent_at.desc())).all()
@@ -560,6 +563,7 @@ class SendFollowUpRequest(BaseModel):
 class MarkFollowUpSentRequest(BaseModel):
     followup_day: int  # 3 or 7
     meeting_note: Optional[str] = None  # MSG-5: persisted to record.notes for MSG-6
+    outreach_message: Optional[str] = None  # update the canonical message when a follow-up is actually re-sent
 
 
 @router.post("/{record_id}/draft-followup")
@@ -1373,12 +1377,18 @@ def mark_followup_sent(
     else:
         record.follow_up_7_sent = True
         record.response_status = "ghosted"
+
+    # When the follow-up was an actual re-send (e.g. corrected email address),
+    # carry its text forward as the canonical message so get_outreach_context stays accurate.
+    if req.outreach_message and req.outreach_message.strip():
+        record.outreach_message = req.outreach_message.strip()
+
     record.updated_at = datetime.utcnow().isoformat()
 
     session.add(record)
     session.commit()
 
-    return {"ok": True}
+    return {"ok": True, "record_id": record.id, "response_status": record.response_status}
 
 
 @router.post("/{record_id}/send-followup")

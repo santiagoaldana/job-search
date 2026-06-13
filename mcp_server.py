@@ -381,6 +381,20 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="mark_followup_sent",
+            description="Mark a follow-up as actually sent on an EXISTING outreach record — use this instead of log_outreach_sent when the contact already has an outreach record and you are recording a follow-up touch (e.g. a re-send to a corrected email). This updates the existing record's follow-up clock and does NOT create a new record, avoiding duplicates. Resolve the record by passing record_id directly, or by contact_name (+ optional company_name). followup_day: 3 marks the Day-3 bump sent (keeps the thread active), 7 marks the Day-7 close sent (marks it ghosted). Pass outreach_message to update the stored canonical message to the text that was actually sent.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "record_id": {"type": "integer", "description": "OutreachRecord id — bypasses lookup if known"},
+                    "contact_name": {"type": "string", "description": "Used to resolve the most recent outreach record when record_id is not given"},
+                    "company_name": {"type": "string", "description": "Optional, narrows the contact lookup"},
+                    "followup_day": {"type": "integer", "description": "3 (bump, stays active) or 7 (close, marks ghosted). Defaults to 3."},
+                    "outreach_message": {"type": "string", "description": "The exact text that was sent — stored as the record's canonical message"},
+                },
+            },
+        ),
+        types.Tool(
             name="get_progress_report",
             description="Get a visual job search health report showing pipeline velocity, outreach funnel, follow-up health, and contact gaps. Returns an HTML artifact.",
             inputSchema={"type": "object", "properties": {}},
@@ -1095,6 +1109,29 @@ async def _dispatch(name: str, args: dict) -> dict:
 
         result = await _patch(f"/api/contacts/{contact_id}", update)
         return {"ok": True, "contact": contact_row["name"], "status_recorded": status, "contact_id": contact_id}
+
+    elif name == "mark_followup_sent":
+        record_id = args.get("record_id")
+        if not record_id:
+            # Resolve the contact, then find their most recent outreach record
+            contacts = await _get("/api/contacts")
+            name_lower = (args.get("contact_name") or "").lower()
+            company_filter = (args.get("company_name") or "").lower()
+            matches = [
+                c for c in contacts
+                if name_lower and name_lower in (c.get("name") or "").lower()
+                and (not company_filter or company_filter in (c.get("company_name") or "").lower())
+            ]
+            if not matches:
+                return {"error": f"No contact found matching '{args.get('contact_name')}' — pass record_id directly"}
+            records = await _get("/api/outreach", {"contact_id": matches[0]["id"]})
+            if not records:
+                return {"error": f"No outreach record found for '{args.get('contact_name')}' — nothing to mark"}
+            record_id = records[0]["id"]
+        body = {"followup_day": args.get("followup_day", 3)}
+        if args.get("outreach_message"):
+            body["outreach_message"] = args["outreach_message"]
+        return await _post(f"/api/outreach/{record_id}/mark-followup-sent", body)
 
     elif name == "mark_email_bounced":
         contact_id = args.get("contact_id")
