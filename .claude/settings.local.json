@@ -230,7 +230,8 @@
       "Bash(python3 /tmp/check_jegen.py)",
       "Bash(python3 /tmp/cleanup.py)",
       "Bash(python3 /tmp/check_jegen_reply.py)",
-      "Bash(python3 /tmp/cleanup_outreach.py)"
+      "Bash(python3 /tmp/cleanup_outreach.py)",
+      "mcp__c6debaeb-43c0-411d-846d-dbf2a723cc92__create_draft"
     ],
     "additionalDirectories": [
       "/Users/santiagoaldana/.cloudflared",
