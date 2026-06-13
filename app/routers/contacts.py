@@ -21,20 +21,25 @@ from app.services.email_finder import determine_next_step
 router = APIRouter()
 
 
+def _company_name_map(session: Session) -> dict:
+    """Load all company id -> name in one query to avoid per-contact N+1 lookups."""
+    return {cid: cname for cid, cname in session.exec(select(Company.id, Company.name)).all()}
+
+
 @router.get("")
 def list_contacts(session: Session = Depends(get_session)):
     """Return all contacts with their company name, ordered by name."""
     contacts = session.exec(select(Contact).order_by(Contact.name)).all()
-    result = []
-    for c in contacts:
-        company = session.get(Company, c.company_id) if c.company_id else None
-        result.append({
+    company_names = _company_name_map(session)
+    return [
+        {
             "id": c.id,
             "name": c.name,
             "title": c.title,
-            "company_name": company.name if company else None,
-        })
-    return result
+            "company_name": company_names.get(c.company_id) if c.company_id else None,
+        }
+        for c in contacts
+    ]
 
 
 @router.get("/active")
@@ -45,16 +50,16 @@ def list_active_contacts(session: Session = Depends(get_session)):
         .where(Contact.outreach_status != "none")
         .order_by(Contact.name)
     ).all()
-    result = []
-    for c in contacts:
-        company = session.get(Company, c.company_id) if c.company_id else None
-        result.append({
+    company_names = _company_name_map(session)
+    return [
+        {
             "id": c.id,
             "name": c.name,
             "title": c.title,
-            "company_name": company.name if company else None,
-        })
-    return result
+            "company_name": company_names.get(c.company_id) if c.company_id else None,
+        }
+        for c in contacts
+    ]
 
 
 class QuickAddRequest(BaseModel):
